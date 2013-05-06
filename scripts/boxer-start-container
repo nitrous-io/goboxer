@@ -1,0 +1,12 @@
+#!/bin/bash
+
+[ -n "$DEBUG" ] && set -o xtrace
+set -o nounset
+set -o errexit
+shopt -s nullglob
+
+name=${1}
+ip=${2}
+
+lxc-start -n ${name} -d
+while ! nc -z ${ip} 22 ; do sleep 0.1; done

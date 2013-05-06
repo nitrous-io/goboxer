@@ -1,0 +1,3 @@
+## Setup development environment
+
+go get -v github.com/action-io/goboxer/...

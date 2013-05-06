@@ -1,0 +1,27 @@
+#!/bin/bash -x
+
+[ -n "$DEBUG" ] && set -o xtrace
+set -o nounset
+set -o errexit
+set -x
+shopt -s nullglob
+
+lxc_root='/var/lib/lxc'
+username='action'
+box_name=${1}
+
+box_path=${lxc_root}/${box_name}/rootfs
+env_path=${box_path}/etc/environment
+
+if [ ! -f ${env_path} ]; then
+  touch ${env_path}
+fi
+
+for key_value in "${@:2}"; do
+  # get the key out
+  key=`echo "${key_value}" | cut -d"=" -f 1`
+  # remove existing key
+  sed -i "/${key}=/d" ${env_path}
+  # add new value
+  echo "${key_value}" >> ${env_path}
+done

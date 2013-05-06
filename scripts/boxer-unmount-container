@@ -1,0 +1,23 @@
+#!/bin/bash
+
+[ -n "$DEBUG" ] && set -o xtrace
+set -o nounset
+set -o errexit
+shopt -s nullglob
+
+lxc_root='/var/lib/lxc'
+container_name=${1}
+box_path=${lxc_root}/${container_name}
+quoted_lxc_root='\/var\/lib\/lxc\/'
+
+(
+  flock -x 200
+
+  if [[ `cat /proc/mounts | grep "${box_path}\s\+"` ]]; then
+    xfs_quota -x -c "limit -p bhard=0 ${container_name}" ${lxc_root}
+    sed -i "/:${quoted_lxc_root}${container_name}_delta/d" /etc/projects
+    sed -i "/${container_name}:/d" /etc/projid
+
+    umount ${box_path}
+  fi
+) 200>/var/lock/boxer.unmount_container
