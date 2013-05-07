@@ -1,8 +1,6 @@
 package goboxer
 
 import (
-	"encoding/json"
-	"errors"
 	"github.com/garyburd/redigo/redis"
 )
 
@@ -10,42 +8,29 @@ type ResourcePool struct {
 	Conn redis.Conn
 }
 
-func (rp *ResourcePool) Acquire() (*Resource, error) {
-	var redisResponse interface{}
-	var err error
-	var resource *Resource
+func (rp *ResourcePool) Acquire() (resource *Resource, err error) {
 	var ip string
-	var resourceJSON []byte
-	var ok bool
+	var resourceValues []interface{}
 
-	rp.Conn.Send("BRPOPLPUSH", "aio:available_resources",
-		"aio:used_resources", 1)
-	rp.Conn.Flush()
-	redisResponse, err = rp.Conn.Receive()
-	if err != nil {
-		return nil, errors.New("Could Not Acquire Resources")
+	if ip, err = redis.String(rp.Conn.Do("BRPOPLPUSH", "aio:available_resources",
+		"aio:used_resources", 1)); err != nil {
+		return nil, err
 	}
-	if ip, ok = redisResponse.(string); ok {
-		rp.Conn.Send("HGETALL", "aio:nwr:"+ip)
-		rp.Conn.Flush()
+	if resourceValues, err = redis.Values(rp.Conn.Do("HGETALL",
+		"aio:nwr:"+ip)); err != nil {
+		return nil, err
 	}
-	redisResponse, err = rp.Conn.Receive()
-	if err != nil {
-		return nil, errors.New("Could Not Acquire Resources")
-	}
-	if resourceJSON, ok = redisResponse.([]byte); ok {
-		err = json.Unmarshal(resourceJSON, resource)
-		if err != nil {
-			return nil, errors.New("Could Not Acquire Resources")
-		}
+	resource = &Resource{}
+	if err = redis.ScanStruct(resourceValues, resource); err != nil {
+		return nil, err
 	}
 	return resource, nil
 }
 
-func (rp *ResourcePool) Release() (*Resource, error) {
-	return nil, nil
-}
-
-func NewResourcePool(c redis.Conn) *ResourcePool {
-	return &ResourcePool{Conn: c}
+func (rp *ResourcePool) Release(resource *Resource) (err error) {
+	rp.Conn.Send("MULTI")
+	rp.Conn.Send("LREM", "aio:used_resources", 0, resource.Ip)
+	rp.Conn.Send("RPUSH", "aio:available_resources", resource.Ip)
+	_, err = rp.Conn.Do("EXEC")
+	return err
 }

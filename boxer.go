@@ -32,7 +32,6 @@ func (boxer *Boxer) Create(config *Config, resource *Resource) (*Box, error) {
 	return box, err
 }
 
-// spawn a bash to exec commands
 func runCommand(cmd string, args ...string) error {
 	command := exec.Command(cmd, args...)
 	if output, err := command.CombinedOutput(); err != nil {
