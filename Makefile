@@ -1,4 +1,4 @@
 test:
-	sudo -E go test -v
+	sudo -E go test -v github.com/action-io/goboxer/...
 
 .PHONY: test
