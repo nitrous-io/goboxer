@@ -1,4 +1,4 @@
-package goboxer
+package resource
 
 import (
 	"github.com/bmizerany/assert"

@@ -1,4 +1,4 @@
-package goboxer
+package boxer
 
 import (
 	"fmt"
@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"testing"
@@ -54,5 +55,6 @@ func DoesHavePermissions(t *testing.T, checkPermissions map[string][]int) {
 }
 
 func DestroyTestBox(name, ip string) error {
-	return exec.Command("sudo", "./scripts/boxer-cleanup-tests", name, ip).Run()
+	scriptPath, _ := filepath.Abs("../scripts/boxer-cleanup-tests")
+	return exec.Command("sudo", scriptPath, name, ip).Run()
 }

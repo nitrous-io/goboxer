@@ -2,16 +2,11 @@
 package runtime
 
 import (
-	"fmt"
 	"github.com/bitly/go-simplejson"
 	"github.com/garyburd/redigo/redis"
 )
 
 type Handler func(m *simplejson.Json) (Message, error)
-
-func debug(a ...interface{}) {
-	fmt.Println(a...)
-}
 
 type Runtime struct {
 	BoxerConn redis.Conn

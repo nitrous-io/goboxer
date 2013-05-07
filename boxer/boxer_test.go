@@ -1,6 +1,8 @@
-package goboxer
+package boxer
 
 import (
+	"github.com/action-io/goboxer/box"
+	"github.com/action-io/goboxer/resource"
 	"github.com/bmizerany/assert"
 	"testing"
 )
@@ -15,7 +17,7 @@ func newTestBoxer() *Boxer {
 
 func TestCreate(t *testing.T) {
 	boxer := newTestBoxer()
-	config := &Config{
+	config := &box.Config{
 		Id:          1,
 		Name:        "mclovins-container",
 		Runtime:     "test",
@@ -25,7 +27,7 @@ func TestCreate(t *testing.T) {
 		PublicKeys:  []string{},
 		SnapshotURL: "",
 	}
-	resource := &Resource{
+	resource := &resource.Resource{
 		Ip:               "192.168.254.253",
 		Gateway:          "192.168.254.1",
 		NetworkInterface: "br-lxc-254",

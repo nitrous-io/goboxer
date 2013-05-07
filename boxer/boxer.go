@@ -3,10 +3,14 @@
 // We differentiate from docker in:
 // - using `ResourcePool` to manages available resources i.e ip, open port etc
 // instead of auto-generating them on the fly
-package goboxer
+package boxer
 
 import (
 	"fmt"
+	"github.com/action-io/goboxer"
+	"github.com/action-io/goboxer/box"
+	"github.com/action-io/goboxer/resource"
+	"github.com/action-io/goboxer/utils"
 	"os"
 	"os/exec"
 	"path"
@@ -18,10 +22,9 @@ type Boxer struct {
 	runtimes map[string]string
 }
 
-func (boxer *Boxer) Create(config *Config, resource *Resource) (*Box, error) {
-	var box *Box
+func (boxer *Boxer) Create(config *box.Config, resource *resource.Resource) (*box.Box, error) {
 	var err error
-	box = &Box{Config: config, Resource: resource}
+	box := &box.Box{Config: config, Resource: resource}
 	err = setupContainerDirectory(box)
 	err = mountContainer(box)
 	err = setupQuota(box)
@@ -35,15 +38,15 @@ func (boxer *Boxer) Create(config *Config, resource *Resource) (*Box, error) {
 func runCommand(cmd string, args ...string) error {
 	command := exec.Command(cmd, args...)
 	if output, err := command.CombinedOutput(); err != nil {
-		debug("cmd", command)
-		debug("output", output)
-		debug("error", err)
+		utils.Debug("cmd", command)
+		utils.Debug("output", output)
+		utils.Debug("error", err)
 		return err
 	}
 	return nil
 }
 
-func setupContainerDirectory(box *Box) error {
+func setupContainerDirectory(box *box.Box) error {
 	boxPath := path.Join("/var/lib/lxc", box.ContainerName())
 	boxDeltaPath := path.Join("/var/lib/lxc", box.ContainerName()+"_delta")
 	boxDeltaHomePath := path.Join(boxDeltaPath, "rootfs", "home", "action")
@@ -56,21 +59,21 @@ func setupContainerDirectory(box *Box) error {
 	return nil
 }
 
-func mountContainer(box *Box) error {
+func mountContainer(box *box.Box) error {
 	// TODO: lock this
 	boxDeltaPath := path.Join("/var/lib/lxc", box.ContainerName()+"_delta")
 	boxPath := path.Join("/var/lib/lxc", box.ContainerName())
 	baseContainerPath := path.Join("/var/lib/lxc", "base_container_template")
 
 	// mount overlay
-	if err := MountOverlay(boxPath, boxDeltaPath,
+	if err := goboxer.MountOverlay(boxPath, boxDeltaPath,
 		baseContainerPath); err != nil {
 		return err
 	}
 	return nil
 }
 
-func setupQuota(box *Box) error {
+func setupQuota(box *box.Box) error {
 	boxDeltaPath := path.Join("/var/lib/lxc", box.ContainerName()+"_delta")
 	boxDeltaHomePath := path.Join(boxDeltaPath, "rootfs", "home", "action")
 	// set /etc/projects
@@ -104,13 +107,13 @@ func setupQuota(box *Box) error {
 	return err
 }
 
-func configureContainer(box *Box) error {
+func configureContainer(box *box.Box) error {
 	homeDataPath := path.Join("/var/lib/lxc", box.Template())
 	boxDeltaPath := path.Join("var/lib/lxc", box.ContainerName()+"_delta")
 	boxDeltaHomePath := path.Join(boxDeltaPath, "rootfs", "home", "action")
 
 	// untar the template
-	Untar(homeDataPath, boxDeltaHomePath)
+	goboxer.Untar(homeDataPath, boxDeltaHomePath)
 
 	// set lxc config
 	lxcConfigPath := path.Join("/var/lib/lxc", box.ContainerName(), "config")
@@ -119,7 +122,7 @@ func configureContainer(box *Box) error {
 		return err
 	}
 	defer lxcConfig.Close()
-	if err := LxcTemplateCompiled.Execute(lxcConfig, box); err != nil {
+	if err := goboxer.LxcTemplateCompiled.Execute(lxcConfig, box); err != nil {
 		return err
 	}
 
@@ -141,7 +144,7 @@ func configureContainer(box *Box) error {
 		return err
 	}
 	defer networkConfig.Close()
-	if err := NetworkConfigCompiled.Execute(networkConfig, box); err != nil {
+	if err := goboxer.NetworkConfigCompiled.Execute(networkConfig, box); err != nil {
 		return err
 	}
 
@@ -186,7 +189,7 @@ func configureContainer(box *Box) error {
 	return nil
 }
 
-func setPortForwarding(box *Box) error {
+func setPortForwarding(box *box.Box) error {
 	// TODO: lock this
 	if err := runCommand("iptables", "-t", "nat", "-A", "PREROUTING", "-p", "tcp",
 		"--dport", box.Port(), "-j", "DNAT", "--to",
@@ -196,7 +199,7 @@ func setPortForwarding(box *Box) error {
 	return nil
 }
 
-func setDefaultKeyPair(box *Box) error {
+func setDefaultKeyPair(box *box.Box) error {
 	// chroot and run ssh-keygen
 	sshPath := path.Join(box.RootFS(), "home", "action", ".ssh")
 	sshKeyFile := path.Join(box.RootFS(), box.PrivateKeyPath())
