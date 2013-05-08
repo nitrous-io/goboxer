@@ -39,7 +39,7 @@ func (b *Box) DiskSpace() string {
 }
 
 func (b *Box) Template() string {
-	return b.Config.Template
+	return b.Config.Template + ".tar.gz"
 }
 
 func (b *Box) Hostname() string {

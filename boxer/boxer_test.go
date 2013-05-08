@@ -12,7 +12,7 @@ func newTestBoxer() *Boxer {
 	runtimes := map[string]string{
 		"test": "test_container_template",
 	}
-	return &Boxer{root: "/var/lib/lxc", runtimes: runtimes}
+	return &Boxer{Root: "/var/lib/lxc", Runtimes: runtimes}
 }
 
 func TestCreate(t *testing.T) {
