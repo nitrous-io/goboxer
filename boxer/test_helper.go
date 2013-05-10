@@ -32,7 +32,13 @@ func getUidAndGid(file string) []int {
 
 func DoesExist(t *testing.T, checkExists []string) {
 	for _, file := range checkExists {
-		assert.Equal(t, exists(file), true, "Failed to create "+file)
+		assert.Equal(t, exists(file), true, file+" should exist")
+	}
+}
+
+func DoesNotExist(t *testing.T, checkNotExists []string) {
+	for _, file := range checkNotExists {
+		assert.Equal(t, exists(file), false, file+" should be removed")
 	}
 }
 
@@ -41,7 +47,17 @@ func DoesContain(t *testing.T, checkContainsContent map[string][]string) {
 		file, _ := ioutil.ReadFile(key)
 		fileContent := string(file)
 		for _, i := range value {
-			assert.Equal(t, strings.Contains(fileContent, i), true, key+" does not contain "+i)
+			assert.Equal(t, strings.Contains(fileContent, i), true, key+" should contain "+i)
+		}
+	}
+}
+
+func DoesNotContain(t *testing.T, checkNotContainsContent map[string][]string) {
+	for key, value := range checkNotContainsContent {
+		file, _ := ioutil.ReadFile(key)
+		fileContent := string(file)
+		for _, i := range value {
+			assert.Equal(t, strings.Contains(fileContent, i), false, key+" does not contain "+i)
 		}
 	}
 }
@@ -57,4 +73,9 @@ func DoesHavePermissions(t *testing.T, checkPermissions map[string][]int) {
 func DestroyTestBox(name, ip string) error {
 	scriptPath, _ := filepath.Abs("../scripts/boxer-cleanup-tests")
 	return exec.Command("sudo", scriptPath, name, ip).Run()
+}
+
+func CreateTestBox(id, name, ip, port string) error {
+	scriptPath, _ := filepath.Abs("../scripts/boxer-setup-test-container")
+	return exec.Command("sudo", scriptPath, id, name, ip, port).Run()
 }

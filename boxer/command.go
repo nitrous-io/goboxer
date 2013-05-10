@@ -1,14 +1,17 @@
 package boxer
 
 import (
+	"bufio"
 	"fmt"
 	"github.com/action-io/goboxer"
 	"github.com/action-io/goboxer/box"
 	"github.com/action-io/goboxer/utils"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
 	"strconv"
+	"strings"
 )
 
 func runCommand(cmd string, args ...string) error {
@@ -26,6 +29,26 @@ func runCommand(cmd string, args ...string) error {
 func boxDeltaHomePath(boxer *Boxer, box *box.Box) string {
 	return path.Join(boxer.Root, box.ContainerName()+"_delta", "rootfs",
 		"home", "action")
+}
+
+func deleteLineContain(file, pattern string) error {
+	f, err := os.Open(file)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	reader := bufio.NewReader(f)
+	src := []string{}
+	for {
+		line, err := reader.ReadString('\n')
+		if !strings.Contains(line, pattern) {
+			src = append(src, line)
+		}
+		if err != nil {
+			break
+		}
+	}
+	return ioutil.WriteFile(file, []byte(strings.Join(src, "\n")), 0)
 }
 
 func boxPath(boxer *Boxer, box *box.Box) string {
@@ -81,9 +104,6 @@ func ExtractTemplate(c *BoxCommand) error {
 	homeDataPath := path.Join("/var/lib/lxc", box.Template())
 	return goboxer.Untar(homeDataPath, boxDeltaHomePath)
 }
-func UnextractTemplate(c *BoxCommand) error {
-	return nil
-}
 
 // set /etc/projects
 func SetEtcProjects(c *BoxCommand) error {
@@ -99,9 +119,11 @@ func SetEtcProjects(c *BoxCommand) error {
 	_, err = projectsFile.Write([]byte(projectLine))
 	return err
 }
+
 func UnsetEtcProjects(c *BoxCommand) error {
-	// TODO: implement
-	return nil
+	box := c.Box
+	boxDeltaPath := path.Join("/var/lib/lxc", box.ContainerName()+"_delta")
+	return deleteLineContain("/etc/projects", boxDeltaPath)
 }
 
 // set /etc/projid
@@ -117,7 +139,9 @@ func SetEtcProjid(c *BoxCommand) error {
 	return err
 }
 func UnsetEtcProjid(c *BoxCommand) error {
-	return nil
+	box := c.Box
+	projidLine := box.ContainerName() + ":" + strconv.Itoa(box.Id())
+	return deleteLineContain("/etc/projid", projidLine)
 }
 
 // set xfs_quota
@@ -130,7 +154,11 @@ func SetXfsQuota(c *BoxCommand) error {
 		"/var/lib/lxc")
 	return nil
 }
+
 func UnsetXfsQuota(c *BoxCommand) error {
+	box := c.Box
+	runCommand("xfs_quota", "-x", "-c",
+		"\"limit -p bhard=0 "+box.ContainerName()+"\"", "/var/lib/lxc")
 	return nil
 }
 
@@ -146,9 +174,6 @@ func SetLxcConfig(c *BoxCommand) error {
 	defer lxcConfig.Close()
 	return goboxer.LxcTemplateCompiled.Execute(lxcConfig, box)
 }
-func UnsetLxcConfig(c *BoxCommand) error {
-	return nil
-}
 
 // set hostname
 func SetHostname(c *BoxCommand) error {
@@ -162,9 +187,6 @@ func SetHostname(c *BoxCommand) error {
 	_, err = hostName.Write([]byte(box.Hostname()))
 	return err
 }
-func UnsetHostname(c *BoxCommand) error {
-	return nil
-}
 
 // set network interface
 func SetNetworkConfig(c *BoxCommand) error {
@@ -177,25 +199,16 @@ func SetNetworkConfig(c *BoxCommand) error {
 	defer networkConfig.Close()
 	return goboxer.NetworkConfigCompiled.Execute(networkConfig, box)
 }
-func UnsetNetworkConfig(c *BoxCommand) error {
-	return nil
-}
 
 // set uid
 func SetUserUid(c *BoxCommand) error {
 	box := c.Box
 	return runCommand("chroot", box.RootFS(), "usermod", "-u", box.Uid(), "action")
 }
-func UnsetUserUid(c *BoxCommand) error {
-	return nil
-}
 
 func SetUserGid(c *BoxCommand) error {
 	box := c.Box
 	return runCommand("chroot", box.RootFS(), "groupmod", "-g", box.Gid(), "action")
-}
-func UnsetUserGid(c *BoxCommand) error {
-	return nil
 }
 
 // set gid
@@ -204,9 +217,6 @@ func SetHomePermission(c *BoxCommand) error {
 	permission := fmt.Sprintf("%s:%s", box.Uid(), box.Gid())
 	return runCommand("chroot", box.RootFS(), "chown", "-R", permission,
 		"/home/action")
-}
-func UnsetHomePermission(c *BoxCommand) error {
-	return nil
 }
 
 // create workspace
@@ -220,9 +230,6 @@ func SetWorkspace(c *BoxCommand) error {
 	return runCommand("chroot", box.RootFS(), "chown", "-R", permission,
 		"/home/action/workspace")
 }
-func UnsetWorkspace(c *BoxCommand) error {
-	return nil
-}
 
 // set /etc/action/box_id
 func SetBoxId(c *BoxCommand) error {
@@ -235,6 +242,7 @@ func SetBoxId(c *BoxCommand) error {
 	_, err = boxIdFile.Write([]byte(strconv.Itoa(box.Id())))
 	return err
 }
+
 func UnsetBoxId(c *BoxCommand) error {
 	box := c.Box
 	return os.RemoveAll(box.BoxIdFile())
@@ -277,8 +285,15 @@ func SetDefaultKeyPair(c *BoxCommand) error {
 	return runCommand("chroot", box.RootFS(), "chown", "-R", permission,
 		"/home/action/.ssh")
 }
-func UnsetDefaultKeyPair(c *BoxCommand) error {
-	return nil
+
+// Stop Container
+func StopContainer(c *BoxCommand) error {
+	box := c.Box
+	err := runCommand("lxc-stop", "-n", box.ContainerName())
+	if err != nil {
+		return err
+	}
+	return runCommand("lxc-wait", "-n", box.ContainerName(), "-s", "STOPPED")
 }
 
 // Default functionw when you want to continue over to the next state

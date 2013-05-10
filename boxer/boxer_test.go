@@ -4,6 +4,8 @@ import (
 	"github.com/action-io/goboxer/box"
 	"github.com/action-io/goboxer/resource"
 	"github.com/bmizerany/assert"
+	"os/exec"
+	"strings"
 	"testing"
 )
 
@@ -28,7 +30,7 @@ func TestCreate(t *testing.T) {
 		SnapshotURL: "",
 	}
 	resource := &resource.Resource{
-		Ip:               "192.168.254.253",
+		Ip:               "192.168.254.2",
 		Gateway:          "192.168.254.1",
 		NetworkInterface: "br-lxc-254",
 		Port:             "10000",
@@ -65,10 +67,49 @@ func TestCreate(t *testing.T) {
 	}
 
 	box, _ := boxer.Create(config, resource)
-	defer DestroyTestBox("mclovins-container-1", "192.168.254.253")
+	defer DestroyTestBox("mclovins-container-1", "192.168.254.2")
 	assert.NotEqual(t, box, nil, "Failed to create a box")
 
 	DoesExist(t, checkExists)
 	DoesContain(t, checkContainsContent)
 	DoesHavePermissions(t, checkPermissions)
+}
+
+func TestStop(t *testing.T) {
+	CreateTestBox("1", "mclovins-container", "192.168.254.2", "10002")
+	defer DestroyTestBox("mclovins-container-1", "192.268.254.2")
+
+	boxer := newTestBoxer()
+	config := &box.Config{
+		Id:          1,
+		Name:        "mclovins-container",
+		Runtime:     "test",
+		Template:    "test_container_template",
+		Memory:      "256M",
+		DiskSpace:   "1G",
+		PublicKeys:  []string{},
+		SnapshotURL: "",
+	}
+	resource := &resource.Resource{
+		Ip:               "192.168.254.2",
+		Gateway:          "192.168.254.1",
+		NetworkInterface: "br-lxc-254",
+		Port:             "10002",
+	}
+	box := &box.Box{Config: config, Resource: resource}
+	err := boxer.Stop(box)
+	assert.Equal(t, err, nil, "Stop should succeed")
+
+	stdout, _ := exec.Command("sudo", "lxc-info", "-n", box.ContainerName()).CombinedOutput()
+	assert.Equal(t, strings.Contains(string(stdout), "STOPPED"), true,
+		"box must be stopped")
+
+	DoesNotExist(t, []string{
+		"/var/lib/lxc/mclovins-container-1/rootfs",
+	})
+
+	DoesNotContain(t, map[string][]string{
+		"/etc/projif":   []string{"mclovins-container-1:1"},
+		"/etc/projects": []string{"1:/var/lib/lxc/mclovins-container-1_delta/rootfs/home/action"},
+	})
 }

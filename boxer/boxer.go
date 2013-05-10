@@ -31,7 +31,7 @@ func (boxer *Boxer) Create(config *box.Config, resource *resource.Resource) (*bo
 			State{Advance: SetEtcProjects, Rollback: UnsetEtcProjects},
 			State{Advance: SetEtcProjid, Rollback: UnsetEtcProjid},
 			State{Advance: SetXfsQuota, Rollback: UnsetXfsQuota},
-			State{Advance: SetLxcConfig, Rollback: UnsetLxcConfig},
+			State{Advance: SetLxcConfig, Rollback: Pass},
 			State{Advance: SetHostname, Rollback: Pass},
 			State{Advance: SetNetworkConfig, Rollback: Pass},
 			State{Advance: SetUserUid, Rollback: Pass},
@@ -53,7 +53,21 @@ func (boxer *Boxer) Start(box *box.Box) {
 func (boxer *Boxer) Restart(box *box.Box) {
 }
 
-func (boxer *Boxer) Stop(box *box.Box) {
+func (boxer *Boxer) Stop(box *box.Box) error {
+	stopCommand := &BoxCommand{
+		Name:  "Stop",
+		Boxer: boxer,
+		Box:   box,
+		States: []State{
+			State{Advance: StopContainer, Rollback: Pass},
+			State{Advance: UnsetEtcProjects, Rollback: SetEtcProjects},
+			State{Advance: UnsetEtcProjid, Rollback: SetEtcProjid},
+			State{Advance: UnsetXfsQuota, Rollback: SetXfsQuota},
+			State{Advance: UnmountContainer, Rollback: Pass},
+		},
+	}
+	Advance(stopCommand)
+	return nil
 }
 
 func (boxer *Boxer) Destroy(box *box.Box) {
