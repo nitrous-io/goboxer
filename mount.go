@@ -16,6 +16,15 @@ func MountOverlay(source, delta, target string) (err error) {
 }
 
 func UnmountOverlay(target string) error {
+	mounted, err := Mounted(target)
+	if err != nil {
+		fmt.Println("what, mounted, error", err)
+		return err
+	}
+	if !mounted {
+		fmt.Println("sure not mounted")
+		return nil
+	}
 	if err := syscall.Unmount(target, 0); err != nil {
 		return err
 	}

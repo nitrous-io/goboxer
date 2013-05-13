@@ -48,7 +48,7 @@ func deleteLineContain(file, pattern string) error {
 			break
 		}
 	}
-	return ioutil.WriteFile(file, []byte(strings.Join(src, "\n")), 0)
+	return ioutil.WriteFile(file, []byte(strings.Join(src, "")), 0)
 }
 
 func boxPath(boxer *Boxer, box *box.Box) string {
@@ -294,6 +294,15 @@ func StopContainer(c *BoxCommand) error {
 		return err
 	}
 	return runCommand("lxc-wait", "-n", box.ContainerName(), "-s", "STOPPED")
+}
+
+func StartContainer(c *BoxCommand) error {
+	box := c.Box
+	err := runCommand("lxc-start", "-d", "-n", box.ContainerName())
+	if err != nil {
+		return err
+	}
+	return runCommand("lxc-wait", "-n", box.ContainerName(), "-s", "RUNNING")
 }
 
 // Default functionw when you want to continue over to the next state

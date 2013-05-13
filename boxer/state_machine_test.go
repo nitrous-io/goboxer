@@ -37,6 +37,8 @@ func TestAutoRollback(t *testing.T) {
 	finalState := State{Name: "final", Advance: endAdvanceErr, Rollback: endRollback}
 	m := NewTestCommand()
 	m.States = append(m.States, finalState)
-	Advance(m)
+	err := Advance(m)
+	assert.NotEqual(t, err, nil, "should return failed errors")
+	assert.Equal(t, err.stack[0].Name, "final", "first errors happens at final")
 	assert.Equal(t, m.States[m.CurrentIndex].Name, "start")
 }

@@ -75,7 +75,7 @@ func DestroyTestBox(name, ip string) error {
 	return exec.Command("sudo", scriptPath, name, ip).Run()
 }
 
-func CreateTestBox(id, name, ip, port string) error {
+func CreateTestBox(args ...string) error {
 	scriptPath, _ := filepath.Abs("../scripts/boxer-setup-test-container")
-	return exec.Command("sudo", scriptPath, id, name, ip, port).Run()
+	return exec.Command(scriptPath, args...).Run()
 }

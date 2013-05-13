@@ -32,10 +32,10 @@ if [ -d ${box_path} ]; then
     sed -i "/${name}:/d" /etc/projid
   fi
 
-  echo 'Deleting all remnants of the container'
-  rm -rf ${box_path}
-  rm -rf ${box_delta_path}
-
   echo 'Flushing IPTables'
   iptables -t nat -F
 fi
+
+echo 'Deleting all remnants of the container'
+rm -rf ${box_path}
+rm -rf ${box_delta_path}

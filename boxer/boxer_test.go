@@ -109,7 +109,93 @@ func TestStop(t *testing.T) {
 	})
 
 	DoesNotContain(t, map[string][]string{
-		"/etc/projif":   []string{"mclovins-container-1:1"},
+		"/etc/projid":   []string{"mclovins-container-1:1"},
 		"/etc/projects": []string{"1:/var/lib/lxc/mclovins-container-1_delta/rootfs/home/action"},
 	})
+}
+
+func TestStart(t *testing.T) {
+	CreateTestBox("1", "mclovins-container", "192.168.254.2", "10002",
+		"dont-start")
+	defer DestroyTestBox("mclovins-container-1", "192.268.254.2")
+
+	boxer := newTestBoxer()
+	config := &box.Config{
+		Id:          1,
+		Name:        "mclovins-container",
+		Runtime:     "test",
+		Template:    "test_container_template",
+		Memory:      "256M",
+		DiskSpace:   "1G",
+		PublicKeys:  []string{},
+		SnapshotURL: "",
+	}
+	resource := &resource.Resource{
+		Ip:               "192.168.254.2",
+		Gateway:          "192.168.254.1",
+		NetworkInterface: "br-lxc-254",
+		Port:             "10002",
+	}
+	box := &box.Box{Config: config, Resource: resource}
+	err := boxer.Start(box)
+	assert.Equal(t, err, nil, "Start should succeed")
+
+	stdout, _ := exec.Command("sudo", "lxc-info", "-n", box.ContainerName()).CombinedOutput()
+	assert.Equal(t, strings.Contains(string(stdout), "RUNNING"), true,
+		"box must be running")
+
+	DoesExist(t, []string{
+		"/var/lib/lxc/mclovins-container-1/rootfs",
+	})
+
+	DoesContain(t, map[string][]string{
+		"/etc/projid":   []string{"mclovins-container-1:1"},
+		"/etc/projects": []string{"1:/var/lib/lxc/mclovins-container-1_delta/rootfs/home/action"},
+	})
+}
+
+func PendingTestDestroy(t *testing.T) {
+	CreateTestBox("1", "mclovins-container", "192.168.254.2", "10002")
+	defer DestroyTestBox("mclovins-container-1", "192.268.254.2")
+
+	boxer := newTestBoxer()
+	config := &box.Config{
+		Id:          1,
+		Name:        "mclovins-container",
+		Runtime:     "test",
+		Template:    "test_container_template",
+		Memory:      "256M",
+		DiskSpace:   "1G",
+		PublicKeys:  []string{},
+		SnapshotURL: "",
+	}
+	resource := &resource.Resource{
+		Ip:               "192.168.254.2",
+		Gateway:          "192.168.254.1",
+		NetworkInterface: "br-lxc-254",
+		Port:             "10002",
+	}
+	box := &box.Box{Config: config, Resource: resource}
+	err := boxer.Stop(box)
+	assert.Equal(t, err, nil, "Stop should succeed")
+	err = boxer.Destroy(box)
+	assert.Equal(t, err, nil, "Destroy should succeed")
+
+	stdout, _ := exec.Command("sudo", "lxc-info", "-n", box.ContainerName()).CombinedOutput()
+	assert.Equal(t, strings.Contains(string(stdout), "STOPPED"), true,
+		"box must be stopped")
+
+	DoesNotExist(t, []string{
+		"/var/lib/lxc/mclovins-container-1",
+		"/var/lib/lxc/mclovins-container-1_delta",
+	})
+
+	DoesNotContain(t, map[string][]string{
+		"/etc/projid":   []string{"mclovins-container-1:1"},
+		"/etc/projects": []string{"1:/var/lib/lxc/mclovins-container-1_delta/rootfs/home/action"},
+	})
+
+	output, err := exec.Command("iptables", "-L", "-t", "nat").Output()
+	assert.Equal(t, strings.Contains(string(output), "192.168.254.254:22"), false,
+		"iptables entry must be destroyed")
 }

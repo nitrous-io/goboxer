@@ -47,7 +47,18 @@ func (boxer *Boxer) Create(config *box.Config, resource *resource.Resource) (*bo
 	return box, nil
 }
 
-func (boxer *Boxer) Start(box *box.Box) {
+func (boxer *Boxer) Start(box *box.Box) error {
+	startCommand := &BoxCommand{
+		Name:  "Start",
+		Boxer: boxer,
+		Box:   box,
+		States: []State{
+			State{Advance: MountContainer, Rollback: UnmountContainer},
+			State{Advance: StartContainer, Rollback: StopContainer},
+		},
+	}
+	Advance(startCommand)
+	return nil
 }
 
 func (boxer *Boxer) Restart(box *box.Box) {
@@ -70,5 +81,33 @@ func (boxer *Boxer) Stop(box *box.Box) error {
 	return nil
 }
 
-func (boxer *Boxer) Destroy(box *box.Box) {
+// TODO: maybe fix rollback so we can take create command and roll it back from
+// the end ( not start ) without creating another destroy command
+func (boxer *Boxer) Destroy(box *box.Box) error {
+	destroyCommand := &BoxCommand{
+		Name:  "Destroy",
+		Boxer: boxer,
+		Box:   box,
+		States: []State{
+			State{Advance: Pass, Rollback: SetDefaultKeyPair},
+			State{Advance: UnsetPortForwarding, Rollback: SetPortForwarding},
+			State{Advance: UnsetBoxId, Rollback: SetBoxId},
+			State{Advance: Pass, Rollback: SetWorkspace},
+			State{Advance: Pass, Rollback: SetHomePermission},
+			State{Advance: Pass, Rollback: SetUserGid},
+			State{Advance: Pass, Rollback: SetUserUid},
+			State{Advance: Pass, Rollback: SetNetworkConfig},
+			State{Advance: Pass, Rollback: SetHostname},
+			State{Advance: Pass, Rollback: SetLxcConfig},
+			State{Advance: UnsetXfsQuota, Rollback: SetXfsQuota},
+			State{Advance: UnsetEtcProjid, Rollback: SetEtcProjid},
+			State{Advance: UnsetEtcProjects, Rollback: SetEtcProjects},
+			State{Advance: Pass, Rollback: ExtractTemplate},
+			State{Advance: UnmountContainer, Rollback: MountContainer},
+			State{Advance: DestroyContainerDeltaPath, Rollback: CreateContainerDeltaPath},
+			State{Advance: DestroyContainerPath, Rollback: CreateContainerPath},
+		},
+	}
+	Advance(destroyCommand)
+	return nil
 }
