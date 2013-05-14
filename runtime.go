@@ -1,18 +1,18 @@
 // Handle messages that goes in/out of boxer via redis channel
-package runtime
+package goboxer
 
 import (
 	"github.com/bitly/go-simplejson"
 	"github.com/garyburd/redigo/redis"
 )
 
-type Handler func(m *simplejson.Json) (Message, error)
+type MessageHandler func(m *simplejson.Json) (Message, error)
 
 type Runtime struct {
 	BoxerConn redis.Conn
 	CoachConn redis.Conn
 	BoxerPSC  redis.PubSubConn
-	Handles   map[string]Handler
+	Handles   map[string]MessageHandler
 }
 
 // TODO: refactor aio-boxer-channel and aio-coach-channel out

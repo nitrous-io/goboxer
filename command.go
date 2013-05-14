@@ -1,11 +1,8 @@
-package boxer
+package goboxer
 
 import (
 	"bufio"
 	"fmt"
-	"github.com/action-io/goboxer"
-	"github.com/action-io/goboxer/box"
-	"github.com/action-io/goboxer/utils"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -17,16 +14,16 @@ import (
 func runCommand(cmd string, args ...string) error {
 	command := exec.Command(cmd, args...)
 	if output, err := command.CombinedOutput(); err != nil {
-		utils.Debug("cmd", command)
-		utils.Debug("output", output)
-		utils.Debug("error", err)
+		Debug("cmd", command)
+		Debug("output", output)
+		Debug("error", err)
 		return err
 	}
 	return nil
 }
 
 // Create delta for a box
-func boxDeltaHomePath(boxer *Boxer, box *box.Box) string {
+func boxDeltaHomePath(boxer *Boxer, box *Box) string {
 	return path.Join(boxer.Root, box.ContainerName()+"_delta", "rootfs",
 		"home", "action")
 }
@@ -51,7 +48,7 @@ func deleteLineContain(file, pattern string) error {
 	return ioutil.WriteFile(file, []byte(strings.Join(src, "")), 0)
 }
 
-func boxPath(boxer *Boxer, box *box.Box) string {
+func boxPath(boxer *Boxer, box *Box) string {
 	return path.Join(boxer.Root, box.ContainerName())
 }
 
@@ -86,14 +83,14 @@ func MountContainer(c *BoxCommand) error {
 	boxDeltaPath := path.Join(boxer.Root, box.ContainerName()+"_delta")
 	boxPath := path.Join(boxer.Root, box.ContainerName())
 	baseContainerPath := path.Join(boxer.Root, "base_container_template")
-	return goboxer.MountOverlay(boxPath, boxDeltaPath, baseContainerPath)
+	return MountOverlay(boxPath, boxDeltaPath, baseContainerPath)
 }
 
 func UnmountContainer(c *BoxCommand) error {
 	boxer := c.Boxer
 	box := c.Box
 	boxPath := path.Join(boxer.Root, box.ContainerName())
-	return goboxer.UnmountOverlay(boxPath)
+	return UnmountOverlay(boxPath)
 }
 
 // untar the template
@@ -102,7 +99,7 @@ func ExtractTemplate(c *BoxCommand) error {
 	boxDeltaPath := path.Join("var/lib/lxc", box.ContainerName()+"_delta")
 	boxDeltaHomePath := path.Join(boxDeltaPath, "rootfs", "home", "action")
 	homeDataPath := path.Join("/var/lib/lxc", box.Template())
-	return goboxer.Untar(homeDataPath, boxDeltaHomePath)
+	return Untar(homeDataPath, boxDeltaHomePath)
 }
 
 // set /etc/projects
@@ -172,7 +169,7 @@ func SetLxcConfig(c *BoxCommand) error {
 		return err
 	}
 	defer lxcConfig.Close()
-	return goboxer.LxcTemplateCompiled.Execute(lxcConfig, box)
+	return LxcTemplateCompiled.Execute(lxcConfig, box)
 }
 
 // set hostname
@@ -197,7 +194,7 @@ func SetNetworkConfig(c *BoxCommand) error {
 		return err
 	}
 	defer networkConfig.Close()
-	return goboxer.NetworkConfigCompiled.Execute(networkConfig, box)
+	return NetworkConfigCompiled.Execute(networkConfig, box)
 }
 
 // set uid
@@ -244,8 +241,7 @@ func SetBoxId(c *BoxCommand) error {
 }
 
 func UnsetBoxId(c *BoxCommand) error {
-	box := c.Box
-	return os.RemoveAll(box.BoxIdFile())
+	return os.RemoveAll(c.Box.BoxIdFile())
 }
 
 // setup port forwarding

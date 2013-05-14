@@ -1,49 +1,40 @@
 package goboxer
 
 import (
+	. "launchpad.net/gocheck"
 	"os"
 	"path/filepath"
-	"testing"
 )
 
-func setUp() (source, delta, target string) {
-	source, _ = filepath.Abs("/tmp/test2")
-	delta, _ = filepath.Abs("/tmp/test2_delta")
-	target, _ = filepath.Abs("/tmp/test1")
-	_ = os.MkdirAll(source, 0755)
-	_ = os.MkdirAll(delta, 0755)
-	_ = os.MkdirAll(target, 0755)
-	return source, delta, target
+type MountSuite struct {
+	source string
+	delta  string
+	target string
 }
 
-func tearDown(source, delta, target string) {
-	os.RemoveAll(source)
-	os.RemoveAll(delta)
-	os.RemoveAll(target)
+var _ = Suite(&MountSuite{})
+
+func (s *MountSuite) SetUpTest(c *C) {
+	s.source, _ = filepath.Abs("/tmp/test_source")
+	s.delta, _ = filepath.Abs("/tmp/test_source_delta")
+	s.target, _ = filepath.Abs("/tmp/test_target")
+	os.MkdirAll(s.source, 0755)
+	os.MkdirAll(s.delta, 0755)
+	os.MkdirAll(s.target, 0755)
 }
 
-func TestMount(t *testing.T) {
-	source, delta, target := setUp()
-	defer tearDown(source, delta, target)
+func (s *MountSuite) TearDownTest(c *C) {
+	os.RemoveAll(s.source)
+	os.RemoveAll(s.delta)
+	os.RemoveAll(s.target)
+}
 
-	var err error
-	var mounted bool
+func (s *MountSuite) TestMount(c *C) {
+	MountOverlay(s.source, s.delta, s.target)
+	mounted, _ := Mounted(s.source)
+	c.Assert(mounted, Equals, true, Commentf("Endpoint %s is not mounted", s.source))
 
-	err = MountOverlay(source, delta, target)
-	if err != nil {
-		t.Errorf("Failed to overlay %s over %s", source, target)
-	}
-	mounted, err = Mounted(source)
-	if err != nil || !mounted {
-		t.Errorf("Endpoint %s is not mounted", source)
-	}
-
-	UnmountOverlay(source)
-	mounted, err = Mounted(source)
-	if err != nil {
-		t.Errorf("Failed to check mounted status of %s", source)
-	}
-	if mounted {
-		t.Errorf("Failed to unmount %s", source)
-	}
+	UnmountOverlay(s.source)
+	mounted, _ = Mounted(s.source)
+	c.Assert(mounted, Equals, false, Commentf("Endpoint %s is mounted", s.source))
 }

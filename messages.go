@@ -1,6 +1,6 @@
 // contain definition of all messages that handle communication between boxer
 // and coach
-package runtime
+package goboxer
 
 import (
 	"encoding/json"

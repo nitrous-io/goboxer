@@ -1,0 +1,13 @@
+#!/bin/bash
+
+[ -n "$DEBUG" ] && set -o xtrace
+set -o errexit
+shopt -s nullglob
+
+spec=${1}
+
+if [ -z "${spec}" ]; then
+  sudo -E go test -gocheck.v
+else
+  sudo -E go test -gocheck.f ${spec}
+fi

@@ -1,8 +1,6 @@
 package goboxer
 
 import (
-	"fmt"
-	"github.com/bmizerany/assert"
 	"io/ioutil"
 	. "launchpad.net/gocheck"
 	"os"
@@ -34,52 +32,56 @@ func getUidAndGid(file string) []int {
 	}
 }
 
-func DoesExist(t *testing.T, checkExists []string) {
+func DoesExist(c *C, checkExists []string) {
 	for _, file := range checkExists {
-		assert.Equal(t, exists(file), true, file+" should exist")
+		c.Assert(exists(file), Equals, true, Commentf("%s should exist", file))
 	}
 }
 
-func DoesNotExist(t *testing.T, checkNotExists []string) {
+func DoesNotExist(c *C, checkNotExists []string) {
 	for _, file := range checkNotExists {
-		assert.Equal(t, exists(file), false, file+" should be removed")
+		c.Assert(exists(file), Equals, false, Commentf("%s should not exist", file))
 	}
 }
 
-func DoesContain(t *testing.T, checkContainsContent map[string][]string) {
+func DoesContain(c *C, checkContainsContent map[string][]string) {
 	for key, value := range checkContainsContent {
 		file, _ := ioutil.ReadFile(key)
 		fileContent := string(file)
 		for _, i := range value {
-			assert.Equal(t, strings.Contains(fileContent, i), true, key+" should contain "+i)
+			c.Assert(strings.Contains(fileContent, i), Equals, true,
+				Commentf("%s should contain %s", key, i))
 		}
 	}
 }
 
-func DoesNotContain(t *testing.T, checkNotContainsContent map[string][]string) {
+func DoesNotContain(c *C, checkNotContainsContent map[string][]string) {
 	for key, value := range checkNotContainsContent {
 		file, _ := ioutil.ReadFile(key)
 		fileContent := string(file)
 		for _, i := range value {
-			assert.Equal(t, strings.Contains(fileContent, i), false, key+" does not contain "+i)
+			c.Assert(strings.Contains(fileContent, i), Equals, false,
+				Commentf("%s should not contain %s", key, i))
 		}
 	}
 }
 
-func DoesHavePermissions(t *testing.T, checkPermissions map[string][]int) {
+func DoesHavePermissions(c *C, checkPermissions map[string][]int) {
 	for key, value := range checkPermissions {
 		uidAndGid := getUidAndGid(key)
-		assert.Equal(t, uidAndGid[0], value[0], fmt.Sprintf("Uid mismatched: %d", key))
-		assert.Equal(t, uidAndGid[1], value[1], fmt.Sprintf("Gid mismatched: %d", key))
+		c.Assert(uidAndGid[0], Equals, value[0], Commentf("Uid mismatched: %d", key))
+		c.Assert(uidAndGid[1], Equals, value[1], Commentf("Gid mismatched: %d", key))
 	}
 }
 
 func DestroyTestBox(name, ip string) error {
-	scriptPath, _ := filepath.Abs("../scripts/boxer-cleanup-tests")
-	return exec.Command("sudo", scriptPath, name, ip).Run()
+	scriptPath, _ := filepath.Abs("./scripts/boxer-cleanup-tests")
+	_, err := exec.Command("sudo", scriptPath, name, ip).CombinedOutput()
+	return err
 }
 
 func CreateTestBox(args ...string) error {
-	scriptPath, _ := filepath.Abs("../scripts/boxer-setup-test-container")
-	return exec.Command(scriptPath, args...).Run()
+	scriptPath, _ := filepath.Abs("./scripts/boxer-setup-test-container")
+	_, err := exec.Command(scriptPath, args...).CombinedOutput()
+	return err
 }

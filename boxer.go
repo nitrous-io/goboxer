@@ -3,20 +3,15 @@
 // We differentiate from docker in:
 // - using `ResourcePool` to manages available resources i.e ip, open port etc
 // instead of auto-generating them on the fly
-package boxer
-
-import (
-	"github.com/action-io/goboxer/box"
-	"github.com/action-io/goboxer/resource"
-)
+package goboxer
 
 type Boxer struct {
 	Root     string
 	Runtimes map[string]string
 }
 
-func (boxer *Boxer) Create(config *box.Config, resource *resource.Resource) (*box.Box, error) {
-	box := &box.Box{Config: config, Resource: resource}
+func (boxer *Boxer) Create(config *Config, resource *Resource) (*Box, error) {
+	box := &Box{Config: config, Resource: resource}
 
 	createCommand := &BoxCommand{
 		Name:         "Create",
@@ -43,11 +38,11 @@ func (boxer *Boxer) Create(config *box.Config, resource *resource.Resource) (*bo
 			State{Advance: SetDefaultKeyPair, Rollback: Pass},
 		},
 	}
-	Advance(createCommand)
-	return box, nil
+	err := Advance(createCommand)
+	return box, err
 }
 
-func (boxer *Boxer) Start(box *box.Box) error {
+func (boxer *Boxer) Start(box *Box) error {
 	startCommand := &BoxCommand{
 		Name:  "Start",
 		Boxer: boxer,
@@ -57,14 +52,13 @@ func (boxer *Boxer) Start(box *box.Box) error {
 			State{Advance: StartContainer, Rollback: StopContainer},
 		},
 	}
-	Advance(startCommand)
-	return nil
+	return Advance(startCommand)
 }
 
-func (boxer *Boxer) Restart(box *box.Box) {
+func (boxer *Boxer) Restart(box *Box) {
 }
 
-func (boxer *Boxer) Stop(box *box.Box) error {
+func (boxer *Boxer) Stop(box *Box) error {
 	stopCommand := &BoxCommand{
 		Name:  "Stop",
 		Boxer: boxer,
@@ -77,13 +71,12 @@ func (boxer *Boxer) Stop(box *box.Box) error {
 			State{Advance: UnmountContainer, Rollback: Pass},
 		},
 	}
-	Advance(stopCommand)
-	return nil
+	return Advance(stopCommand)
 }
 
 // TODO: maybe fix rollback so we can take create command and roll it back from
 // the end ( not start ) without creating another destroy command
-func (boxer *Boxer) Destroy(box *box.Box) error {
+func (boxer *Boxer) Destroy(box *Box) error {
 	destroyCommand := &BoxCommand{
 		Name:  "Destroy",
 		Boxer: boxer,

@@ -1,6 +1,7 @@
 package goboxer
 
 import (
+	"fmt"
 	"time"
 )
 
@@ -31,8 +32,8 @@ type StateError struct {
 	Detail error
 }
 
-func (c *StateError) Error() string {
-	return "state error"
+func (e *StateError) Error() string {
+	return fmt.Sprintf("State Error: %v - %v - %v", e.Name, e.When, e.Detail)
 }
 
 func NewStateError(name string, err error) StateError {
@@ -44,8 +45,8 @@ type CommandError struct {
 	RollbackStack []StateError
 }
 
-func (c *CommandError) Error() string {
-	return "what an error"
+func (e *CommandError) Error() string {
+	return fmt.Sprintf("CommandError: %v-%v", e.AdvanceStack, e.RollbackStack)
 }
 
 func advanceState(command *BoxCommand, errStack *CommandError) {

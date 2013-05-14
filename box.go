@@ -1,8 +1,7 @@
-package box
+package goboxer
 
 import (
 	"fmt"
-	"github.com/action-io/goboxer/resource"
 	"path"
 	"strconv"
 	"strings"
@@ -12,7 +11,7 @@ const UidStart = 15000
 
 type Box struct {
 	Config   *Config
-	Resource *resource.Resource
+	Resource *Resource
 }
 
 type Config struct {
