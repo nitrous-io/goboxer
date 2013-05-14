@@ -1,21 +1,20 @@
-package resource
+package goboxer
 
 import (
-	"testing"
+	. "launchpad.net/gocheck"
 )
 
-func TestToJSON(t *testing.T) {
+type ResourceTestSuite struct{}
+
+var _ = Suite(&ResourceTestSuite{})
+
+func (s *ResourceTestSuite) TestToJSON(c *C) {
 	resource := &Resource{
 		Ip:               "192.168.0.253",
 		Gateway:          "192.168.0.1",
 		NetworkInterface: "br-lxc-254",
 		Port:             "10085"}
-	rjson, err := resource.ToJSON()
-	if err != nil {
-		t.Error("Failed to convert to json", err)
-	}
+	rjson, _ := resource.ToJSON()
 	expected := "{\"ip\":\"192.168.0.253\",\"gateway\":\"192.168.0.1\",\"interface\":\"br-lxc-254\",\"port\":\"10085\"}"
-	if rjson != expected {
-		t.Error("Expected ", expected, "got ", rjson)
-	}
+	c.Assert(rjson, Equals, expected)
 }

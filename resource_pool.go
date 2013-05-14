@@ -1,4 +1,4 @@
-package resource
+package goboxer
 
 import (
 	"github.com/garyburd/redigo/redis"
