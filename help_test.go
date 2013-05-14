@@ -1,9 +1,10 @@
-package boxer
+package goboxer
 
 import (
 	"fmt"
 	"github.com/bmizerany/assert"
 	"io/ioutil"
+	. "launchpad.net/gocheck"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,6 +12,9 @@ import (
 	"syscall"
 	"testing"
 )
+
+// hook up gocheck into go test runner
+func Test(t *testing.T) { TestingT(t) }
 
 // exists returns whether the given file or directory exists or not
 // mainly useful for testing, so we ignore the error here
