@@ -18,10 +18,7 @@ func Test(t *testing.T) { TestingT(t) }
 // mainly useful for testing, so we ignore the error here
 func exists(path string) bool {
 	_, err := os.Stat(path)
-	if os.IsNotExist(err) || err == nil {
-		return false
-	}
-	return true
+	return !os.IsNotExist(err)
 }
 
 func getUidAndGid(file string) []int {

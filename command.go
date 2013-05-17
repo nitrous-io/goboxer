@@ -74,7 +74,7 @@ func CreateContainerDeltaPath(c *BoxCommand) error {
 func DestroyContainerDeltaPath(c *BoxCommand) error {
 	boxer := c.Boxer
 	box := c.Box
-	target := boxDeltaHomePath(boxer, box)
+	target := path.Join(boxer.Root, box.ContainerName()+"_delta")
 	for retries := 0; retries < 1000; retries++ {
 		err := os.RemoveAll(target)
 		if err == nil {

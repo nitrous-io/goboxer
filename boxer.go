@@ -55,7 +55,17 @@ func (boxer *Boxer) Start(box *Box) error {
 	return Advance(startCommand)
 }
 
-func (boxer *Boxer) Restart(box *Box) {
+func (boxer *Boxer) Restart(box *Box) error {
+	restartCommand := &BoxCommand{
+		Name:  "Restart",
+		Boxer: boxer,
+		Box:   box,
+		States: []State{
+			State{Advance: StopContainer, Rollback: Pass},
+			State{Advance: StartContainer, Rollback: Pass},
+		},
+	}
+	return Advance(restartCommand)
 }
 
 func (boxer *Boxer) Stop(box *Box) error {
@@ -74,8 +84,6 @@ func (boxer *Boxer) Stop(box *Box) error {
 	return Advance(stopCommand)
 }
 
-// TODO: maybe fix rollback so we can take create command and roll it back from
-// the end ( not start ) without creating another destroy command
 func (boxer *Boxer) Destroy(box *Box) error {
 	states := []State{
 		State{Advance: Pass, Rollback: SetDefaultKeyPair},
