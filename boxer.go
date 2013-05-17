@@ -77,30 +77,40 @@ func (boxer *Boxer) Stop(box *Box) error {
 // TODO: maybe fix rollback so we can take create command and roll it back from
 // the end ( not start ) without creating another destroy command
 func (boxer *Boxer) Destroy(box *Box) error {
-	destroyCommand := &BoxCommand{
-		Name:  "Destroy",
-		Boxer: boxer,
-		Box:   box,
-		States: []State{
-			State{Advance: Pass, Rollback: SetDefaultKeyPair},
-			State{Advance: UnsetPortForwarding, Rollback: SetPortForwarding},
-			State{Advance: UnsetBoxId, Rollback: SetBoxId},
-			State{Advance: Pass, Rollback: SetWorkspace},
-			State{Advance: Pass, Rollback: SetHomePermission},
-			State{Advance: Pass, Rollback: SetUserGid},
-			State{Advance: Pass, Rollback: SetUserUid},
-			State{Advance: Pass, Rollback: SetNetworkConfig},
-			State{Advance: Pass, Rollback: SetHostname},
-			State{Advance: Pass, Rollback: SetLxcConfig},
+	states := []State{
+		State{Advance: Pass, Rollback: SetDefaultKeyPair},
+		State{Advance: UnsetPortForwarding, Rollback: SetPortForwarding},
+		State{Advance: UnsetBoxId, Rollback: SetBoxId},
+		State{Advance: Pass, Rollback: SetWorkspace},
+		State{Advance: Pass, Rollback: SetHomePermission},
+		State{Advance: Pass, Rollback: SetUserGid},
+		State{Advance: Pass, Rollback: SetUserUid},
+		State{Advance: Pass, Rollback: SetNetworkConfig},
+		State{Advance: Pass, Rollback: SetHostname},
+		State{Advance: Pass, Rollback: SetLxcConfig},
+		State{Advance: Pass, Rollback: ExtractTemplate},
+	}
+
+	boxMounted, _ := Mounted(boxPath(boxer, box))
+	if boxMounted {
+		states = append(states,
 			State{Advance: UnsetXfsQuota, Rollback: SetXfsQuota},
 			State{Advance: UnsetEtcProjid, Rollback: SetEtcProjid},
 			State{Advance: UnsetEtcProjects, Rollback: SetEtcProjects},
-			State{Advance: Pass, Rollback: ExtractTemplate},
 			State{Advance: UnmountContainer, Rollback: MountContainer},
-			State{Advance: DestroyContainerDeltaPath, Rollback: CreateContainerDeltaPath},
-			State{Advance: DestroyContainerPath, Rollback: CreateContainerPath},
-		},
+		)
 	}
-	Advance(destroyCommand)
-	return nil
+
+	states = append(states,
+		State{Advance: DestroyContainerDeltaPath, Rollback: CreateContainerDeltaPath},
+		State{Advance: DestroyContainerPath, Rollback: CreateContainerPath},
+	)
+
+	destroyCommand := &BoxCommand{
+		Name:   "Destroy",
+		Boxer:  boxer,
+		Box:    box,
+		States: states,
+	}
+	return Advance(destroyCommand)
 }

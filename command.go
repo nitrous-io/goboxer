@@ -9,6 +9,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func runCommand(cmd string, args ...string) error {
@@ -73,7 +74,20 @@ func CreateContainerDeltaPath(c *BoxCommand) error {
 func DestroyContainerDeltaPath(c *BoxCommand) error {
 	boxer := c.Boxer
 	box := c.Box
-	return os.RemoveAll(boxDeltaHomePath(boxer, box))
+	target := boxDeltaHomePath(boxer, box)
+	for retries := 0; retries < 1000; retries++ {
+		err := os.RemoveAll(target)
+		if err == nil {
+			// rm mntpoint succeeded
+			return nil
+		}
+		if os.IsNotExist(err) {
+			// mntpoint doesn't exist anymore. Success.
+			return nil
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	return fmt.Errorf("Failed to remove % v", target)
 }
 
 // mount the container
