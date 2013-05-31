@@ -1,0 +1,9 @@
+{
+  "id": "test-go.action.io",
+  "boxerChannel": "aio-boxer-channel",
+  "coachChannel": "aio-coach-channel",
+  "redisMQHost": "127.0.0.1",
+  "redisMQPort": "6379",
+  "redisStoreHost": "127.0.0.1",
+  "redisStorePort": "6379"
+}
