@@ -13,11 +13,9 @@ func MountOverlay(source, delta, target string) (err error) {
 	mountOptions := "rw,upperdir=" + delta + ",lowerdir=" + target
 	mounted, err := Mounted(target)
 	if err != nil {
-		Debug("err", err)
 		return err
 	}
 	if mounted {
-		Debug("mounted")
 		return nil
 	}
 	return exec.Command("mount", "-n", "-t", "overlayfs", "-o", mountOptions,

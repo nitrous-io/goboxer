@@ -12,22 +12,26 @@ import (
 	"time"
 )
 
-const VERSION = "0.0.1"
+const VERSION = "0.0.2"
 const ADVERTISE_INTERVAL = 5001
 
-var runtimes map[string]string
+var runtimes []string
 var handlers map[string]goboxer.MessageHandler
 
 func init() {
-	runtimes = map[string]string{
-		"rails":  "rails-template",
-		"nodejs": "nodejs-template",
-		"python": "python-template",
-		"go":     "golang-template",
+	runtimes = []string{
+		"rails",
+		"nodejs",
+		"django",
+		"golang",
 	}
 	handlers = map[string]goboxer.MessageHandler{
-		"aio:locate": goboxer.LocateBoxHandler,
-		"aio:create": goboxer.CreateBoxHandler,
+		"aio:locate":  goboxer.LocateBoxHandler,
+		"aio:create":  goboxer.CreateBoxHandler,
+		"aio:start":   goboxer.StartBoxHandler,
+		"aio:stop":    goboxer.StopBoxHandler,
+		"aio:restart": goboxer.RestartBoxHandler,
+		"aio:destroy": goboxer.DestroyBoxHandler,
 	}
 }
 
@@ -43,6 +47,10 @@ type Config struct {
 
 func (c Config) RedisMQAddr() string {
 	return c.RedisMQHost + ":" + c.RedisMQPort
+}
+
+func (c Config) RedisStoreAddr() string {
+	return c.RedisStoreHost + ":" + c.RedisStorePort
 }
 
 // reads a json config file and returns back `Config` instance
@@ -92,16 +100,24 @@ func main() {
 		panic("Cannot connect to redis: " + config.RedisMQAddr())
 		os.Exit(1)
 	}
-
-	boxer := goboxer.Boxer{Root: "/var/lib/lxc", Runtimes: runtimes}
-
-	boxerRuntime := goboxer.Runtime{
-		Id:      config.Id,
-		Boxer:   boxer,
-		Handles: handlers,
+	storeConn, err := redis.Dial("tcp", config.RedisStoreAddr())
+	if err != nil {
+		panic("Cannot connect to redis: " + config.RedisMQAddr())
+		os.Exit(1)
 	}
 
-	coachListener := goboxer.CoachListener{
+	boxer := &goboxer.Boxer{Root: "/var/lib/lxc", Runtimes: runtimes}
+
+	resourcePool := &goboxer.ResourcePool{Conn: storeConn}
+
+	boxerRuntime := &goboxer.Runtime{
+		Id:           config.Id,
+		Boxer:        boxer,
+		Handles:      handlers,
+		ResourcePool: resourcePool,
+	}
+
+	coachListener := &goboxer.CoachListener{
 		Runtime:      boxerRuntime,
 		BoxerConn:    boxerConn,
 		CoachConn:    coachConn,
@@ -114,8 +130,7 @@ func main() {
 
 	ticker := time.NewTicker(time.Millisecond * ADVERTISE_INTERVAL)
 	go func() {
-		for t := range ticker.C {
-			fmt.Println("Advertise itself to Coach at", t)
+		for _ = range ticker.C {
 			coachListener.Advertise()
 		}
 	}()

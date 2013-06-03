@@ -7,12 +7,10 @@ package goboxer
 
 type Boxer struct {
 	Root     string
-	Runtimes map[string]string
+	Runtimes []string
 }
 
-func (boxer *Boxer) Create(config *Config, resource *Resource) (*Box, error) {
-	box := &Box{Config: config, Resource: resource}
-
+func (boxer *Boxer) Create(box *Box) error {
 	createCommand := &BoxCommand{
 		Name:         "Create",
 		Boxer:        boxer,
@@ -38,8 +36,7 @@ func (boxer *Boxer) Create(config *Config, resource *Resource) (*Box, error) {
 			State{Advance: SetDefaultKeyPair, Rollback: Pass},
 		},
 	}
-	err := Advance(createCommand)
-	return box, err
+	return Advance(createCommand)
 }
 
 func (boxer *Boxer) Start(box *Box) error {

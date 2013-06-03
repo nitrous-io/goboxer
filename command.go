@@ -14,10 +14,7 @@ import (
 
 func runCommand(cmd string, args ...string) error {
 	command := exec.Command(cmd, args...)
-	if output, err := command.CombinedOutput(); err != nil {
-		Debug("cmd", command)
-		Debug("output", output)
-		Debug("error", err)
+	if _, err := command.CombinedOutput(); err != nil {
 		return err
 	}
 	return nil
@@ -112,7 +109,7 @@ func ExtractTemplate(c *BoxCommand) error {
 	box := c.Box
 	boxDeltaPath := path.Join("var/lib/lxc", box.ContainerName()+"_delta")
 	boxDeltaHomePath := path.Join(boxDeltaPath, "rootfs", "home", "action")
-	homeDataPath := path.Join("/var/lib/lxc", box.Template())
+	homeDataPath := path.Join("/var/lib/lxc", box.TemplatePath())
 	return Untar(homeDataPath, boxDeltaHomePath)
 }
 
@@ -126,7 +123,7 @@ func SetEtcProjects(c *BoxCommand) error {
 		return err
 	}
 	defer projectsFile.Close()
-	projectLine := strconv.Itoa(box.Id()) + ":" + boxDeltaHomePath
+	projectLine := strconv.Itoa(box.Id) + ":" + boxDeltaHomePath
 	_, err = projectsFile.Write([]byte(projectLine))
 	return err
 }
@@ -145,13 +142,13 @@ func SetEtcProjid(c *BoxCommand) error {
 		return err
 	}
 	defer projidFile.Close()
-	projidLine := box.ContainerName() + ":" + strconv.Itoa(box.Id())
+	projidLine := box.ContainerName() + ":" + strconv.Itoa(box.Id)
 	_, err = projidFile.Write([]byte(projidLine))
 	return err
 }
 func UnsetEtcProjid(c *BoxCommand) error {
 	box := c.Box
-	projidLine := box.ContainerName() + ":" + strconv.Itoa(box.Id())
+	projidLine := box.ContainerName() + ":" + strconv.Itoa(box.Id)
 	return deleteLineContain("/etc/projid", projidLine)
 }
 
@@ -161,7 +158,7 @@ func SetXfsQuota(c *BoxCommand) error {
 	runCommand("xfs_quota", "-x", "-c", "project -s "+box.ContainerName(),
 		"/var/lib/lxc")
 	runCommand("xfs_quota", "-x", "-c",
-		"limit -p bhard="+box.DiskSpace()+" "+box.ContainerName(),
+		"limit -p bhard="+box.DiskSpace+" "+box.ContainerName(),
 		"/var/lib/lxc")
 	return nil
 }
@@ -195,7 +192,7 @@ func SetHostname(c *BoxCommand) error {
 		return err
 	}
 	defer hostName.Close()
-	_, err = hostName.Write([]byte(box.Hostname()))
+	_, err = hostName.Write([]byte(box.ContainerName()))
 	return err
 }
 
@@ -250,7 +247,7 @@ func SetBoxId(c *BoxCommand) error {
 		return err
 	}
 	defer boxIdFile.Close()
-	_, err = boxIdFile.Write([]byte(strconv.Itoa(box.Id())))
+	_, err = boxIdFile.Write([]byte(strconv.Itoa(box.Id)))
 	return err
 }
 
@@ -262,14 +259,14 @@ func UnsetBoxId(c *BoxCommand) error {
 func SetPortForwarding(c *BoxCommand) error {
 	box := c.Box
 	return runCommand("iptables", "-t", "nat", "-A", "PREROUTING", "-p", "tcp",
-		"--dport", box.Port(), "-j", "DNAT", "--to",
-		box.IpAddress()+":22")
+		"--dport", box.Port, "-j", "DNAT", "--to",
+		box.Ip+":22")
 }
 
 func UnsetPortForwarding(c *BoxCommand) error {
 	box := c.Box
 	return runCommand("iptables", "-t", "nat", "-D", "PREROUTING", "-p", "tcp",
-		"--dport", box.Port(), "-j", "DNAT", "--to", box.IpAddress()+":22")
+		"--dport", box.Port, "-j", "DNAT", "--to", box.Ip+":22")
 }
 
 // setup default key pair

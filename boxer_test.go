@@ -20,17 +20,13 @@ func newTestBoxer() *Boxer {
 
 func (s *BoxerSuite) TestCreate(c *C) {
 	boxer := newTestBoxer()
-	config := &Config{
-		Id:          1,
-		Name:        "mclovins-container",
-		Runtime:     "test",
-		Template:    "test_container_template",
-		Memory:      "256M",
-		DiskSpace:   "1G",
-		PublicKeys:  []string{},
-		SnapshotURL: "",
-	}
-	resource := &Resource{
+	box = &Box{
+		Id:               1,
+		Name:             "mclovins-container",
+		Runtime:          "test",
+		Template:         "test_container_template",
+		Memory:           "256M",
+		DiskSpace:        "1G",
 		Ip:               "192.168.254.2",
 		Gateway:          "192.168.254.1",
 		NetworkInterface: "br-lxc-254",
@@ -67,7 +63,7 @@ func (s *BoxerSuite) TestCreate(c *C) {
 		root + "/rootfs/home/action/.ssh/id_rsa.pub": {15001, 15001},
 	}
 
-	box, _ := boxer.Create(config, resource)
+	_ = boxer.Create(box)
 	defer DestroyTestBox("mclovins-container-1", "192.168.254.2")
 
 	c.Assert(box, NotNil)

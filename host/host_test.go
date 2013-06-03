@@ -11,6 +11,5 @@ var _ = Suite(&HostSuite{})
 
 func (s *HostSuite) TestFreeMemory(c *C) {
 	memory := FreeMemory()
-	fmt.Println("wat", memory)
 	c.Assert(memory > 0, Equals)
 }

@@ -10,7 +10,7 @@ iface lo inet loopback
 
 auto eth0
 iface eth0 inet static
-    address {{.IpAddress}}
+    address {{.Ip}}
     netmask 255.255.255.0
     gateway {{.NetworkInterface}}
 `

@@ -1,7 +1,7 @@
 package goboxer
 
 import (
-	"github.com/bitly/go-simplejson"
+	"encoding/json"
 	"github.com/garyburd/redigo/redis"
 )
 
@@ -17,23 +17,29 @@ type CoachListener struct {
 func (c *CoachListener) Listen() {
 	switch msg := c.BoxerPubSub.Receive().(type) {
 	case redis.Message:
-		json, err := simplejson.NewJson(msg.Data)
-		if err != nil {
+		var returnedMessage Message
+		var messageJSON string
+		var err error
+		message := Message{}
+		Debug(msg.Data)
+		if err = json.Unmarshal(msg.Data, &message); err != nil {
 			c.SendInvalidParam()
 			return
 		}
-		returnedMessage, err := c.Runtime.Receive(json)
-		if err != nil {
+		Debug(message)
+		if returnedMessage, err = c.Runtime.Receive(message); err != nil {
 			c.SendInvalidParam()
 			return
 		}
-		messageJSON, err := ToJSON(returnedMessage)
-		if err != nil {
+		Debug(returnedMessage)
+		if messageJSON, err = ToJSON(returnedMessage); err != nil {
 			c.SendInvalidParam()
 			return
 		}
+		Debug(messageJSON)
 		c.replyCoach(messageJSON)
 	case redis.Subscription:
+		Debug("ok. subscribed")
 		if msg.Count == 0 {
 			return
 		}
@@ -46,6 +52,7 @@ func (c *CoachListener) Advertise() {
 	messageJSON, err := ToJSON(message)
 	if err != nil {
 		c.SendInvalidParam()
+		return
 	}
 	c.CoachConn.Do("PUBLISH", c.CoachChannel, messageJSON)
 }

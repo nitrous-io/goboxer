@@ -57,7 +57,7 @@ lxc.cgroup.devices.allow = c 10:228 rwm
 #kvm
 lxc.cgroup.devices.allow = c 10:232 rwm
 
-lxc.utsname = {{.Hostname}}
+lxc.utsname = {{.ContainerName}}
 
 
 {{$CONTAINERFS := .ContainerFS }}

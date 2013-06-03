@@ -2,11 +2,8 @@
 package goboxer
 
 import (
-	"encoding/json"
 	"fmt"
 	"github.com/action-io/goboxer/host"
-	"github.com/bitly/go-simplejson"
-	"github.com/garyburd/redigo/redis"
 )
 
 // we concat all messages type here and use `Receive` to distribute correct
@@ -14,19 +11,21 @@ import (
 type Message struct {
 	// all messages can have these
 	Id         string            `json:"id"`
-	BoxId      string            `json:"boxId"`
+	BoxId      int               `json:"boxId"`
 	Type       string            `json:"type"`
 	ReturnVars map[string]string `json:"returnVars"`
 
 	// for advertise message
-	FreeMemory int               `json:"freeMemory"`
-	Runtimes   map[string]string `json:"runtimes"`
+	FreeMemory int      `json:"freeMemory"`
+	Runtimes   []string `json:"runtimes"`
 
 	// for create message
+	// Name is used subsequently in coach message to describe containerName
+	// i.e. 123-testbox
 	Name        string   `json:"name"`
 	Runtime     string   `json:"runtime"`
 	SnapshotURL string   `json:"snapshotURL"`
-	Memory      int      `json:"memory"`
+	Memory      string   `json:"memory"`
 	DiskSpace   string   `json:"diskSpace"`
 	PublicKeys  []string `json:"publicKeys"`
 	SshKeyPair  []string `json:"sshKeyPair"`
@@ -39,7 +38,7 @@ type Message struct {
 
 // a handler will receive message and runtime, do some work with it and return
 // a new message
-type MessageHandler func(m *simplejson.Json, r *Runtime) (Message, error)
+type MessageHandler func(m Message, r *Runtime) (Message, error)
 
 type Runtime struct {
 	Id           string
@@ -48,16 +47,15 @@ type Runtime struct {
 	Handles      map[string]MessageHandler
 }
 
-func (r *Runtime) Receive(json *simplejson.Json) (Message, error) {
-	messageType, err := json.Get("type").String()
-	if err != nil {
-		return Message{}, fmt.Errorf("Invalid Message: missing type")
-	}
-	handle, ok := r.Handles[messageType]
+func (r *Runtime) Receive(msg Message) (Message, error) {
+	test, _ := ToJSON(msg)
+	Debug(msg.Type, msg, test)
+	handle, ok := r.Handles[msg.Type]
 	if !ok {
-		return Message{}, fmt.Errorf("Invalid Message: not able to handle %s", messageType)
+		return Message{}, fmt.Errorf("Invalid Message: unknown type %s", msg.Type)
 	}
-	return handle(json, r)
+	msg.Id = r.Id
+	return handle(msg, r)
 }
 
 func (r *Runtime) NewAdvertiseMessage() Message {
@@ -77,55 +75,109 @@ func (r *Runtime) NewInvalidParamMessage() Message {
 	}
 }
 
-func LocateBoxHandler(m *simplejson.Json, r *Runtime) (Message, error) {
-	messageType, err := m.Get("type").String()
-	if err != nil {
-		return Message{}, err
-	}
-	if messageType != "aio:locate" {
-		return Message{}, fmt.Errorf("Expected aio:locate but got: %s", messageType)
-	}
+func LocateBoxHandler(m Message, r *Runtime) (Message, error) {
 	return r.NewAdvertiseMessage(), nil
 }
 
-func CreateBoxHandler(m *simplejson.Json, r *Runtime) (Message, error) {
-	messageType, err := m.Get("type").String()
+func CreateBoxHandler(m Message, r *Runtime) (Message, error) {
+	msg := Message{
+		Type:  "aio:created",
+		Id:    r.Id,
+		BoxId: m.BoxId,
+	}
+	resource, err := r.ResourcePool.Acquire()
 	if err != nil {
-		return Message{}, err
+		msg.Success = false
+		return msg, nil
 	}
-	if messageType != "aio:create" {
-		return Message{}, fmt.Errorf("Expected aio:locate but got: %s", messageType)
+	box := &Box{
+		Id:               m.BoxId,
+		BoxerId:          m.Id,
+		Name:             m.Name,
+		Runtime:          m.Runtime,
+		Memory:           m.Memory,
+		DiskSpace:        m.DiskSpace,
+		PublicKeys:       m.PublicKeys,
+		SnapshotURL:      m.SnapshotURL,
+		Ip:               resource.Ip,
+		Gateway:          resource.Gateway,
+		NetworkInterface: resource.NetworkInterface,
+		Port:             resource.Port,
 	}
-	config = &Config{
-		Id:          m.Get("boxId").Int(),
-		Name:        m.Get("name").String(),
-		Runtime:     m.Get("runtime").String(),
-		Memory:      m.Get("memory").String(),
-		DiskSpace:   m.Get("diskSpace").String(),
-		PublicKeys:  m.Get("publicKeys").Array(),
-		SnapshotURL: m.Get("snapshotUrl").String(),
+
+	if err := r.Boxer.Create(box); err != nil {
+		r.ResourcePool.Release(resource)
+		msg.Success = false
+		return msg, nil
 	}
-
-	box, err := r.Boxer.Create()
-	return Message{}, nil
+	msg.Success = true
+	return msg, nil
 }
 
-func StartBoxHandler(m *simplejson.Json, r *Runtime) (Message, error) {
-	return Message{}, nil
+func StartBoxHandler(m Message, r *Runtime) (Message, error) {
+	box, err := r.ResourcePool.FindBox(m.Name)
+	if err != nil {
+		return Message{}, fmt.Errorf("BoxNotFound: %s", m.Name)
+	}
+	if err := r.Boxer.Start(box); err != nil {
+		return Message{}, fmt.Errorf("BoxFailedToStart: %s", m.Name)
+	}
+	return Message{
+		Type:       "aio:started",
+		Id:         r.Id,
+		BoxId:      box.Id,
+		ReturnVars: m.ReturnVars,
+	}, nil
 }
 
-func StopBoxHandler(m *simplejson.Json, r *Runtime) (Message, error) {
-	return Message{}, nil
+func StopBoxHandler(m Message, r *Runtime) (Message, error) {
+	box, err := r.ResourcePool.FindBox(m.Name)
+	if err != nil {
+		return Message{}, fmt.Errorf("BoxNotFound: %s", m.Name)
+	}
+	if err := r.Boxer.Stop(box); err != nil {
+		return Message{}, fmt.Errorf("BoxFailedToStop: %s", m.Name)
+	}
+	return Message{
+		Type:       "aio:stopped",
+		Id:         r.Id,
+		BoxId:      box.Id,
+		ReturnVars: m.ReturnVars,
+	}, nil
 }
 
-func RestartBoxHandler(m *simplejson.Json, r *Runtime) (Message, error) {
-	return Message{}, nil
+func RestartBoxHandler(m Message, r *Runtime) (Message, error) {
+	box, err := r.ResourcePool.FindBox(m.Name)
+	if err != nil {
+		return Message{}, fmt.Errorf("BoxNotFound: %s", m.Name)
+	}
+	if err := r.Boxer.Restart(box); err != nil {
+		return Message{}, fmt.Errorf("BoxFailedToRestart: %s", m.Name)
+	}
+	return Message{
+		Type:       "aio:restarted",
+		Id:         r.Id,
+		BoxId:      box.Id,
+		ReturnVars: m.ReturnVars,
+	}, nil
 }
 
-func DestroyBoxHandler(m *simplejson.Json, r *Runtime) (Message, error) {
-	return Message{}, nil
+func DestroyBoxHandler(m Message, r *Runtime) (Message, error) {
+	box, err := r.ResourcePool.FindBox(m.Name)
+	if err != nil {
+		return Message{}, fmt.Errorf("BoxNotFound: %s", m.Name)
+	}
+	if err := r.Boxer.Destroy(box); err != nil {
+		return Message{}, fmt.Errorf("BoxFailedToDestroy: %s", m.Name)
+	}
+	return Message{
+		Type:       "aio:destroyed",
+		Id:         r.Id,
+		BoxId:      box.Id,
+		ReturnVars: m.ReturnVars,
+	}, nil
 }
 
-func ConfigureBoxHandler(m *simplejson.Json, r *Runtime) (Message, error) {
+func ConfigureBoxHandler(m Message, r *Runtime) (Message, error) {
 	return Message{}, nil
 }

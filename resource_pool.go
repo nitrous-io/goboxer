@@ -1,3 +1,7 @@
+// Take care of resource storage such as
+// - distribute/release resource
+// - save box
+// - fetch box
 package goboxer
 
 import (
@@ -41,4 +45,25 @@ func (rp *ResourcePool) Release(resource *Resource) (err error) {
 	rp.Conn.Send("RPUSH", "aio:available_resources", resource.Ip)
 	_, err = rp.Conn.Do("EXEC")
 	return err
+}
+
+func (rp *ResourcePool) SaveBox(box *Box) error {
+	json, err := ToJSON(box)
+	if err != nil {
+		return err
+	}
+	_, err = rp.Conn.Do("HSET", "aio:boxes", box.ContainerName(), json)
+	return err
+}
+
+func (rp *ResourcePool) FindBox(containerName string) (*Box, error) {
+	box := &Box{}
+	boxjson, err := redis.Bytes(rp.Conn.Do("HGET", "aio:boxes", containerName))
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal([]byte(boxjson), box); err != nil {
+		return nil, err
+	}
+	return box, nil
 }
