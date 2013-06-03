@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/action-io/goboxer/host"
 	"github.com/bitly/go-simplejson"
+	"github.com/garyburd/redigo/redis"
 )
 
 // we concat all messages type here and use `Receive` to distribute correct
@@ -46,9 +47,10 @@ func MessageJSON(m Message) (string, error) {
 type MessageHandler func(m *simplejson.Json, r Runtime) (Message, error)
 
 type Runtime struct {
-	Id      string
-	Boxer   Boxer
-	Handles map[string]MessageHandler
+	Id           string
+	Boxer        Boxer
+	ResourcePool ResourcePool
+	Handles      map[string]MessageHandler
 }
 
 func (r Runtime) Receive(json *simplejson.Json) (Message, error) {
@@ -84,6 +86,24 @@ func LocateBoxHandler(m *simplejson.Json, r Runtime) (Message, error) {
 }
 
 func CreateBoxHandler(m *simplejson.Json, r Runtime) (Message, error) {
+	messageType, err := m.Get("type").String()
+	if err != nil {
+		return Message{}, err
+	}
+	if messageType != "aio:create" {
+		return Message{}, fmt.Errorf("Expected aio:locate but got: %s", messageType)
+	}
+	config = &Config{
+		Id:          m.Get("boxId").Int(),
+		Name:        m.Get("name").String(),
+		Runtime:     m.Get("runtime").String(),
+		Memory:      m.Get("memory").String(),
+		DiskSpace:   m.Get("diskSpace").String(),
+		PublicKeys:  m.Get("publicKeys").Array(),
+		SnapshotURL: m.Get("snapshotUrl").String(),
+	}
+
+	r.Boxer.Create()
 	return Message{}, nil
 }
 

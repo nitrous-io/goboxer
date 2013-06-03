@@ -107,7 +107,3 @@ func (b *Box) RootFS() string {
 func (b *Box) ContainerFS() string {
 	return path.Join("/var/lib/lxc", b.ContainerName())
 }
-
-func (b *Box) ToJSON() (string, error) {
-	return "", nil
-}
