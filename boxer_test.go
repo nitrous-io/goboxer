@@ -20,8 +20,8 @@ func newTestBoxer() *Boxer {
 
 func (s *BoxerSuite) TestCreate(c *C) {
 	boxer := newTestBoxer()
-	box = &Box{
-		Id:               1,
+	box := &Box{
+		Id:               "1",
 		Name:             "mclovins-container",
 		Runtime:          "test",
 		Template:         "test_container_template",
@@ -63,7 +63,7 @@ func (s *BoxerSuite) TestCreate(c *C) {
 		root + "/rootfs/home/action/.ssh/id_rsa.pub": {15001, 15001},
 	}
 
-	_ = boxer.Create(box)
+	boxer.Create(box)
 	defer DestroyTestBox("mclovins-container-1", "192.168.254.2")
 
 	c.Assert(box, NotNil)
@@ -77,23 +77,18 @@ func (s *BoxerSuite) TestStop(c *C) {
 	defer DestroyTestBox("mclovins-container-1", "192.168.254.2")
 
 	boxer := newTestBoxer()
-	config := &Config{
-		Id:          1,
-		Name:        "mclovins-container",
-		Runtime:     "test",
-		Template:    "test_container_template",
-		Memory:      "256M",
-		DiskSpace:   "1G",
-		PublicKeys:  []string{},
-		SnapshotURL: "",
-	}
-	resource := &Resource{
+	box := &Box{
+		Id:               "1",
+		Name:             "mclovins-container",
+		Runtime:          "test",
+		Template:         "test_container_template",
+		Memory:           "256M",
+		DiskSpace:        "1G",
 		Ip:               "192.168.254.2",
 		Gateway:          "192.168.254.1",
 		NetworkInterface: "br-lxc-254",
 		Port:             "10002",
 	}
-	box := &Box{Config: config, Resource: resource}
 	err := boxer.Stop(box)
 	c.Assert(err, IsNil, Commentf("failed to stop the box"))
 
@@ -116,23 +111,18 @@ func (s *BoxerSuite) TestStart(c *C) {
 	defer DestroyTestBox("mclovins-container-1", "192.268.254.2")
 
 	boxer := newTestBoxer()
-	config := &Config{
-		Id:          1,
-		Name:        "mclovins-container",
-		Runtime:     "test",
-		Template:    "test_container_template",
-		Memory:      "256M",
-		DiskSpace:   "1G",
-		PublicKeys:  []string{},
-		SnapshotURL: "",
-	}
-	resource := &Resource{
+	box := &Box{
+		Id:               "1",
+		Name:             "mclovins-container",
+		Runtime:          "test",
+		Template:         "test_container_template",
+		Memory:           "256M",
+		DiskSpace:        "1G",
 		Ip:               "192.168.254.2",
 		Gateway:          "192.168.254.1",
 		NetworkInterface: "br-lxc-254",
 		Port:             "10002",
 	}
-	box := &Box{Config: config, Resource: resource}
 	err := boxer.Start(box)
 
 	c.Assert(err, IsNil)
@@ -154,24 +144,19 @@ func (s *BoxerSuite) TestDestroy(c *C) {
 	CreateTestBox("1", "mclovins-container", "192.168.254.2", "10002")
 	defer DestroyTestBox("mclovins-container-1", "192.268.254.2")
 
-	boxer := newTestBoxer()
-	config := &Config{
-		Id:          1,
-		Name:        "mclovins-container",
-		Runtime:     "test",
-		Template:    "test_container_template",
-		Memory:      "256M",
-		DiskSpace:   "1G",
-		PublicKeys:  []string{},
-		SnapshotURL: "",
-	}
-	resource := &Resource{
+	box := &Box{
+		Id:               "1",
+		Name:             "mclovins-container",
+		Runtime:          "test",
+		Template:         "test_container_template",
+		Memory:           "256M",
+		DiskSpace:        "1G",
 		Ip:               "192.168.254.2",
 		Gateway:          "192.168.254.1",
 		NetworkInterface: "br-lxc-254",
 		Port:             "10002",
 	}
-	box := &Box{Config: config, Resource: resource}
+	boxer := newTestBoxer()
 	err := boxer.Stop(box)
 	c.Assert(err, IsNil)
 	err = boxer.Destroy(box)
@@ -198,24 +183,19 @@ func (s *BoxerSuite) TestRestart(c *C) {
 	CreateTestBox("1", "mclovins-container", "192.168.254.2", "10002")
 	defer DestroyTestBox("mclovins-container-1", "192.268.254.2")
 
-	boxer := newTestBoxer()
-	config := &Config{
-		Id:          1,
-		Name:        "mclovins-container",
-		Runtime:     "test",
-		Template:    "test_container_template",
-		Memory:      "256M",
-		DiskSpace:   "1G",
-		PublicKeys:  []string{},
-		SnapshotURL: "",
-	}
-	resource := &Resource{
+	box := &Box{
+		Id:               "1",
+		Name:             "mclovins-container",
+		Runtime:          "test",
+		Template:         "test_container_template",
+		Memory:           "256M",
+		DiskSpace:        "1G",
 		Ip:               "192.168.254.2",
 		Gateway:          "192.168.254.1",
 		NetworkInterface: "br-lxc-254",
 		Port:             "10002",
 	}
-	box := &Box{Config: config, Resource: resource}
+	boxer := newTestBoxer()
 	err := boxer.Restart(box)
 	c.Assert(err, IsNil)
 

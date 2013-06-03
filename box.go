@@ -10,7 +10,7 @@ import (
 const UidStart = 15000
 
 type Box struct {
-	Id               int    `json:"id"`
+	Id               string `json:"id"`
 	Name             string `json:"name"`
 	Template         string `json:"containerTemplate"`
 	Memory           string `json:"memory"`
@@ -27,7 +27,7 @@ type Box struct {
 }
 
 func (b *Box) ContainerName() string {
-	return fmt.Sprintf("%s-%d", b.Name, b.Id)
+	return fmt.Sprintf("%s-%s", b.Name, b.Id)
 }
 
 func (b *Box) TemplatePath() string {
@@ -35,11 +35,13 @@ func (b *Box) TemplatePath() string {
 }
 
 func (b *Box) Uid() string {
-	return strconv.Itoa(UidStart + b.Id)
+	id, _ := strconv.Atoi(b.Id)
+	return strconv.Itoa(UidStart + id)
 }
 
 func (b *Box) Gid() string {
-	return strconv.Itoa(UidStart + b.Id)
+	id, _ := strconv.Atoi(b.Id)
+	return strconv.Itoa(UidStart + id)
 }
 
 func (b *Box) BoxIdFile() string {

@@ -53,6 +53,7 @@ func advanceState(command *BoxCommand, errStack *CommandError) {
 	state := command.States[command.CurrentIndex]
 	err := state.Advance(command)
 	if err != nil {
+		Debug("AdvanceException", command.CurrentIndex, state.Name)
 		stateError := NewStateError(state.Name, err)
 		errStack.AdvanceStack = append(errStack.AdvanceStack, stateError)
 		// if the rollback stack has errors, we will not try to re-rollback
@@ -72,6 +73,7 @@ func rollbackState(command *BoxCommand, errStack *CommandError) {
 	state := command.States[command.CurrentIndex]
 	err := state.Rollback(command)
 	if err != nil {
+		Debug("RollbackException", command.CurrentIndex)
 		stateError := NewStateError(state.Name, err)
 		// if the advance stack has errors, we will not try to re-advance
 		errStack.RollbackStack = append(errStack.RollbackStack, stateError)
@@ -93,6 +95,7 @@ func Advance(command *BoxCommand) *CommandError {
 	if len(errStack.AdvanceStack) == 0 && len(errStack.RollbackStack) == 0 {
 		return nil
 	}
+	Debug("advance", errStack.AdvanceStack, errStack.RollbackStack)
 	return errStack
 }
 
@@ -102,5 +105,6 @@ func Rollback(command *BoxCommand) *CommandError {
 	if len(errStack.AdvanceStack) == 0 && len(errStack.RollbackStack) == 0 {
 		return nil
 	}
+	Debug("rollback", errStack.AdvanceStack, errStack.RollbackStack)
 	return errStack
 }

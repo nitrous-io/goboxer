@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"path"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -107,7 +106,7 @@ func UnmountContainer(c *BoxCommand) error {
 // untar the template
 func ExtractTemplate(c *BoxCommand) error {
 	box := c.Box
-	boxDeltaPath := path.Join("var/lib/lxc", box.ContainerName()+"_delta")
+	boxDeltaPath := path.Join("/var/lib/lxc", box.ContainerName()+"_delta")
 	boxDeltaHomePath := path.Join(boxDeltaPath, "rootfs", "home", "action")
 	homeDataPath := path.Join("/var/lib/lxc", box.TemplatePath())
 	return Untar(homeDataPath, boxDeltaHomePath)
@@ -123,7 +122,7 @@ func SetEtcProjects(c *BoxCommand) error {
 		return err
 	}
 	defer projectsFile.Close()
-	projectLine := strconv.Itoa(box.Id) + ":" + boxDeltaHomePath
+	projectLine := box.Id + ":" + boxDeltaHomePath
 	_, err = projectsFile.Write([]byte(projectLine))
 	return err
 }
@@ -142,13 +141,13 @@ func SetEtcProjid(c *BoxCommand) error {
 		return err
 	}
 	defer projidFile.Close()
-	projidLine := box.ContainerName() + ":" + strconv.Itoa(box.Id)
+	projidLine := box.ContainerName() + ":" + box.Id
 	_, err = projidFile.Write([]byte(projidLine))
 	return err
 }
 func UnsetEtcProjid(c *BoxCommand) error {
 	box := c.Box
-	projidLine := box.ContainerName() + ":" + strconv.Itoa(box.Id)
+	projidLine := box.ContainerName() + ":" + box.Id
 	return deleteLineContain("/etc/projid", projidLine)
 }
 
@@ -247,7 +246,7 @@ func SetBoxId(c *BoxCommand) error {
 		return err
 	}
 	defer boxIdFile.Close()
-	_, err = boxIdFile.Write([]byte(strconv.Itoa(box.Id)))
+	_, err = boxIdFile.Write([]byte(box.Id))
 	return err
 }
 
@@ -258,15 +257,17 @@ func UnsetBoxId(c *BoxCommand) error {
 // setup port forwarding
 func SetPortForwarding(c *BoxCommand) error {
 	box := c.Box
-	return runCommand("iptables", "-t", "nat", "-A", "PREROUTING", "-p", "tcp",
+	runCommand("iptables", "-t", "nat", "-A", "PREROUTING", "-p", "tcp",
 		"--dport", box.Port, "-j", "DNAT", "--to",
 		box.Ip+":22")
+	return nil
 }
 
 func UnsetPortForwarding(c *BoxCommand) error {
 	box := c.Box
-	return runCommand("iptables", "-t", "nat", "-D", "PREROUTING", "-p", "tcp",
+	runCommand("iptables", "-t", "nat", "-D", "PREROUTING", "-p", "tcp",
 		"--dport", box.Port, "-j", "DNAT", "--to", box.Ip+":22")
+	return nil
 }
 
 // setup default key pair

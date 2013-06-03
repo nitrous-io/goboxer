@@ -6,12 +6,24 @@ import (
 	"github.com/action-io/goboxer/host"
 )
 
+var runtimes []string
+
+func init() {
+	runtimes = []string{
+		"rails",
+		"nodejs",
+		"django",
+		"golang",
+		"test",
+	}
+}
+
 // we concat all messages type here and use `Receive` to distribute correct
 // type to correct function for now
 type Message struct {
 	// all messages can have these
 	Id         string            `json:"id"`
-	BoxId      int               `json:"boxId"`
+	BoxId      string            `json:"boxId"`
 	Type       string            `json:"type"`
 	ReturnVars map[string]string `json:"returnVars"`
 
@@ -48,8 +60,6 @@ type Runtime struct {
 }
 
 func (r *Runtime) Receive(msg Message) (Message, error) {
-	test, _ := ToJSON(msg)
-	Debug(msg.Type, msg, test)
 	handle, ok := r.Handles[msg.Type]
 	if !ok {
 		return Message{}, fmt.Errorf("Invalid Message: unknown type %s", msg.Type)
@@ -62,7 +72,7 @@ func (r *Runtime) NewAdvertiseMessage() Message {
 	return Message{
 		Type:       "aio:advertise",
 		Id:         r.Id,
-		Runtimes:   r.Boxer.Runtimes,
+		Runtimes:   runtimes,
 		FreeMemory: int(host.FreeMemory()),
 	}
 }
@@ -99,12 +109,12 @@ func CreateBoxHandler(m Message, r *Runtime) (Message, error) {
 		DiskSpace:        m.DiskSpace,
 		PublicKeys:       m.PublicKeys,
 		SnapshotURL:      m.SnapshotURL,
+		Template:         r.Boxer.Runtimes[m.Runtime],
 		Ip:               resource.Ip,
 		Gateway:          resource.Gateway,
 		NetworkInterface: resource.NetworkInterface,
 		Port:             resource.Port,
 	}
-
 	if err := r.Boxer.Create(box); err != nil {
 		r.ResourcePool.Release(resource)
 		msg.Success = false

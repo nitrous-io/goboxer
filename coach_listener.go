@@ -21,12 +21,10 @@ func (c *CoachListener) Listen() {
 		var messageJSON string
 		var err error
 		message := Message{}
-		Debug(msg.Data)
 		if err = json.Unmarshal(msg.Data, &message); err != nil {
 			c.SendInvalidParam()
 			return
 		}
-		Debug(message)
 		if returnedMessage, err = c.Runtime.Receive(message); err != nil {
 			c.SendInvalidParam()
 			return

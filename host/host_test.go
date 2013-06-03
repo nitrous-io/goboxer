@@ -1,7 +1,6 @@
 package host
 
 import (
-	"fmt"
 	. "launchpad.net/gocheck"
 )
 

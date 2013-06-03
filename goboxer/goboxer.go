@@ -15,15 +15,15 @@ import (
 const VERSION = "0.0.2"
 const ADVERTISE_INTERVAL = 5001
 
-var runtimes []string
+var runtimesTemplate map[string]string
 var handlers map[string]goboxer.MessageHandler
 
 func init() {
-	runtimes = []string{
-		"rails",
-		"nodejs",
-		"django",
-		"golang",
+	runtimesTemplate = map[string]string{
+		"rails":  "ruby_template",
+		"nodejs": "nodejs_template",
+		"django": "python_template",
+		"golang": "golang_template",
 	}
 	handlers = map[string]goboxer.MessageHandler{
 		"aio:locate":  goboxer.LocateBoxHandler,
@@ -106,7 +106,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	boxer := &goboxer.Boxer{Root: "/var/lib/lxc", Runtimes: runtimes}
+	boxer := &goboxer.Boxer{Root: "/var/lib/lxc", Runtimes: runtimesTemplate}
 
 	resourcePool := &goboxer.ResourcePool{Conn: storeConn}
 
@@ -135,6 +135,7 @@ func main() {
 		}
 	}()
 
+	coachListener.BoxerPubSub.Subscribe(coachListener.BoxerChannel)
 	for {
 		coachListener.Listen()
 	}

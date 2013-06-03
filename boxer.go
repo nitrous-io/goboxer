@@ -7,7 +7,7 @@ package goboxer
 
 type Boxer struct {
 	Root     string
-	Runtimes []string
+	Runtimes map[string]string
 }
 
 func (boxer *Boxer) Create(box *Box) error {
@@ -17,23 +17,23 @@ func (boxer *Boxer) Create(box *Box) error {
 		Box:          box,
 		CurrentIndex: 0,
 		States: []State{
-			State{Advance: CreateContainerPath, Rollback: DestroyContainerPath},
-			State{Advance: CreateContainerDeltaPath, Rollback: DestroyContainerDeltaPath},
-			State{Advance: MountContainer, Rollback: UnmountContainer},
-			State{Advance: ExtractTemplate, Rollback: Pass},
-			State{Advance: SetEtcProjects, Rollback: UnsetEtcProjects},
-			State{Advance: SetEtcProjid, Rollback: UnsetEtcProjid},
-			State{Advance: SetXfsQuota, Rollback: UnsetXfsQuota},
-			State{Advance: SetLxcConfig, Rollback: Pass},
-			State{Advance: SetHostname, Rollback: Pass},
-			State{Advance: SetNetworkConfig, Rollback: Pass},
-			State{Advance: SetUserUid, Rollback: Pass},
-			State{Advance: SetUserGid, Rollback: Pass},
-			State{Advance: SetHomePermission, Rollback: Pass},
-			State{Advance: SetWorkspace, Rollback: Pass},
-			State{Advance: SetBoxId, Rollback: UnsetBoxId},
-			State{Advance: SetPortForwarding, Rollback: UnsetPortForwarding},
-			State{Advance: SetDefaultKeyPair, Rollback: Pass},
+			State{Name: "1", Advance: CreateContainerPath, Rollback: DestroyContainerPath},
+			State{Name: "2", Advance: CreateContainerDeltaPath, Rollback: DestroyContainerDeltaPath},
+			State{Name: "3", Advance: MountContainer, Rollback: UnmountContainer},
+			State{Name: "4", Advance: ExtractTemplate, Rollback: Pass},
+			State{Name: "5", Advance: SetEtcProjects, Rollback: UnsetEtcProjects},
+			State{Name: "6", Advance: SetEtcProjid, Rollback: UnsetEtcProjid},
+			State{Name: "7", Advance: SetXfsQuota, Rollback: UnsetXfsQuota},
+			State{Name: "8", Advance: SetLxcConfig, Rollback: Pass},
+			State{Name: "9", Advance: SetHostname, Rollback: Pass},
+			State{Name: "10", Advance: SetNetworkConfig, Rollback: Pass},
+			State{Name: "11", Advance: SetUserUid, Rollback: Pass},
+			State{Name: "12", Advance: SetUserGid, Rollback: Pass},
+			State{Name: "13", Advance: SetHomePermission, Rollback: Pass},
+			State{Name: "14", Advance: SetWorkspace, Rollback: Pass},
+			State{Name: "15", Advance: SetBoxId, Rollback: UnsetBoxId},
+			State{Name: "16", Advance: SetPortForwarding, Rollback: UnsetPortForwarding},
+			State{Name: "17", Advance: SetDefaultKeyPair, Rollback: Pass},
 		},
 	}
 	return Advance(createCommand)
