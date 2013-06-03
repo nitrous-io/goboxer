@@ -19,17 +19,20 @@ func (c CoachListener) Listen() {
 	case redis.Message:
 		json, err := simplejson.NewJson(msg.Data)
 		if err != nil {
-			c.CoachConn.Do("PUBLISH", c.CoachChannel, "failed")
+			c.SendInvalidParam()
+			return
 		}
 		returnedMessage, err := c.Runtime.Receive(json)
 		if err != nil {
-			c.CoachConn.Do("PUBLISH", c.CoachChannel, "failed")
+			c.SendInvalidParam()
+			return
 		}
 		messageJSON, err := MessageJSON(returnedMessage)
 		if err != nil {
-			c.CoachConn.Do("PUBLISH", c.CoachChannel, "failed")
+			c.SendInvalidParam()
+			return
 		}
-		c.CoachConn.Do("PUBLISH", c.CoachChannel, messageJSON)
+		c.replyCoach(messageJSON)
 	case redis.Subscription:
 		if msg.Count == 0 {
 			return
@@ -42,7 +45,21 @@ func (c CoachListener) Advertise() {
 	message := c.Runtime.NewAdvertiseMessage()
 	messageJSON, err := MessageJSON(message)
 	if err != nil {
-		c.CoachConn.Do("PUBLISH", c.CoachChannel, "failed")
+		c.SendInvalidParam()
 	}
 	c.CoachConn.Do("PUBLISH", c.CoachChannel, messageJSON)
+}
+
+func (c CoachListener) SendInvalidParam() {
+	message := c.Runtime.NewInvalidParamMessage()
+	messageJSON, err := MessageJSON(message)
+	if err != nil {
+		c.replyCoach("{\"success\":false}")
+		return
+	}
+	c.replyCoach(messageJSON)
+}
+
+func (c CoachListener) replyCoach(msg string) {
+	c.CoachConn.Do("PUBLISH", c.CoachChannel, msg)
 }

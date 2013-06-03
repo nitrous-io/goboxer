@@ -74,6 +74,14 @@ func (r Runtime) NewAdvertiseMessage() Message {
 	}
 }
 
+func (r Runtime) NewInvalidParamMessage() Message {
+	return Message{
+		Type:    "aio:invalid:params",
+		Id:      r.Id,
+		Success: false,
+	}
+}
+
 func LocateBoxHandler(m *simplejson.Json, r Runtime) (Message, error) {
 	messageType, err := m.Get("type").String()
 	if err != nil {
