@@ -12,14 +12,13 @@ import (
 	"time"
 )
 
-var ADVERTISE_INTERVAL time.Duration
-var VERSION string
+const VERSION = "0.0.1"
+const ADVERTISE_INTERVAL = 5001
+
 var runtimes map[string]string
 var handlers map[string]goboxer.MessageHandler
 
 func init() {
-	ADVERTISE_INTERVAL = 5001
-	VERSION = "0.1"
 	runtimes = map[string]string{
 		"rails":  "rails-template",
 		"nodejs": "nodejs-template",
@@ -28,6 +27,7 @@ func init() {
 	}
 	handlers = map[string]goboxer.MessageHandler{
 		"aio:locate": goboxer.LocateBoxHandler,
+		"aio:create": goboxer.CreateBoxHandler,
 	}
 }
 
@@ -82,14 +82,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	boxer := goboxer.Boxer{Root: "/var/lib/lxc", Runtimes: runtimes}
-
-	boxerRuntime := goboxer.Runtime{
-		Id:      config.Id,
-		Boxer:   boxer,
-		Handles: handlers,
-	}
-
 	boxerConn, err := redis.Dial("tcp", config.RedisMQAddr())
 	if err != nil {
 		panic("Cannot connect to redis: " + config.RedisMQAddr())
@@ -99,6 +91,14 @@ func main() {
 	if err != nil {
 		panic("Cannot connect to redis: " + config.RedisMQAddr())
 		os.Exit(1)
+	}
+
+	boxer := goboxer.Boxer{Root: "/var/lib/lxc", Runtimes: runtimes}
+
+	boxerRuntime := goboxer.Runtime{
+		Id:      config.Id,
+		Boxer:   boxer,
+		Handles: handlers,
 	}
 
 	coachListener := goboxer.CoachListener{

@@ -25,14 +25,14 @@ func (s *ResourcePoolSuite) TearDownTest(c *C) {
 }
 
 func (s *ResourcePoolSuite) insertResource(ip, gateway, networkInterface, port string) {
-	r := Resource{Ip: ip, Gateway: gateway, NetworkInterface: networkInterface, Port: port}
+	r := &Resource{Ip: ip, Gateway: gateway, NetworkInterface: networkInterface, Port: port}
 	s.conn.Do("RPUSH", "aio:available_resources", ip)
 	s.conn.Do("HMSET", redis.Args{}.Add("aio:nwr:"+ip).AddFlat(r)...)
 }
 
 func (s *ResourcePoolSuite) TestAcquireAvailableResource(c *C) {
 	s.insertResource("192.168.2.2", "192.168.2.1", "br-lxc-254", "10002")
-	rs := ResourcePool{Conn: s.conn}
+	rs := &ResourcePool{Conn: s.conn}
 
 	r, err := rs.Acquire()
 	c.Assert(err, IsNil, Commentf("failed to acquire resource"))
@@ -46,14 +46,14 @@ func (s *ResourcePoolSuite) TestAcquireAvailableResource(c *C) {
 }
 
 func (s *ResourcePoolSuite) TestAcquireNonAvailableResource(c *C) {
-	rs := ResourcePool{Conn: s.conn}
+	rs := &ResourcePool{Conn: s.conn}
 	_, err := rs.Acquire()
 	c.Assert(err, NotNil)
 }
 
 func (s *ResourcePoolSuite) TestReleaseValidResource(c *C) {
 	s.insertResource("192.168.2.2", "192.168.2.1", "br-lxc-254", "10002")
-	rs := ResourcePool{Conn: s.conn}
+	rs := &ResourcePool{Conn: s.conn}
 	r, err := rs.Acquire()
 	c.Assert(err, IsNil, Commentf("failed to acquire resource"))
 	err = rs.Release(r)

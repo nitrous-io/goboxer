@@ -6,7 +6,7 @@ import (
 )
 
 type CoachListener struct {
-	Runtime      Runtime
+	Runtime      *Runtime
 	BoxerConn    redis.Conn
 	CoachConn    redis.Conn
 	BoxerPubSub  redis.PubSubConn
@@ -14,7 +14,7 @@ type CoachListener struct {
 	CoachChannel string
 }
 
-func (c CoachListener) Listen() {
+func (c *CoachListener) Listen() {
 	switch msg := c.BoxerPubSub.Receive().(type) {
 	case redis.Message:
 		json, err := simplejson.NewJson(msg.Data)
@@ -41,7 +41,7 @@ func (c CoachListener) Listen() {
 }
 
 // Advertise itself to Coach
-func (c CoachListener) Advertise() {
+func (c *CoachListener) Advertise() {
 	message := c.Runtime.NewAdvertiseMessage()
 	messageJSON, err := MessageJSON(message)
 	if err != nil {
@@ -50,7 +50,7 @@ func (c CoachListener) Advertise() {
 	c.CoachConn.Do("PUBLISH", c.CoachChannel, messageJSON)
 }
 
-func (c CoachListener) SendInvalidParam() {
+func (c *CoachListener) SendInvalidParam() {
 	message := c.Runtime.NewInvalidParamMessage()
 	messageJSON, err := MessageJSON(message)
 	if err != nil {
@@ -60,6 +60,6 @@ func (c CoachListener) SendInvalidParam() {
 	c.replyCoach(messageJSON)
 }
 
-func (c CoachListener) replyCoach(msg string) {
+func (c *CoachListener) replyCoach(msg string) {
 	c.CoachConn.Do("PUBLISH", c.CoachChannel, msg)
 }

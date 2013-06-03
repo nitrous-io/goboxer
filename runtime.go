@@ -44,16 +44,16 @@ func MessageJSON(m Message) (string, error) {
 
 // a handler will receive message and runtime, do some work with it and return
 // a new message
-type MessageHandler func(m *simplejson.Json, r Runtime) (Message, error)
+type MessageHandler func(m *simplejson.Json, r *Runtime) (Message, error)
 
 type Runtime struct {
 	Id           string
-	Boxer        Boxer
-	ResourcePool ResourcePool
+	Boxer        *Boxer
+	ResourcePool *ResourcePool
 	Handles      map[string]MessageHandler
 }
 
-func (r Runtime) Receive(json *simplejson.Json) (Message, error) {
+func (r *Runtime) Receive(json *simplejson.Json) (Message, error) {
 	messageType, err := json.Get("type").String()
 	if err != nil {
 		return Message{}, fmt.Errorf("Invalid Message: missing type")
@@ -65,7 +65,7 @@ func (r Runtime) Receive(json *simplejson.Json) (Message, error) {
 	return handle(json, r)
 }
 
-func (r Runtime) NewAdvertiseMessage() Message {
+func (r *Runtime) NewAdvertiseMessage() Message {
 	return Message{
 		Type:       "aio:advertise",
 		Id:         r.Id,
@@ -74,7 +74,7 @@ func (r Runtime) NewAdvertiseMessage() Message {
 	}
 }
 
-func (r Runtime) NewInvalidParamMessage() Message {
+func (r *Runtime) NewInvalidParamMessage() Message {
 	return Message{
 		Type:    "aio:invalid:params",
 		Id:      r.Id,
@@ -82,7 +82,7 @@ func (r Runtime) NewInvalidParamMessage() Message {
 	}
 }
 
-func LocateBoxHandler(m *simplejson.Json, r Runtime) (Message, error) {
+func LocateBoxHandler(m *simplejson.Json, r *Runtime) (Message, error) {
 	messageType, err := m.Get("type").String()
 	if err != nil {
 		return Message{}, err
@@ -93,7 +93,7 @@ func LocateBoxHandler(m *simplejson.Json, r Runtime) (Message, error) {
 	return r.NewAdvertiseMessage(), nil
 }
 
-func CreateBoxHandler(m *simplejson.Json, r Runtime) (Message, error) {
+func CreateBoxHandler(m *simplejson.Json, r *Runtime) (Message, error) {
 	messageType, err := m.Get("type").String()
 	if err != nil {
 		return Message{}, err
@@ -111,26 +111,26 @@ func CreateBoxHandler(m *simplejson.Json, r Runtime) (Message, error) {
 		SnapshotURL: m.Get("snapshotUrl").String(),
 	}
 
-	r.Boxer.Create()
+	box, err := r.Boxer.Create()
 	return Message{}, nil
 }
 
-func StartBoxHandler(m *simplejson.Json, r Runtime) (Message, error) {
+func StartBoxHandler(m *simplejson.Json, r *Runtime) (Message, error) {
 	return Message{}, nil
 }
 
-func StopBoxHandler(m *simplejson.Json, r Runtime) (Message, error) {
+func StopBoxHandler(m *simplejson.Json, r *Runtime) (Message, error) {
 	return Message{}, nil
 }
 
-func RestartBoxHandler(m *simplejson.Json, r Runtime) (Message, error) {
+func RestartBoxHandler(m *simplejson.Json, r *Runtime) (Message, error) {
 	return Message{}, nil
 }
 
-func DestroyBoxHandler(m *simplejson.Json, r Runtime) (Message, error) {
+func DestroyBoxHandler(m *simplejson.Json, r *Runtime) (Message, error) {
 	return Message{}, nil
 }
 
-func ConfigureBoxHandler(m *simplejson.Json, r Runtime) (Message, error) {
+func ConfigureBoxHandler(m *simplejson.Json, r *Runtime) (Message, error) {
 	return Message{}, nil
 }
