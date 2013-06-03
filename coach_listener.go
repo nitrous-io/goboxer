@@ -27,7 +27,7 @@ func (c *CoachListener) Listen() {
 			c.SendInvalidParam()
 			return
 		}
-		messageJSON, err := MessageJSON(returnedMessage)
+		messageJSON, err := ToJSON(returnedMessage)
 		if err != nil {
 			c.SendInvalidParam()
 			return
@@ -43,7 +43,7 @@ func (c *CoachListener) Listen() {
 // Advertise itself to Coach
 func (c *CoachListener) Advertise() {
 	message := c.Runtime.NewAdvertiseMessage()
-	messageJSON, err := MessageJSON(message)
+	messageJSON, err := ToJSON(message)
 	if err != nil {
 		c.SendInvalidParam()
 	}
@@ -52,7 +52,7 @@ func (c *CoachListener) Advertise() {
 
 func (c *CoachListener) SendInvalidParam() {
 	message := c.Runtime.NewInvalidParamMessage()
-	messageJSON, err := MessageJSON(message)
+	messageJSON, err := ToJSON(message)
 	if err != nil {
 		c.replyCoach("{\"success\":false}")
 		return

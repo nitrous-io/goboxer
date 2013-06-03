@@ -37,11 +37,6 @@ type Message struct {
 	Success  bool   `json:"success"`
 }
 
-func MessageJSON(m Message) (string, error) {
-	b, err := json.Marshal(m)
-	return string(b), err
-}
-
 // a handler will receive message and runtime, do some work with it and return
 // a new message
 type MessageHandler func(m *simplejson.Json, r *Runtime) (Message, error)
