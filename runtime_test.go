@@ -4,9 +4,9 @@ import (
 	. "launchpad.net/gocheck"
 )
 
-func configure(message Message) (Message, error) {
+func configure(message Message, r *Runtime) (Message, error) {
 	m := Message{
-		Id:   id + 1,
+		Id:   message.Id + "1",
 		Type: message.Type,
 	}
 	return m, nil
@@ -28,9 +28,9 @@ func (s *RuntimeSuite) TestReceive(c *C) {
 	runtime := newTestRuntime()
 	m := Message{
 		Type: "aio:configure",
-		Id:   123,
+		Id:   "123",
 	}
 	msg, _ := runtime.Receive(m)
 	c.Assert(msg.Type, Equals, "aio:configure")
-	c.Assert(msg.Id, Equals, 124)
+	c.Assert(msg.Id, Equals, "1231")
 }
