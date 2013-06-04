@@ -35,6 +35,7 @@ type Message struct {
 	// Name is used subsequently in coach message to describe containerName
 	// i.e. 123-testbox
 	Name        string   `json:"name"`
+	Port        string   `json:"port"`
 	Runtime     string   `json:"runtime"`
 	SnapshotURL string   `json:"snapshotURL"`
 	Memory      string   `json:"memory"`
@@ -123,6 +124,7 @@ func CreateBoxHandler(m Message, r *Runtime) (Message, error) {
 	if err := r.ResourcePool.SaveBox(box); err != nil {
 		Debug("FailedToSaveBox", err)
 	}
+	msg.Port = box.Port
 	msg.Success = true
 	return msg, nil
 }
@@ -130,64 +132,68 @@ func CreateBoxHandler(m Message, r *Runtime) (Message, error) {
 func StartBoxHandler(m Message, r *Runtime) (Message, error) {
 	box, err := r.ResourcePool.FindBox(m.Name)
 	if err != nil {
-		return Message{}, fmt.Errorf("BoxNotFound: %s", m.Name)
+		return r.NewInvalidParamMessage(), fmt.Errorf("BoxNotFound: %s", m.Name)
 	}
 	if err := r.Boxer.Start(box); !err.Success() {
-		return Message{}, fmt.Errorf("BoxFailedToStart: %s", m.Name)
+		return r.NewInvalidParamMessage(), fmt.Errorf("BoxFailedToStart: %s", m.Name)
 	}
 	return Message{
 		Type:       "aio:started",
 		Id:         r.Id,
 		BoxId:      box.Id,
 		ReturnVars: m.ReturnVars,
+		Success:    true,
 	}, nil
 }
 
 func StopBoxHandler(m Message, r *Runtime) (Message, error) {
 	box, err := r.ResourcePool.FindBox(m.Name)
 	if err != nil {
-		return Message{}, fmt.Errorf("BoxNotFound: %s", m.Name)
+		return r.NewInvalidParamMessage(), fmt.Errorf("BoxNotFound: %s", m.Name)
 	}
 	if err := r.Boxer.Stop(box); !err.Success() {
-		return Message{}, fmt.Errorf("BoxFailedToStop: %s", m.Name)
+		return r.NewInvalidParamMessage(), fmt.Errorf("BoxFailedToStop: %s", m.Name)
 	}
 	return Message{
 		Type:       "aio:stopped",
 		Id:         r.Id,
 		BoxId:      box.Id,
 		ReturnVars: m.ReturnVars,
+		Success:    true,
 	}, nil
 }
 
 func RestartBoxHandler(m Message, r *Runtime) (Message, error) {
 	box, err := r.ResourcePool.FindBox(m.Name)
 	if err != nil {
-		return Message{}, fmt.Errorf("BoxNotFound: %s", m.Name)
+		return r.NewInvalidParamMessage(), fmt.Errorf("BoxNotFound: %s", m.Name)
 	}
 	if err := r.Boxer.Restart(box); !err.Success() {
-		return Message{}, fmt.Errorf("BoxFailedToRestart: %s", m.Name)
+		return r.NewInvalidParamMessage(), fmt.Errorf("BoxFailedToRestart: %s", m.Name)
 	}
 	return Message{
 		Type:       "aio:restarted",
 		Id:         r.Id,
 		BoxId:      box.Id,
 		ReturnVars: m.ReturnVars,
+		Success:    true,
 	}, nil
 }
 
 func DestroyBoxHandler(m Message, r *Runtime) (Message, error) {
 	box, err := r.ResourcePool.FindBox(m.Name)
 	if err != nil {
-		return Message{}, fmt.Errorf("BoxNotFound: %s", m.Name)
+		return r.NewInvalidParamMessage(), fmt.Errorf("BoxNotFound: %s", m.Name)
 	}
 	if err := r.Boxer.Destroy(box); !err.Success() {
-		return Message{}, fmt.Errorf("BoxFailedToDestroy: %s", m.Name)
+		return r.NewInvalidParamMessage(), fmt.Errorf("BoxFailedToDestroy: %s", m.Name)
 	}
 	return Message{
 		Type:       "aio:destroyed",
 		Id:         r.Id,
 		BoxId:      box.Id,
 		ReturnVars: m.ReturnVars,
+		Success:    true,
 	}, nil
 }
 

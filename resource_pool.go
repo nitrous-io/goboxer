@@ -36,6 +36,7 @@ func (rp *ResourcePool) Acquire() (resource *Resource, err error) {
 	if err = redis.ScanStruct(resourceValues, resource); err != nil {
 		return nil, err
 	}
+	resource.Ip = ip
 	return resource, nil
 }
 

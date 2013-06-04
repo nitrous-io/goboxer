@@ -25,7 +25,7 @@ func (s *ResourcePoolSuite) TearDownTest(c *C) {
 }
 
 func (s *ResourcePoolSuite) insertResource(ip, gateway, networkInterface, port string) {
-	r := &Resource{Ip: ip, Gateway: gateway, NetworkInterface: networkInterface, Port: port}
+	r := &Resource{Gateway: gateway, NetworkInterface: networkInterface, Port: port}
 	s.conn.Do("RPUSH", "aio:available_resources", ip)
 	s.conn.Do("HMSET", redis.Args{}.Add("aio:nwr:"+ip).AddFlat(r)...)
 }

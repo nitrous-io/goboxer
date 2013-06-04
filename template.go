@@ -12,7 +12,7 @@ auto eth0
 iface eth0 inet static
     address {{.Ip}}
     netmask 255.255.255.0
-    gateway {{.NetworkInterface}}
+    gateway {{.Gateway}}
 `
 
 var NetworkConfigCompiled *template.Template

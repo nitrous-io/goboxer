@@ -48,6 +48,11 @@ func (s *BoxerSuite) TestCreate(c *C) {
 		"/etc/projects":                    {"1:/var/lib/lxc/mclovins-container-1"},
 		root + "/rootfs/etc/passwd":        {"action:x:15001:15001"},
 		root + "/rootfs/etc/action/box_id": {"1"},
+		root + "/rootfs/etc/hostname":      {"mclovins-container-1"},
+		root + "/rootfs/etc/network/interfaces": {
+			"address 192.168.254.2",
+			"gateway 192.168.254.1",
+		},
 		root + "/config": {
 			"lxc.cgroup.memory.limit_in_bytes = 256M",
 			"lxc.cgroup.memory.memsw.limit_in_bytes = 768M",
@@ -90,7 +95,7 @@ func (s *BoxerSuite) TestStop(c *C) {
 		Port:             "10002",
 	}
 	err := boxer.Stop(box)
-	c.Assert(err, IsNil, Commentf("failed to stop the box"))
+	c.Assert(err.Success(), Equals, true, Commentf("failed to stop the box"))
 
 	stdout, _ := exec.Command("sudo", "lxc-info", "-n", box.ContainerName()).CombinedOutput()
 	c.Assert(strings.Contains(string(stdout), "STOPPED"), Equals, true)
@@ -125,7 +130,7 @@ func (s *BoxerSuite) TestStart(c *C) {
 	}
 	err := boxer.Start(box)
 
-	c.Assert(err, IsNil)
+	c.Assert(err.Success(), Equals, true)
 
 	stdout, _ := exec.Command("sudo", "lxc-info", "-n", box.ContainerName()).CombinedOutput()
 	c.Assert(strings.Contains(string(stdout), "RUNNING"), Equals, true)
@@ -157,10 +162,8 @@ func (s *BoxerSuite) TestDestroy(c *C) {
 		Port:             "10002",
 	}
 	boxer := newTestBoxer()
-	err := boxer.Stop(box)
-	c.Assert(err, IsNil)
-	err = boxer.Destroy(box)
-	c.Assert(err, IsNil)
+	boxer.Stop(box)
+	boxer.Destroy(box)
 
 	stdout, _ := exec.Command("sudo", "lxc-info", "-n", box.ContainerName()).CombinedOutput()
 	c.Assert(strings.Contains(string(stdout), "STOPPED"), Equals, true)
@@ -175,7 +178,7 @@ func (s *BoxerSuite) TestDestroy(c *C) {
 		"/etc/projects": []string{"1:/var/lib/lxc/mclovins-container-1_delta/rootfs/home/action"},
 	})
 
-	output, err := exec.Command("iptables", "-L", "-t", "nat").Output()
+	output, _ := exec.Command("iptables", "-L", "-t", "nat").Output()
 	c.Assert(strings.Contains(string(output), "192.168.254.254:22"), Equals, false)
 }
 
@@ -197,7 +200,7 @@ func (s *BoxerSuite) TestRestart(c *C) {
 	}
 	boxer := newTestBoxer()
 	err := boxer.Restart(box)
-	c.Assert(err, IsNil)
+	c.Assert(err.Success(), Equals, true)
 
 	stdout, _ := exec.Command("sudo", "lxc-info", "-n", box.ContainerName()).CombinedOutput()
 	c.Assert(strings.Contains(string(stdout), "RUNNING"), Equals, true)
