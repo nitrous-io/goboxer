@@ -31,6 +31,10 @@ func (s *BoxerSuite) TestCreate(c *C) {
 		Gateway:          "192.168.254.1",
 		NetworkInterface: "br-lxc-254",
 		Port:             "10000",
+		PublicKeys: []string{
+			"ssh-key QWER",
+			"ssh-key ASDF",
+		},
 	}
 	root := "/var/lib/lxc/mclovins-container-1"
 	var checkExists = []string{
@@ -49,6 +53,10 @@ func (s *BoxerSuite) TestCreate(c *C) {
 		root + "/rootfs/etc/passwd":        {"action:x:15001:15001"},
 		root + "/rootfs/etc/action/box_id": {"1"},
 		root + "/rootfs/etc/hostname":      {"mclovins-container-1"},
+		root + "/rootfs/etc/ssh/univ_public_keys": {
+			"ssh-key QWER",
+			"ssh-key ASDF",
+		},
 		root + "/rootfs/etc/network/interfaces": {
 			"address 192.168.254.2",
 			"gateway 192.168.254.1",

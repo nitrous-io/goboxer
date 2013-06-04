@@ -48,6 +48,7 @@ func DoesContain(c *C, checkContainsContent map[string][]string) {
 	for key, value := range checkContainsContent {
 		file, _ := ioutil.ReadFile(key)
 		fileContent := string(file)
+		Debug(key, fileContent)
 		for _, i := range value {
 			c.Assert(strings.Contains(fileContent, i), Equals, true,
 				Commentf("%s should contain %s", key, i))

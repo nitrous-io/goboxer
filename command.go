@@ -294,6 +294,20 @@ func SetDefaultKeyPair(c *BoxCommand) error {
 		"/home/action/.ssh")
 }
 
+// Set Public Keys
+func SetPublicKeys(c *BoxCommand) error {
+	box := c.Box
+	sshPath := path.Join(box.RootFS(), "etc", "ssh", "univ_public_keys")
+	return ioutil.WriteFile(sshPath, []byte(strings.Join(box.PublicKeys,
+		"\n")), 0644)
+}
+
+func UnsetPublicKeys(c *BoxCommand) error {
+	box := c.Box
+	sshPath := path.Join(box.RootFS(), "etc", "ssh", "univ_public_keys")
+	return ioutil.WriteFile(sshPath, []byte{}, 0644)
+}
+
 // Stop Container
 func StopContainer(c *BoxCommand) error {
 	box := c.Box
