@@ -33,7 +33,7 @@ type StateError struct {
 }
 
 func (e *StateError) Error() string {
-	return fmt.Sprintf("State Error: %v - %v - %v", e.Name, e.When, e.Detail)
+	return fmt.Sprintf("State Error: %+v - %+v - %+v", e.Name, e.When, e.Detail)
 }
 
 func NewStateError(name string, err error) StateError {
@@ -45,15 +45,19 @@ type CommandError struct {
 	RollbackStack []StateError
 }
 
+// check if the command completes successfully
+func (e *CommandError) Success() bool {
+	return len(e.AdvanceStack) == 0 && len(e.RollbackStack) == 0
+}
+
 func (e *CommandError) Error() string {
-	return fmt.Sprintf("CommandError: %v-%v", e.AdvanceStack, e.RollbackStack)
+	return fmt.Sprintf("CommandError: %+v-%+v", e.AdvanceStack, e.RollbackStack)
 }
 
 func advanceState(command *BoxCommand, errStack *CommandError) {
 	state := command.States[command.CurrentIndex]
 	err := state.Advance(command)
 	if err != nil {
-		Debug("AdvanceException", command.CurrentIndex, state.Name)
 		stateError := NewStateError(state.Name, err)
 		errStack.AdvanceStack = append(errStack.AdvanceStack, stateError)
 		// if the rollback stack has errors, we will not try to re-rollback
@@ -73,7 +77,6 @@ func rollbackState(command *BoxCommand, errStack *CommandError) {
 	state := command.States[command.CurrentIndex]
 	err := state.Rollback(command)
 	if err != nil {
-		Debug("RollbackException", command.CurrentIndex)
 		stateError := NewStateError(state.Name, err)
 		// if the advance stack has errors, we will not try to re-advance
 		errStack.RollbackStack = append(errStack.RollbackStack, stateError)
@@ -92,19 +95,11 @@ func rollbackState(command *BoxCommand, errStack *CommandError) {
 func Advance(command *BoxCommand) *CommandError {
 	errStack := &CommandError{}
 	advanceState(command, errStack)
-	if len(errStack.AdvanceStack) == 0 && len(errStack.RollbackStack) == 0 {
-		return nil
-	}
-	Debug("advance", errStack.AdvanceStack, errStack.RollbackStack)
 	return errStack
 }
 
 func Rollback(command *BoxCommand) *CommandError {
 	errStack := &CommandError{}
 	rollbackState(command, errStack)
-	if len(errStack.AdvanceStack) == 0 && len(errStack.RollbackStack) == 0 {
-		return nil
-	}
-	Debug("rollback", errStack.AdvanceStack, errStack.RollbackStack)
 	return errStack
 }

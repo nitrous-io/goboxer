@@ -115,10 +115,13 @@ func CreateBoxHandler(m Message, r *Runtime) (Message, error) {
 		NetworkInterface: resource.NetworkInterface,
 		Port:             resource.Port,
 	}
-	if err := r.Boxer.Create(box); err != nil {
+	if err := r.Boxer.Create(box); !err.Success() {
 		r.ResourcePool.Release(resource)
 		msg.Success = false
 		return msg, nil
+	}
+	if err := r.ResourcePool.SaveBox(box); err != nil {
+		Debug("FailedToSaveBox", err)
 	}
 	msg.Success = true
 	return msg, nil
@@ -129,7 +132,7 @@ func StartBoxHandler(m Message, r *Runtime) (Message, error) {
 	if err != nil {
 		return Message{}, fmt.Errorf("BoxNotFound: %s", m.Name)
 	}
-	if err := r.Boxer.Start(box); err != nil {
+	if err := r.Boxer.Start(box); !err.Success() {
 		return Message{}, fmt.Errorf("BoxFailedToStart: %s", m.Name)
 	}
 	return Message{
@@ -145,7 +148,7 @@ func StopBoxHandler(m Message, r *Runtime) (Message, error) {
 	if err != nil {
 		return Message{}, fmt.Errorf("BoxNotFound: %s", m.Name)
 	}
-	if err := r.Boxer.Stop(box); err != nil {
+	if err := r.Boxer.Stop(box); !err.Success() {
 		return Message{}, fmt.Errorf("BoxFailedToStop: %s", m.Name)
 	}
 	return Message{
@@ -161,7 +164,7 @@ func RestartBoxHandler(m Message, r *Runtime) (Message, error) {
 	if err != nil {
 		return Message{}, fmt.Errorf("BoxNotFound: %s", m.Name)
 	}
-	if err := r.Boxer.Restart(box); err != nil {
+	if err := r.Boxer.Restart(box); !err.Success() {
 		return Message{}, fmt.Errorf("BoxFailedToRestart: %s", m.Name)
 	}
 	return Message{
@@ -177,7 +180,7 @@ func DestroyBoxHandler(m Message, r *Runtime) (Message, error) {
 	if err != nil {
 		return Message{}, fmt.Errorf("BoxNotFound: %s", m.Name)
 	}
-	if err := r.Boxer.Destroy(box); err != nil {
+	if err := r.Boxer.Destroy(box); !err.Success() {
 		return Message{}, fmt.Errorf("BoxFailedToDestroy: %s", m.Name)
 	}
 	return Message{

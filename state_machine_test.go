@@ -30,7 +30,8 @@ func newTestCommand() *BoxCommand {
 func (s *StateMachineSuite) TestAutoAdvance(c *C) {
 	m := newTestCommand()
 	c.Assert(m.States[m.CurrentIndex].Name, Equals, "start")
-	Advance(m)
+	err := Advance(m)
+	c.Assert(err.Success(), Equals, true)
 	c.Assert(m.States[m.CurrentIndex].Name, Equals, "end")
 }
 

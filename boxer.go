@@ -10,7 +10,7 @@ type Boxer struct {
 	Runtimes map[string]string
 }
 
-func (boxer *Boxer) Create(box *Box) error {
+func (boxer *Boxer) Create(box *Box) *CommandError {
 	createCommand := &BoxCommand{
 		Name:         "Create",
 		Boxer:        boxer,
@@ -39,7 +39,7 @@ func (boxer *Boxer) Create(box *Box) error {
 	return Advance(createCommand)
 }
 
-func (boxer *Boxer) Start(box *Box) error {
+func (boxer *Boxer) Start(box *Box) *CommandError {
 	startCommand := &BoxCommand{
 		Name:  "Start",
 		Boxer: boxer,
@@ -52,7 +52,7 @@ func (boxer *Boxer) Start(box *Box) error {
 	return Advance(startCommand)
 }
 
-func (boxer *Boxer) Restart(box *Box) error {
+func (boxer *Boxer) Restart(box *Box) *CommandError {
 	restartCommand := &BoxCommand{
 		Name:  "Restart",
 		Boxer: boxer,
@@ -65,7 +65,7 @@ func (boxer *Boxer) Restart(box *Box) error {
 	return Advance(restartCommand)
 }
 
-func (boxer *Boxer) Stop(box *Box) error {
+func (boxer *Boxer) Stop(box *Box) *CommandError {
 	stopCommand := &BoxCommand{
 		Name:  "Stop",
 		Boxer: boxer,
@@ -81,7 +81,7 @@ func (boxer *Boxer) Stop(box *Box) error {
 	return Advance(stopCommand)
 }
 
-func (boxer *Boxer) Destroy(box *Box) error {
+func (boxer *Boxer) Destroy(box *Box) *CommandError {
 	states := []State{
 		State{Advance: Pass, Rollback: SetDefaultKeyPair},
 		State{Advance: UnsetPortForwarding, Rollback: SetPortForwarding},
