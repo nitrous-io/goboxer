@@ -390,6 +390,7 @@ func (boxer *Boxer) Start(box *Box) *CommandError {
 		Box:   box,
 		States: []State{
 			State{Advance: MountContainer, Rollback: UnmountContainer},
+			State{Advance: MountContainerLxcRoot, Rollback: UnmountContainerLxcRoot},
 			State{Advance: StartContainer, Rollback: StopContainer},
 		},
 	}

@@ -140,7 +140,45 @@ func (s *IntegrationSuite) TestCreateBox(c *C) {
 	c.Assert(usedIp, Equals, "192.168.254.2")
 }
 
-func (s *IntegrationSuite) TestStop(c *C) {
+//func (s *IntegrationSuite) TestStop(c *C) {
+//    s.Runtime.Receive(Message{
+//        Id:         "testboxer",
+//        BoxId:      "1",
+//        Type:       "aio:create",
+//        Name:       "mclovins-container",
+//        Runtime:    "test",
+//        Memory:     "256M",
+//        DiskSpace:  "1G",
+//        PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
+//    })
+//    defer DestroyTestBox("mclovins-container-1", "192.168.254.2")
+//    message, _ := s.Runtime.Receive(Message{
+//        Id:    "testboxer",
+//        BoxId: "1",
+//        Type:  "aio:stop",
+//        Name:  "mclovins-container-1",
+//    })
+
+//    c.Assert(message.Type, Equals, "aio:stopped")
+//    c.Assert(message.Id, Equals, "testboxer")
+//    c.Assert(message.BoxId, Equals, "1")
+//    c.Assert(message.Success, Equals, true)
+
+//    stdout, _ := exec.Command("sudo", "lxc-info", "-n", "mclovins-container-1").CombinedOutput()
+//    c.Assert(strings.Contains(string(stdout), "STOPPED"), Equals, true)
+
+//    DoesNotExist(c, []string{
+//        "/var/lib/lxc/mclovins-container-1",
+//    })
+
+//    // TODO: do we really need to remove the quota info here
+//    DoesNotContain(c, map[string][]string{
+//        "/etc/projid":   []string{"mclovins-container-1:1"},
+//        "/etc/projects": []string{"1:/var/lib/lxc/mclovins-container-1_delta/rootfs/home/action"},
+//    })
+//}
+
+func (s *IntegrationSuite) TestStart(c *C) {
 	s.Runtime.Receive(Message{
 		Id:         "testboxer",
 		BoxId:      "1",
@@ -155,24 +193,23 @@ func (s *IntegrationSuite) TestStop(c *C) {
 	message, _ := s.Runtime.Receive(Message{
 		Id:    "testboxer",
 		BoxId: "1",
-		Type:  "aio:stop",
+		Type:  "aio:start",
 		Name:  "mclovins-container-1",
 	})
 
-	c.Assert(message.Type, Equals, "aio:stopped")
+	c.Assert(message.Type, Equals, "aio:started")
 	c.Assert(message.Id, Equals, "testboxer")
 	c.Assert(message.BoxId, Equals, "1")
 	c.Assert(message.Success, Equals, true)
 
 	stdout, _ := exec.Command("sudo", "lxc-info", "-n", "mclovins-container-1").CombinedOutput()
-	c.Assert(strings.Contains(string(stdout), "STOPPED"), Equals, true)
+	c.Assert(strings.Contains(string(stdout), "RUNNING"), Equals, true)
 
-	DoesNotExist(c, []string{
-		"/var/lib/lxc/mclovins-container-1",
+	DoesExist(c, []string{
+		"/var/lib/lxc/mclovins-container-1/rootfs",
 	})
 
-	// TODO: do we really need to remove the quota info here
-	DoesNotContain(c, map[string][]string{
+	DoesContain(c, map[string][]string{
 		"/etc/projid":   []string{"mclovins-container-1:1"},
 		"/etc/projects": []string{"1:/var/lib/lxc/mclovins-container-1_delta/rootfs/home/action"},
 	})
