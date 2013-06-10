@@ -21,6 +21,7 @@ type Box struct {
 	Port             string `json:"port"`
 	BoxerId          string `json:"boxerId"`
 	State            string `json:"containerState"`
+	Disk             string `json:"disk"`
 	Runtime          string
 	SnapshotURL      string
 	PublicKeys       []string
@@ -72,9 +73,9 @@ func (b *Box) PrivateKeyPath() string {
 // TODO: move this elsewhere as rootfs really should depends on boxer,
 // box doesnt have anything to do with its own absolute rootfs
 func (b *Box) RootFS() string {
-	return path.Join("/var/lib/lxc", b.ContainerName(), "rootfs")
+	return path.Join(b.Disk, b.ContainerName(), "rootfs")
 }
 
 func (b *Box) ContainerFS() string {
-	return path.Join("/var/lib/lxc", b.ContainerName())
+	return path.Join(b.Disk, b.ContainerName())
 }

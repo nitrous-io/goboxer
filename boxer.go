@@ -17,8 +17,10 @@ import (
 )
 
 type Boxer struct {
-	Root     string
-	Runtimes map[string]string
+	Root         string
+	SelectedDisk string
+	Disks        []string
+	Runtimes     map[string]string
 }
 
 func runCommand(cmd string, args ...string) error {
@@ -30,8 +32,9 @@ func runCommand(cmd string, args ...string) error {
 }
 
 // Create delta for a box
+// TODO: remove boxer reference here
 func boxDeltaHomePath(boxer *Boxer, box *Box) string {
-	return path.Join(boxer.Root, box.ContainerName()+"_delta", "rootfs",
+	return path.Join(box.Disk, box.ContainerName()+"_delta", "rootfs",
 		"home", "action")
 }
 
@@ -56,7 +59,7 @@ func deleteLineContain(file, pattern string) error {
 }
 
 func boxPath(boxer *Boxer, box *Box) string {
-	return path.Join(boxer.Root, box.ContainerName())
+	return path.Join(box.Disk, box.ContainerName())
 }
 
 func CreateContainerPath(c *BoxCommand) error {
@@ -78,9 +81,8 @@ func CreateContainerDeltaPath(c *BoxCommand) error {
 }
 
 func DestroyContainerDeltaPath(c *BoxCommand) error {
-	boxer := c.Boxer
 	box := c.Box
-	target := path.Join(boxer.Root, box.ContainerName()+"_delta")
+	target := path.Join(box.Disk, box.ContainerName()+"_delta")
 	for retries := 0; retries < 1000; retries++ {
 		err := os.RemoveAll(target)
 		if err == nil {
@@ -98,34 +100,43 @@ func DestroyContainerDeltaPath(c *BoxCommand) error {
 
 // mount the container
 func MountContainer(c *BoxCommand) error {
-	boxer := c.Boxer
 	box := c.Box
-	boxDeltaPath := path.Join(boxer.Root, box.ContainerName()+"_delta")
-	boxPath := path.Join(boxer.Root, box.ContainerName())
-	baseContainerPath := path.Join(boxer.Root, "base_container_template")
+	boxDeltaPath := path.Join(box.Disk, box.ContainerName()+"_delta")
+	boxPath := path.Join(box.Disk, box.ContainerName())
+	baseContainerPath := path.Join(box.Disk, "base_container_template")
 	return MountOverlay(boxPath, boxDeltaPath, baseContainerPath)
 }
 
 func UnmountContainer(c *BoxCommand) error {
-	boxer := c.Boxer
-	box := c.Box
-	boxPath := path.Join(boxer.Root, box.ContainerName())
+	boxPath := path.Join(c.Box.Disk, c.Box.ContainerName())
 	return UnmountOverlay(boxPath)
+}
+
+// mount the container from selected disk to lxc root
+func MountContainerLxcRoot(c *BoxCommand) error {
+	boxPath := path.Join(c.Box.Disk, c.Box.ContainerName())
+	lxcBoxPath := path.Join(c.Boxer.Root, c.Box.ContainerName())
+	return MountBind(boxPath, lxcBoxPath)
+}
+
+func UnmountContainerLxcRoot(c *BoxCommand) error {
+	lxcBoxPath := path.Join(c.Boxer.Root, c.Box.ContainerName())
+	return Unmount(lxcBoxPath)
 }
 
 // untar the template
 func ExtractTemplate(c *BoxCommand) error {
 	box := c.Box
-	boxDeltaPath := path.Join("/var/lib/lxc", box.ContainerName()+"_delta")
+	boxDeltaPath := path.Join(box.Disk, box.ContainerName()+"_delta")
 	boxDeltaHomePath := path.Join(boxDeltaPath, "rootfs", "home", "action")
-	homeDataPath := path.Join("/var/lib/lxc", box.TemplatePath())
+	homeDataPath := path.Join(box.Disk, box.TemplatePath())
 	return Untar(homeDataPath, boxDeltaHomePath)
 }
 
 // set /etc/projects
 func SetEtcProjects(c *BoxCommand) error {
 	box := c.Box
-	boxDeltaPath := path.Join("/var/lib/lxc", box.ContainerName()+"_delta")
+	boxDeltaPath := path.Join(box.Disk, box.ContainerName()+"_delta")
 	boxDeltaHomePath := path.Join(boxDeltaPath, "rootfs", "home", "action")
 	projectsFile, err := os.OpenFile("/etc/projects", os.O_APPEND|os.O_WRONLY, 0600)
 	if err != nil {
@@ -139,7 +150,7 @@ func SetEtcProjects(c *BoxCommand) error {
 
 func UnsetEtcProjects(c *BoxCommand) error {
 	box := c.Box
-	boxDeltaPath := path.Join("/var/lib/lxc", box.ContainerName()+"_delta")
+	boxDeltaPath := path.Join(box.Disk, box.ContainerName()+"_delta")
 	return deleteLineContain("/etc/projects", boxDeltaPath)
 }
 
@@ -165,25 +176,24 @@ func UnsetEtcProjid(c *BoxCommand) error {
 func SetXfsQuota(c *BoxCommand) error {
 	box := c.Box
 	runCommand("xfs_quota", "-x", "-c", "project -s "+box.ContainerName(),
-		"/var/lib/lxc")
+		box.Disk)
 	runCommand("xfs_quota", "-x", "-c",
 		"limit -p bhard="+box.DiskSpace+" "+box.ContainerName(),
-		"/var/lib/lxc")
+		box.Disk)
 	return nil
 }
 
 func UnsetXfsQuota(c *BoxCommand) error {
 	box := c.Box
 	runCommand("xfs_quota", "-x", "-c",
-		"\"limit -p bhard=0 "+box.ContainerName()+"\"", "/var/lib/lxc")
+		"\"limit -p bhard=0 "+box.ContainerName()+"\"", box.Disk)
 	return nil
 }
 
 // set lxc_config
 func SetLxcConfig(c *BoxCommand) error {
-	boxer := c.Boxer
 	box := c.Box
-	lxcConfigPath := path.Join(boxer.Root, box.ContainerName(), "config")
+	lxcConfigPath := path.Join(box.Disk, box.ContainerName(), "config")
 	lxcConfig, err := os.Create(lxcConfigPath)
 	if err != nil {
 		return err
@@ -349,24 +359,25 @@ func (boxer *Boxer) Create(box *Box) *CommandError {
 		Box:          box,
 		CurrentIndex: 0,
 		States: []State{
-			State{Advance: CreateContainerPath, Rollback: DestroyContainerPath},
-			State{Advance: CreateContainerDeltaPath, Rollback: DestroyContainerDeltaPath},
-			State{Advance: MountContainer, Rollback: UnmountContainer},
-			State{Advance: ExtractTemplate, Rollback: Pass},
-			State{Advance: SetEtcProjects, Rollback: UnsetEtcProjects},
-			State{Advance: SetEtcProjid, Rollback: UnsetEtcProjid},
-			State{Advance: SetXfsQuota, Rollback: UnsetXfsQuota},
-			State{Advance: SetLxcConfig, Rollback: Pass},
-			State{Advance: SetHostname, Rollback: Pass},
-			State{Advance: SetNetworkConfig, Rollback: Pass},
-			State{Advance: SetUserUid, Rollback: Pass},
-			State{Advance: SetUserGid, Rollback: Pass},
-			State{Advance: SetHomePermission, Rollback: Pass},
-			State{Advance: SetWorkspace, Rollback: Pass},
-			State{Advance: SetBoxId, Rollback: UnsetBoxId},
-			State{Advance: SetPortForwarding, Rollback: UnsetPortForwarding},
-			State{Advance: SetDefaultKeyPair, Rollback: Pass},
-			State{Advance: SetPublicKeys, Rollback: UnsetPublicKeys},
+			State{Name: "CreateContainerPath", Advance: CreateContainerPath, Rollback: DestroyContainerPath},
+			State{Name: "CreateContainerDeltaPath", Advance: CreateContainerDeltaPath, Rollback: DestroyContainerDeltaPath},
+			State{Name: "MountContainer", Advance: MountContainer, Rollback: UnmountContainer},
+			State{Name: "MountContainerLxcRoot", Advance: MountContainerLxcRoot, Rollback: UnmountContainerLxcRoot},
+			State{Name: "ExtractTemplate", Advance: ExtractTemplate, Rollback: Pass},
+			State{Name: "SetEtcProjects", Advance: SetEtcProjects, Rollback: UnsetEtcProjects},
+			State{Name: "SetEtcProjid", Advance: SetEtcProjid, Rollback: UnsetEtcProjid},
+			State{Name: "SetXfsQuota", Advance: SetXfsQuota, Rollback: UnsetXfsQuota},
+			State{Name: "SetLxcConfig", Advance: SetLxcConfig, Rollback: Pass},
+			State{Name: "SetHostname", Advance: SetHostname, Rollback: Pass},
+			State{Name: "SetNetworkConfig", Advance: SetNetworkConfig, Rollback: Pass},
+			State{Name: "SetUserUid", Advance: SetUserUid, Rollback: Pass},
+			State{Name: "SetUserGid", Advance: SetUserGid, Rollback: Pass},
+			State{Name: "SetHomePermission", Advance: SetHomePermission, Rollback: Pass},
+			State{Name: "SetWorkspace", Advance: SetWorkspace, Rollback: Pass},
+			State{Name: "SetBoxId", Advance: SetBoxId, Rollback: UnsetBoxId},
+			State{Name: "SetPortForwarding", Advance: SetPortForwarding, Rollback: UnsetPortForwarding},
+			State{Name: "SetDefaultKeyPair", Advance: SetDefaultKeyPair, Rollback: Pass},
+			State{Name: "SetPublicKeys", Advance: SetPublicKeys, Rollback: UnsetPublicKeys},
 		},
 	}
 	return Advance(createCommand)

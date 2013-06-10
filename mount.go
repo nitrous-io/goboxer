@@ -22,7 +22,22 @@ func MountOverlay(source, delta, target string) (err error) {
 		"none", source).Run()
 }
 
-func UnmountOverlay(target string) error {
+func MountBind(source, target string) error {
+	mounted, err := Mounted(target)
+	if err != nil {
+		return err
+	}
+	if mounted {
+		return nil
+	}
+	// if target does not exist, create a new directory for it
+	if err = os.MkdirAll(target, 0755); err != nil {
+		return err
+	}
+	return exec.Command("mount", "--bind", source, target).Run()
+}
+
+func Unmount(target string) error {
 	mounted, err := Mounted(target)
 	if err != nil {
 		return err
@@ -44,10 +59,13 @@ func UnmountOverlay(target string) error {
 			// mntpoint doesn't exist anymore. Success.
 			return nil
 		}
-		// fmt.Printf("(%v) Remove %v returned: %v\n", retries, target, err)
 		time.Sleep(10 * time.Millisecond)
 	}
 	return fmt.Errorf("Umount: Failed to umount %v", target)
+}
+
+func UnmountOverlay(target string) error {
+	return Unmount(target)
 }
 
 func Mounted(mountpoint string) (bool, error) {

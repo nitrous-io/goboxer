@@ -110,6 +110,7 @@ func CreateBoxHandler(m Message, r *Runtime) (Message, error) {
 		DiskSpace:        m.DiskSpace,
 		PublicKeys:       m.PublicKeys,
 		SnapshotURL:      m.SnapshotURL,
+		Disk:             r.Boxer.SelectedDisk,
 		Template:         r.Boxer.Runtimes[m.Runtime],
 		Ip:               resource.Ip,
 		Gateway:          resource.Gateway,
@@ -117,6 +118,7 @@ func CreateBoxHandler(m Message, r *Runtime) (Message, error) {
 		Port:             resource.Port,
 	}
 	if err := r.Boxer.Create(box); !err.Success() {
+		Debug("FailedToCreateBox", err)
 		r.ResourcePool.Release(resource)
 		msg.Success = false
 		return msg, nil

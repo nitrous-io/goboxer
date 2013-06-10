@@ -48,10 +48,10 @@ func DoesContain(c *C, checkContainsContent map[string][]string) {
 	for key, value := range checkContainsContent {
 		file, _ := ioutil.ReadFile(key)
 		fileContent := string(file)
-		Debug(key, fileContent)
 		for _, i := range value {
 			c.Assert(strings.Contains(fileContent, i), Equals, true,
-				Commentf("%s should contain %s", key, i))
+				Commentf("%s should contain %s but got content %s", key, i,
+					fileContent))
 		}
 	}
 }
@@ -62,7 +62,8 @@ func DoesNotContain(c *C, checkNotContainsContent map[string][]string) {
 		fileContent := string(file)
 		for _, i := range value {
 			c.Assert(strings.Contains(fileContent, i), Equals, false,
-				Commentf("%s should not contain %s", key, i))
+				Commentf("%s should not contain %s but got content %s", key, i,
+					fileContent))
 		}
 	}
 }
@@ -77,12 +78,18 @@ func DoesHavePermissions(c *C, checkPermissions map[string][]int) {
 
 func DestroyTestBox(name, ip string) error {
 	scriptPath, _ := filepath.Abs("./scripts/boxer-cleanup-tests")
-	_, err := exec.Command("sudo", scriptPath, name, ip).CombinedOutput()
+	stdout, err := exec.Command("sudo", scriptPath, name, ip).CombinedOutput()
+	if err != nil {
+		Debug("FailedToDestroyTestBox", string(stdout))
+	}
 	return err
 }
 
 func CreateTestBox(args ...string) error {
 	scriptPath, _ := filepath.Abs("./scripts/boxer-setup-test-container")
-	_, err := exec.Command(scriptPath, args...).CombinedOutput()
+	stdout, err := exec.Command(scriptPath, args...).CombinedOutput()
+	if err != nil {
+		Debug("FailedToCreateTestBox", string(stdout))
+	}
 	return err
 }
