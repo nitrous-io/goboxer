@@ -419,6 +419,7 @@ func (boxer *Boxer) Stop(box *Box) *CommandError {
 			State{Advance: UnsetEtcProjects, Rollback: SetEtcProjects},
 			State{Advance: UnsetEtcProjid, Rollback: SetEtcProjid},
 			State{Advance: UnsetXfsQuota, Rollback: SetXfsQuota},
+			State{Advance: UnmountContainerLxcRoot, Rollback: Pass},
 			State{Advance: UnmountContainer, Rollback: Pass},
 		},
 	}

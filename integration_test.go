@@ -8,6 +8,8 @@ package goboxer
 import (
 	"github.com/garyburd/redigo/redis"
 	. "launchpad.net/gocheck"
+	"os/exec"
+	"strings"
 )
 
 type IntegrationSuite struct {
@@ -136,4 +138,42 @@ func (s *IntegrationSuite) TestCreateBox(c *C) {
 	// check redis
 	usedIp, _ := redis.String(s.Redis.Do("LPOP", "aio:used_resources"))
 	c.Assert(usedIp, Equals, "192.168.254.2")
+}
+
+func (s *IntegrationSuite) TestStop(c *C) {
+	s.Runtime.Receive(Message{
+		Id:         "testboxer",
+		BoxId:      "1",
+		Type:       "aio:create",
+		Name:       "mclovins-container",
+		Runtime:    "test",
+		Memory:     "256M",
+		DiskSpace:  "1G",
+		PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
+	})
+	defer DestroyTestBox("mclovins-container-1", "192.168.254.2")
+	message, _ := s.Runtime.Receive(Message{
+		Id:    "testboxer",
+		BoxId: "1",
+		Type:  "aio:stop",
+		Name:  "mclovins-container-1",
+	})
+
+	c.Assert(message.Type, Equals, "aio:stopped")
+	c.Assert(message.Id, Equals, "testboxer")
+	c.Assert(message.BoxId, Equals, "1")
+	c.Assert(message.Success, Equals, true)
+
+	stdout, _ := exec.Command("sudo", "lxc-info", "-n", "mclovins-container-1").CombinedOutput()
+	c.Assert(strings.Contains(string(stdout), "STOPPED"), Equals, true)
+
+	DoesNotExist(c, []string{
+		"/var/lib/lxc/mclovins-container-1",
+	})
+
+	// TODO: do we really need to remove the quota info here
+	DoesNotContain(c, map[string][]string{
+		"/etc/projid":   []string{"mclovins-container-1:1"},
+		"/etc/projects": []string{"1:/var/lib/lxc/mclovins-container-1_delta/rootfs/home/action"},
+	})
 }
