@@ -70,8 +70,6 @@ func (b *Box) PrivateKeyPath() string {
 	return path.Join("home", "action", ".ssh", "id_rsa")
 }
 
-// TODO: move this elsewhere as rootfs really should depends on boxer,
-// box doesnt have anything to do with its own absolute rootfs
 func (b *Box) RootFS() string {
 	return path.Join(b.Disk, b.ContainerName(), "rootfs")
 }
