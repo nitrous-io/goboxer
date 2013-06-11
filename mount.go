@@ -41,7 +41,7 @@ func UnmountOverlay(target string) error {
 			return err
 		}
 		if !mounted {
-			return os.RemoveAll(target)
+			return nil
 		}
 		if err := umount(target); err != nil {
 			return err

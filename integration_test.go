@@ -179,7 +179,6 @@ func (s *IntegrationSuite) TestStop(c *C) {
 
 	DoesNotExist(c, []string{
 		"/var/lib/lxc/mclovins-container-1",
-		"/lxc/disk1/mclovins-container-1",
 	})
 
 	// TODO: do we really need to remove the quota info here
@@ -269,4 +268,43 @@ func (s *IntegrationSuite) TestDestroy(c *C) {
 	// check redis
 	availableIp, _ := redis.String(s.Redis.Do("RPOP", "aio:available_resources"))
 	c.Assert(availableIp, Equals, "192.168.254.2")
+}
+
+func (s *IntegrationSuite) TestRestart(c *C) {
+	s.Runtime.Receive(Message{
+		Id:         "testboxer",
+		BoxId:      "1",
+		Type:       "aio:create",
+		Name:       "mclovins-container",
+		Runtime:    "test",
+		Memory:     "256M",
+		DiskSpace:  "1G",
+		PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
+	})
+	defer s.deleteBox("1", "mclovins-container")
+	message, _ := s.Runtime.Receive(Message{
+		Id:    "testboxer",
+		BoxId: "1",
+		Type:  "aio:restart",
+		Name:  "mclovins-container-1",
+	})
+
+	c.Assert(message.Type, Equals, "aio:restarted")
+	c.Assert(message.Id, Equals, "testboxer")
+	c.Assert(message.BoxId, Equals, "1")
+	c.Assert(message.Success, Equals, true)
+
+	stdout, _ := exec.Command("sudo", "lxc-info", "-n", "mclovins-container-1").CombinedOutput()
+	c.Assert(strings.Contains(string(stdout), "RUNNING"), Equals, true)
+
+	DoesExist(c, []string{
+		"/var/lib/lxc/mclovins-container-1",
+		"/lxc/disk1/mclovins-container-1",
+		"/lxc/disk1/mclovins-container-1_delta",
+	})
+
+	DoesContain(c, map[string][]string{
+		"/etc/projid":   []string{"mclovins-container-1:1"},
+		"/etc/projects": []string{"1:/lxc/disk1/mclovins-container-1_delta/rootfs/home/action"},
+	})
 }

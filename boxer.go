@@ -154,6 +154,7 @@ func SetEtcProjid(c *BoxCommand) error {
 	_, err = projidFile.Write([]byte(projidLine))
 	return err
 }
+
 func UnsetEtcProjid(c *BoxCommand) error {
 	box := c.Box
 	projidLine := box.ContainerName() + ":" + box.Id
@@ -423,7 +424,12 @@ func init() {
 		State{Advance: DestroyContainerPath, Rollback: CreateContainerPath},
 	}
 
-	RestartStates = MergeStates(StopStates, StartStates)
+	RestartStates = []State{
+		State{Advance: StopContainer, Rollback: Pass},
+		State{Advance: UnmountContainer, Rollback: MountContainer},
+		State{Advance: MountContainer, Rollback: UnmountContainer},
+		State{Advance: StartContainer, Rollback: StopContainer},
+	}
 }
 
 func (boxer *Boxer) Create(box *Box) *CommandError {
