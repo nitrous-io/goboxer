@@ -356,89 +356,55 @@ func Pass(c *BoxCommand) error {
 	return nil
 }
 
-func (boxer *Boxer) Create(box *Box) *CommandError {
-	createCommand := &BoxCommand{
-		Name:         "Create",
-		Boxer:        boxer,
-		Box:          box,
-		CurrentIndex: 0,
-		States: []State{
-			State{Name: "CreateContainerPath", Advance: CreateContainerPath, Rollback: DestroyContainerPath},
-			State{Name: "CreateContainerDeltaPath", Advance: CreateContainerDeltaPath, Rollback: DestroyContainerDeltaPath},
-			State{Name: "MountContainer", Advance: MountContainer, Rollback: UnmountContainer},
-			State{Name: "MountContainerLxcRoot", Advance: MountContainerLxcRoot, Rollback: UnmountContainerLxcRoot},
-			State{Name: "ExtractTemplate", Advance: ExtractTemplate, Rollback: Pass},
-			State{Name: "SetEtcProjects", Advance: SetEtcProjects, Rollback: UnsetEtcProjects},
-			State{Name: "SetEtcProjid", Advance: SetEtcProjid, Rollback: UnsetEtcProjid},
-			State{Name: "SetXfsQuota", Advance: SetXfsQuota, Rollback: UnsetXfsQuota},
-			State{Name: "SetLxcConfig", Advance: SetLxcConfig, Rollback: Pass},
-			State{Name: "SetHostname", Advance: SetHostname, Rollback: Pass},
-			State{Name: "SetNetworkConfig", Advance: SetNetworkConfig, Rollback: Pass},
-			State{Name: "SetUserUid", Advance: SetUserUid, Rollback: Pass},
-			State{Name: "SetUserGid", Advance: SetUserGid, Rollback: Pass},
-			State{Name: "SetHomePermission", Advance: SetHomePermission, Rollback: Pass},
-			State{Name: "SetWorkspace", Advance: SetWorkspace, Rollback: Pass},
-			State{Name: "SetBoxId", Advance: SetBoxId, Rollback: UnsetBoxId},
-			State{Name: "SetPortForwarding", Advance: SetPortForwarding, Rollback: UnsetPortForwarding},
-			State{Name: "SetDefaultKeyPair", Advance: SetDefaultKeyPair, Rollback: Pass},
-			State{Name: "SetPublicKeys", Advance: SetPublicKeys, Rollback: UnsetPublicKeys},
-		},
-	}
-	return Advance(createCommand)
-}
+var CreateStates []State
+var StartStates []State
+var StopStates []State
+var RestartStates []State
+var DestroyStates []State
 
-func (boxer *Boxer) Start(box *Box) *CommandError {
-	startCommand := &BoxCommand{
-		Name:  "Start",
-		Boxer: boxer,
-		Box:   box,
-		States: []State{
-			State{Advance: MountContainer, Rollback: UnmountContainer},
-			State{Advance: MountContainerLxcRoot, Rollback: UnmountContainerLxcRoot},
-			State{Advance: StartContainer, Rollback: StopContainer},
-		},
+func init() {
+	CreateStates = []State{
+		State{Advance: CreateContainerPath, Rollback: DestroyContainerPath},
+		State{Advance: CreateContainerDeltaPath, Rollback: DestroyContainerDeltaPath},
+		State{Advance: MountContainer, Rollback: UnmountContainer},
+		State{Advance: MountContainerLxcRoot, Rollback: UnmountContainerLxcRoot},
+		State{Advance: ExtractTemplate, Rollback: Pass},
+		State{Advance: SetEtcProjects, Rollback: UnsetEtcProjects},
+		State{Advance: SetEtcProjid, Rollback: UnsetEtcProjid},
+		State{Advance: SetXfsQuota, Rollback: UnsetXfsQuota},
+		State{Advance: SetLxcConfig, Rollback: Pass},
+		State{Advance: SetHostname, Rollback: Pass},
+		State{Advance: SetNetworkConfig, Rollback: Pass},
+		State{Advance: SetUserUid, Rollback: Pass},
+		State{Advance: SetUserGid, Rollback: Pass},
+		State{Advance: SetHomePermission, Rollback: Pass},
+		State{Advance: SetWorkspace, Rollback: Pass},
+		State{Advance: SetBoxId, Rollback: UnsetBoxId},
+		State{Advance: SetPortForwarding, Rollback: UnsetPortForwarding},
+		State{Advance: SetDefaultKeyPair, Rollback: Pass},
+		State{Advance: SetPublicKeys, Rollback: UnsetPublicKeys},
 	}
-	return Advance(startCommand)
-}
 
-func (boxer *Boxer) Restart(box *Box) *CommandError {
-	restartCommand := &BoxCommand{
-		Name:  "Restart",
-		Boxer: boxer,
-		Box:   box,
-		States: []State{
-			State{Advance: StopContainer, Rollback: Pass},
-			State{Advance: StartContainer, Rollback: Pass},
-		},
+	StartStates = []State{
+		State{Advance: MountContainer, Rollback: UnmountContainer},
+		State{Advance: MountContainerLxcRoot, Rollback: UnmountContainerLxcRoot},
+		State{Advance: StartContainer, Rollback: StopContainer},
 	}
-	return Advance(restartCommand)
-}
 
-func (boxer *Boxer) Stop(box *Box) *CommandError {
-	stopCommand := &BoxCommand{
-		Name:  "Stop",
-		Boxer: boxer,
-		Box:   box,
-		States: []State{
-			State{Name: "StopContainer          ", Advance: StopContainer, Rollback: Pass},
-			State{Name: "UnmountContainerLxcRoot", Advance: UnmountContainerLxcRoot, Rollback: MountContainerLxcRoot},
-			State{Name: "UnmountContainer       ", Advance: UnmountContainer, Rollback: MountContainer},
-			State{Name: "UnsetEtcProjects       ", Advance: UnsetEtcProjects, Rollback: SetEtcProjects},
-			State{Name: "UnsetEtcProjid         ", Advance: UnsetEtcProjid, Rollback: SetEtcProjid},
-			State{Name: "UnsetXfsQuota          ", Advance: UnsetXfsQuota, Rollback: SetXfsQuota},
-		},
-	}
-	return Advance(stopCommand)
-}
-
-func (boxer *Boxer) Destroy(box *Box) *CommandError {
-	states := []State{
+	StopStates = []State{
 		State{Advance: StopContainer, Rollback: Pass},
+		State{Advance: UnmountContainerLxcRoot, Rollback: MountContainerLxcRoot},
+		State{Advance: UnmountContainer, Rollback: MountContainer},
+		State{Advance: UnsetEtcProjects, Rollback: SetEtcProjects},
+		State{Advance: UnsetEtcProjid, Rollback: SetEtcProjid},
+		State{Advance: UnsetXfsQuota, Rollback: SetXfsQuota},
+	}
 
+	DestroyStates = []State{
+		State{Advance: StopContainer, Rollback: Pass},
 		State{Advance: Pass, Rollback: SetDefaultKeyPair},
 		State{Advance: UnsetPortForwarding, Rollback: SetPortForwarding},
 		State{Advance: UnsetBoxId, Rollback: SetBoxId},
-
 		State{Advance: Pass, Rollback: SetWorkspace},
 		State{Advance: Pass, Rollback: SetHomePermission},
 		State{Advance: Pass, Rollback: SetUserGid},
@@ -447,7 +413,6 @@ func (boxer *Boxer) Destroy(box *Box) *CommandError {
 		State{Advance: Pass, Rollback: SetHostname},
 		State{Advance: Pass, Rollback: SetLxcConfig},
 		State{Advance: Pass, Rollback: ExtractTemplate},
-
 		State{Advance: UnmountContainerLxcRoot, Rollback: MountContainerLxcRoot},
 		State{Advance: UnmountContainer, Rollback: MountContainer},
 		State{Advance: UnsetXfsQuota, Rollback: SetXfsQuota},
@@ -458,11 +423,56 @@ func (boxer *Boxer) Destroy(box *Box) *CommandError {
 		State{Advance: DestroyContainerPath, Rollback: CreateContainerPath},
 	}
 
+	RestartStates = MergeStates(StopStates, StartStates)
+}
+
+func (boxer *Boxer) Create(box *Box) *CommandError {
+	createCommand := &BoxCommand{
+		Name:         "Create",
+		Boxer:        boxer,
+		Box:          box,
+		CurrentIndex: 0,
+		States:       CreateStates,
+	}
+	return Advance(createCommand)
+}
+
+func (boxer *Boxer) Start(box *Box) *CommandError {
+	startCommand := &BoxCommand{
+		Name:   "Start",
+		Boxer:  boxer,
+		Box:    box,
+		States: StartStates,
+	}
+	return Advance(startCommand)
+}
+
+func (boxer *Boxer) Restart(box *Box) *CommandError {
+	restartCommand := &BoxCommand{
+		Name:   "Restart",
+		Boxer:  boxer,
+		Box:    box,
+		States: RestartStates,
+	}
+	return Advance(restartCommand)
+}
+
+func (boxer *Boxer) Stop(box *Box) *CommandError {
+	stopCommand := &BoxCommand{
+		Name:   "Stop",
+		Boxer:  boxer,
+		Box:    box,
+		States: StopStates,
+	}
+	return Advance(stopCommand)
+}
+
+func (boxer *Boxer) Destroy(box *Box) *CommandError {
 	destroyCommand := &BoxCommand{
 		Name:   "Destroy",
 		Boxer:  boxer,
 		Box:    box,
-		States: states,
+		States: DestroyStates,
 	}
 	return Advance(destroyCommand)
 }
