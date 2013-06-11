@@ -119,7 +119,7 @@ func CreateBoxHandler(m Message, r *Runtime) (Message, error) {
 	}
 	if err := r.Boxer.Create(box); !err.Success() {
 		Debug("FailedToCreateBox", err)
-		r.ResourcePool.Release(resource)
+		r.ResourcePool.Release(resource.Ip)
 		msg.Success = false
 		return msg, nil
 	}
@@ -189,6 +189,10 @@ func DestroyBoxHandler(m Message, r *Runtime) (Message, error) {
 	}
 	if err := r.Boxer.Destroy(box); !err.Success() {
 		return r.NewInvalidParamMessage(), fmt.Errorf("BoxFailedToDestroy: %s", m.Name)
+	}
+	if err := r.ResourcePool.Release(box.Ip); err != nil {
+		return r.NewInvalidParamMessage(),
+			fmt.Errorf("BoxFailedToReleaseResource %s with ip: %s", box.Id, box.Ip)
 	}
 	return Message{
 		Type:       "aio:destroyed",

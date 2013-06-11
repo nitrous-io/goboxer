@@ -9,6 +9,10 @@ import (
 	"time"
 )
 
+func umount(target string) error {
+	return syscall.Unmount(target, 0)
+}
+
 func MountOverlay(source, delta, target string) (err error) {
 	mountOptions := "rw,upperdir=" + delta + ",lowerdir=" + target
 	mounted, err := Mounted(target)
@@ -22,50 +26,29 @@ func MountOverlay(source, delta, target string) (err error) {
 		"none", source).Run()
 }
 
-func MountBind(source, target string) error {
-	mounted, err := Mounted(target)
-	if err != nil {
+func Symlink(source, target string) error {
+	if err := os.RemoveAll(target); err != nil {
 		return err
 	}
-	if mounted {
-		return nil
-	}
-	// if target does not exist, create a new directory for it
-	if err = os.MkdirAll(target, 0755); err != nil {
-		return err
-	}
-	return exec.Command("mount", "--bind", source, target).Run()
+	return os.Symlink(source, target)
 }
 
-func Unmount(target string) error {
-	mounted, err := Mounted(target)
-	if err != nil {
-		return err
-	}
-	if !mounted {
-		return nil
-	}
-	if err := syscall.Unmount(target, 0); err != nil {
-		return err
-	}
+func UnmountOverlay(target string) error {
 	// We'll just keep retrying until umount success
 	for retries := 0; retries < 1000; retries++ {
-		err := os.Remove(target)
-		if err == nil {
-			// rm mntpoint succeeded
-			return nil
+		mounted, err := Mounted(target)
+		if err != nil {
+			return err
 		}
-		if os.IsNotExist(err) {
-			// mntpoint doesn't exist anymore. Success.
-			return nil
+		if !mounted {
+			return os.RemoveAll(target)
+		}
+		if err := umount(target); err != nil {
+			return err
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
 	return fmt.Errorf("Umount: Failed to umount %v", target)
-}
-
-func UnmountOverlay(target string) error {
-	return Unmount(target)
 }
 
 func Mounted(mountpoint string) (bool, error) {

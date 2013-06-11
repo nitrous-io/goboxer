@@ -40,10 +40,10 @@ func (rp *ResourcePool) Acquire() (resource *Resource, err error) {
 	return resource, nil
 }
 
-func (rp *ResourcePool) Release(resource *Resource) (err error) {
+func (rp *ResourcePool) Release(ip string) (err error) {
 	rp.Conn.Send("MULTI")
-	rp.Conn.Send("LREM", "aio:used_resources", 0, resource.Ip)
-	rp.Conn.Send("RPUSH", "aio:available_resources", resource.Ip)
+	rp.Conn.Send("LREM", "aio:used_resources", 0, ip)
+	rp.Conn.Send("RPUSH", "aio:available_resources", ip)
 	_, err = rp.Conn.Do("EXEC")
 	return err
 }

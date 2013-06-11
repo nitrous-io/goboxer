@@ -54,11 +54,8 @@ func (s *ResourcePoolSuite) TestAcquireNonAvailableResource(c *C) {
 func (s *ResourcePoolSuite) TestReleaseValidResource(c *C) {
 	s.insertResource("192.168.2.2", "192.168.2.1", "br-lxc-254", "10002")
 	rs := &ResourcePool{Conn: s.conn}
-	r, err := rs.Acquire()
-	c.Assert(err, IsNil, Commentf("failed to acquire resource"))
-	err = rs.Release(r)
-	c.Assert(err, IsNil, Commentf("failed to release resource"))
-	availableResource, err := redis.String(s.conn.Do("RPOP",
-		"aio:available_resources"))
-	c.Assert(availableResource, Equals, "192.168.2.2")
+	rs.Acquire()
+	rs.Release("192.168.2.2")
+	availableIp, _ := redis.String(s.conn.Do("RPOP", "aio:available_resources"))
+	c.Assert(availableIp, Equals, "192.168.2.2")
 }

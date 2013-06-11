@@ -32,9 +32,9 @@ func (s *MountSuite) TearDownTest(c *C) {
 func (s *MountSuite) TestMount(c *C) {
 	MountOverlay(s.source, s.delta, s.target)
 	mounted, _ := Mounted(s.source)
-	c.Assert(mounted, Equals, true, Commentf("Endpoint %s is not mounted", s.source))
+	c.Assert(mounted, Equals, true)
 
 	UnmountOverlay(s.source)
 	mounted, _ = Mounted(s.source)
-	c.Assert(mounted, Equals, false, Commentf("Endpoint %s is mounted", s.source))
+	c.Assert(mounted, Equals, false)
 }

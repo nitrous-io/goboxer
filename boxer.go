@@ -83,19 +83,7 @@ func CreateContainerDeltaPath(c *BoxCommand) error {
 func DestroyContainerDeltaPath(c *BoxCommand) error {
 	box := c.Box
 	target := path.Join(box.Disk, box.ContainerName()+"_delta")
-	for retries := 0; retries < 1000; retries++ {
-		err := os.RemoveAll(target)
-		if err == nil {
-			// rm mntpoint succeeded
-			return nil
-		}
-		if os.IsNotExist(err) {
-			// mntpoint doesn't exist anymore. Success.
-			return nil
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	return fmt.Errorf("Failed to remove % v", target)
+	return os.RemoveAll(target)
 }
 
 // mount the container
@@ -116,12 +104,12 @@ func UnmountContainer(c *BoxCommand) error {
 func MountContainerLxcRoot(c *BoxCommand) error {
 	boxPath := path.Join(c.Box.Disk, c.Box.ContainerName())
 	lxcBoxPath := path.Join(c.Boxer.Root, c.Box.ContainerName())
-	return MountBind(boxPath, lxcBoxPath)
+	return Symlink(boxPath, lxcBoxPath)
 }
 
 func UnmountContainerLxcRoot(c *BoxCommand) error {
 	lxcBoxPath := path.Join(c.Boxer.Root, c.Box.ContainerName())
-	return Unmount(lxcBoxPath)
+	return os.RemoveAll(lxcBoxPath)
 }
 
 // untar the template
@@ -328,6 +316,22 @@ func UnsetPublicKeys(c *BoxCommand) error {
 	return ioutil.WriteFile(sshPath, []byte{}, 0644)
 }
 
+// TODO: improve how we are handling lxc operations. So inefficient to have to
+// wait like this!
+func waitLxc(name, status string) error {
+	for retries := 0; retries < 50; retries++ {
+		output, err := exec.Command("lxc-info", "-n", name).CombinedOutput()
+		if err != nil {
+			return err
+		}
+		if strings.Contains(string(output), status) {
+			return nil
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	return fmt.Errorf("Timeout: Wait for container %v for status %v", name, status)
+}
+
 // Stop Container
 func StopContainer(c *BoxCommand) error {
 	box := c.Box
@@ -335,7 +339,7 @@ func StopContainer(c *BoxCommand) error {
 	if err != nil {
 		return err
 	}
-	return runCommand("lxc-wait", "-n", box.ContainerName(), "-s", "STOPPED")
+	return waitLxc(box.ContainerName(), "STOPPED")
 }
 
 func StartContainer(c *BoxCommand) error {
@@ -344,7 +348,7 @@ func StartContainer(c *BoxCommand) error {
 	if err != nil {
 		return err
 	}
-	return runCommand("lxc-wait", "-n", box.ContainerName(), "-s", "RUNNING")
+	return waitLxc(box.ContainerName(), "RUNNING")
 }
 
 // Default functionw when you want to continue over to the next state
@@ -416,12 +420,12 @@ func (boxer *Boxer) Stop(box *Box) *CommandError {
 		Boxer: boxer,
 		Box:   box,
 		States: []State{
-			State{Advance: StopContainer, Rollback: Pass},
-			State{Advance: UnsetEtcProjects, Rollback: SetEtcProjects},
-			State{Advance: UnsetEtcProjid, Rollback: SetEtcProjid},
-			State{Advance: UnsetXfsQuota, Rollback: SetXfsQuota},
-			State{Advance: UnmountContainerLxcRoot, Rollback: Pass},
-			State{Advance: UnmountContainer, Rollback: Pass},
+			State{Name: "StopContainer          ", Advance: StopContainer, Rollback: Pass},
+			State{Name: "UnmountContainerLxcRoot", Advance: UnmountContainerLxcRoot, Rollback: MountContainerLxcRoot},
+			State{Name: "UnmountContainer       ", Advance: UnmountContainer, Rollback: MountContainer},
+			State{Name: "UnsetEtcProjects       ", Advance: UnsetEtcProjects, Rollback: SetEtcProjects},
+			State{Name: "UnsetEtcProjid         ", Advance: UnsetEtcProjid, Rollback: SetEtcProjid},
+			State{Name: "UnsetXfsQuota          ", Advance: UnsetXfsQuota, Rollback: SetXfsQuota},
 		},
 	}
 	return Advance(stopCommand)
@@ -429,9 +433,12 @@ func (boxer *Boxer) Stop(box *Box) *CommandError {
 
 func (boxer *Boxer) Destroy(box *Box) *CommandError {
 	states := []State{
+		State{Advance: StopContainer, Rollback: Pass},
+
 		State{Advance: Pass, Rollback: SetDefaultKeyPair},
 		State{Advance: UnsetPortForwarding, Rollback: SetPortForwarding},
 		State{Advance: UnsetBoxId, Rollback: SetBoxId},
+
 		State{Advance: Pass, Rollback: SetWorkspace},
 		State{Advance: Pass, Rollback: SetHomePermission},
 		State{Advance: Pass, Rollback: SetUserGid},
@@ -440,22 +447,16 @@ func (boxer *Boxer) Destroy(box *Box) *CommandError {
 		State{Advance: Pass, Rollback: SetHostname},
 		State{Advance: Pass, Rollback: SetLxcConfig},
 		State{Advance: Pass, Rollback: ExtractTemplate},
-	}
 
-	boxMounted, _ := Mounted(boxPath(boxer, box))
-	if boxMounted {
-		states = append(states,
-			State{Advance: UnsetXfsQuota, Rollback: SetXfsQuota},
-			State{Advance: UnsetEtcProjid, Rollback: SetEtcProjid},
-			State{Advance: UnsetEtcProjects, Rollback: SetEtcProjects},
-			State{Advance: UnmountContainer, Rollback: MountContainer},
-		)
-	}
+		State{Advance: UnmountContainerLxcRoot, Rollback: MountContainerLxcRoot},
+		State{Advance: UnmountContainer, Rollback: MountContainer},
+		State{Advance: UnsetXfsQuota, Rollback: SetXfsQuota},
+		State{Advance: UnsetEtcProjid, Rollback: SetEtcProjid},
+		State{Advance: UnsetEtcProjects, Rollback: SetEtcProjects},
 
-	states = append(states,
 		State{Advance: DestroyContainerDeltaPath, Rollback: CreateContainerDeltaPath},
 		State{Advance: DestroyContainerPath, Rollback: CreateContainerPath},
-	)
+	}
 
 	destroyCommand := &BoxCommand{
 		Name:   "Destroy",

@@ -20,8 +20,11 @@ if [ -d ${box_path} ]; then
 
   if [[ `cat /proc/mounts | grep "${box_path}\s\+"` ]]; then
     echo 'Unmounting the container in cleanup tests'
-    umount ${lxc_box_path}
     umount ${box_path}
+  fi
+
+  if [[ `cat /proc/mounts | grep "${lxc_box_path}\s\+"` ]]; then
+    umount ${lxc_box_path}
   fi
 
   if [ -f /etc/projects ]; then
