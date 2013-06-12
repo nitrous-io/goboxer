@@ -36,13 +36,15 @@ func init() {
 }
 
 type Config struct {
-	Id             string `json:"id"`
-	BoxerChannel   string `json:"boxerChannel"`
-	CoachChannel   string `json:"coachChannel"`
-	RedisMQHost    string `json:"redisMQHost"`
-	RedisMQPort    string `json:"redisMQPort"`
-	RedisStoreHost string `json:"redisStoreHost"`
-	RedisStorePort string `json:"redisStorePort"`
+	Id             string   `json:"id"`
+	BoxerChannel   string   `json:"boxerChannel"`
+	CoachChannel   string   `json:"coachChannel"`
+	RedisMQHost    string   `json:"redisMQHost"`
+	RedisMQPort    string   `json:"redisMQPort"`
+	RedisStoreHost string   `json:"redisStoreHost"`
+	RedisStorePort string   `json:"redisStorePort"`
+	SelectedDisk   string   `json:"selectedDisk"`
+	Disks          []string `json:"disks"`
 }
 
 func (c Config) RedisMQAddr() string {
@@ -106,7 +108,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	boxer := &goboxer.Boxer{Root: "/var/lib/lxc", Runtimes: runtimesTemplate}
+	boxer := &goboxer.Boxer{
+		Root:         "/var/lib/lxc",
+		Runtimes:     runtimesTemplate,
+		SelectedDisk: config.SelectedDisk,
+		Disks:        config.Disks,
+	}
 
 	resourcePool := &goboxer.ResourcePool{Conn: storeConn}
 
