@@ -221,6 +221,12 @@ func ConfigureBoxHandler(m Message, r *Runtime) (Message, error) {
 		}
 		message.Success = true
 		return message, nil
+	case "aio:configure:remove_public_key":
+		if err := box.RemovePublicKey(m.Data); err != nil {
+			return r.NewInvalidParamMessage(), fmt.Errorf("FailedToRemovePublicKey: %s", m.Name)
+		}
+		message.Success = true
+		return message, nil
 	}
 	return r.NewInvalidParamMessage(), fmt.Errorf("NotHandled: %s", m.DataType)
 }

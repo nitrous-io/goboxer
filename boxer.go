@@ -6,13 +6,11 @@
 package goboxer
 
 import (
-	"bufio"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
-	"strings"
 )
 
 type Boxer struct {
@@ -35,26 +33,6 @@ func runCommand(cmd string, args ...string) error {
 func boxDeltaHomePath(boxer *Boxer, box *Box) string {
 	return path.Join(box.Disk, box.ContainerName()+"_delta", "rootfs",
 		"home", "action")
-}
-
-func deleteLineContain(file, pattern string) error {
-	f, err := os.Open(file)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	reader := bufio.NewReader(f)
-	src := []string{}
-	for {
-		line, err := reader.ReadString('\n')
-		if !strings.Contains(line, pattern) {
-			src = append(src, line)
-		}
-		if err != nil {
-			break
-		}
-	}
-	return ioutil.WriteFile(file, []byte(strings.Join(src, "")), 0)
 }
 
 func boxPath(boxer *Boxer, box *Box) string {
@@ -138,7 +116,7 @@ func SetEtcProjects(c *BoxCommand) error {
 func UnsetEtcProjects(c *BoxCommand) error {
 	box := c.Box
 	boxDeltaPath := path.Join(box.Disk, box.ContainerName()+"_delta")
-	return deleteLineContain("/etc/projects", boxDeltaPath)
+	return DeleteLineContains("/etc/projects", boxDeltaPath)
 }
 
 // set /etc/projid
@@ -157,7 +135,7 @@ func SetEtcProjid(c *BoxCommand) error {
 func UnsetEtcProjid(c *BoxCommand) error {
 	box := c.Box
 	projidLine := box.ContainerName() + ":" + box.Id
-	return deleteLineContain("/etc/projid", projidLine)
+	return DeleteLineContains("/etc/projid", projidLine)
 }
 
 // set xfs_quota

@@ -349,3 +349,39 @@ func (s *IntegrationSuite) TestAddPublicKey(c *C) {
 
 	DoesContain(c, checkContainsContent)
 }
+
+func (s *IntegrationSuite) TestRemovePublicKey(c *C) {
+	s.Runtime.Receive(Message{
+		Id:         "testboxer",
+		BoxId:      "1",
+		Type:       "aio:create",
+		Name:       "mclovins-container",
+		Runtime:    "test",
+		Memory:     "256M",
+		DiskSpace:  "1G",
+		PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
+	})
+	defer s.deleteBox("1", "mclovins-container")
+
+	message, _ := s.Runtime.Receive(Message{
+		Id:       "testboxer",
+		BoxId:    "1",
+		Type:     "aio:configure",
+		DataType: "aio:configure:remove_public_key",
+		Data:     "ssh-rsa QWER",
+		Name:     "mclovins-container-1",
+	})
+
+	c.Assert(message.Type, Equals, "aio:configured")
+	c.Assert(message.Id, Equals, "testboxer")
+	c.Assert(message.BoxId, Equals, "1")
+	c.Assert(message.Success, Equals, true)
+
+	root := "/lxc/disk1/mclovins-container-1"
+	var checkContent = map[string][]string{
+		root + "/rootfs/etc/ssh/univ_public_keys": {
+			"ssh-rsa QWER",
+		},
+	}
+	DoesNotContain(c, checkContent)
+}

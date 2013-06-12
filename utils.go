@@ -1,9 +1,12 @@
 package goboxer
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
+	"strings"
 )
 
 func Debug(a ...interface{}) {
@@ -25,4 +28,24 @@ func Appendln(location, content string) error {
 	defer f.Close()
 	_, err = f.WriteString("\n" + content)
 	return err
+}
+
+func DeleteLineContains(file, pattern string) error {
+	f, err := os.Open(file)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	reader := bufio.NewReader(f)
+	src := []string{}
+	for {
+		line, err := reader.ReadString('\n')
+		if !strings.Contains(line, pattern) {
+			src = append(src, line)
+		}
+		if err != nil {
+			break
+		}
+	}
+	return ioutil.WriteFile(file, []byte(strings.Join(src, "")), 0)
 }

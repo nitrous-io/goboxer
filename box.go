@@ -86,3 +86,7 @@ func (b *Box) AddPublicKey(keys ...string) error {
 	content := strings.Join(keys, "\n")
 	return Appendln(b.PublicKeysPath(), content)
 }
+
+func (b *Box) RemovePublicKey(key string) error {
+	return DeleteLineContains(b.PublicKeysPath(), key)
+}
