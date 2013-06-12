@@ -98,62 +98,13 @@ func ExtractTemplate(c *BoxCommand) error {
 	return Untar(homeDataPath, boxDeltaHomePath)
 }
 
-// set /etc/projects
-func SetEtcProjects(c *BoxCommand) error {
-	box := c.Box
-	boxDeltaPath := path.Join(box.Disk, box.ContainerName()+"_delta")
-	boxDeltaHomePath := path.Join(boxDeltaPath, "rootfs", "home", "action")
-	projectsFile, err := os.OpenFile("/etc/projects", os.O_APPEND|os.O_WRONLY, 0600)
-	if err != nil {
-		return err
-	}
-	defer projectsFile.Close()
-	projectLine := box.Id + ":" + boxDeltaHomePath
-	_, err = projectsFile.Write([]byte(projectLine))
-	return err
+// Set box quota
+func SetQuota(c *BoxCommand) error {
+	return c.Box.SetQuota()
 }
 
-func UnsetEtcProjects(c *BoxCommand) error {
-	box := c.Box
-	boxDeltaPath := path.Join(box.Disk, box.ContainerName()+"_delta")
-	return DeleteLineContains("/etc/projects", boxDeltaPath)
-}
-
-// set /etc/projid
-func SetEtcProjid(c *BoxCommand) error {
-	box := c.Box
-	projidFile, err := os.OpenFile("/etc/projid", os.O_APPEND|os.O_WRONLY, 0600)
-	if err != nil {
-		return err
-	}
-	defer projidFile.Close()
-	projidLine := box.ContainerName() + ":" + box.Id
-	_, err = projidFile.Write([]byte(projidLine))
-	return err
-}
-
-func UnsetEtcProjid(c *BoxCommand) error {
-	box := c.Box
-	projidLine := box.ContainerName() + ":" + box.Id
-	return DeleteLineContains("/etc/projid", projidLine)
-}
-
-// set xfs_quota
-func SetXfsQuota(c *BoxCommand) error {
-	box := c.Box
-	runCommand("xfs_quota", "-x", "-c", "project -s "+box.ContainerName(),
-		box.Disk)
-	runCommand("xfs_quota", "-x", "-c",
-		"limit -p bhard="+box.DiskSpace+" "+box.ContainerName(),
-		box.Disk)
-	return nil
-}
-
-func UnsetXfsQuota(c *BoxCommand) error {
-	box := c.Box
-	runCommand("xfs_quota", "-x", "-c",
-		"\"limit -p bhard=0 "+box.ContainerName()+"\"", box.Disk)
-	return nil
+func UnsetQuota(c *BoxCommand) error {
+	return c.Box.UnsetQuota()
 }
 
 // set lxc_config
@@ -334,9 +285,7 @@ func init() {
 		State{Advance: MountContainer, Rollback: UnmountContainer},
 		State{Advance: MountContainerLxcRoot, Rollback: UnmountContainerLxcRoot},
 		State{Advance: ExtractTemplate, Rollback: Pass},
-		State{Advance: SetEtcProjects, Rollback: UnsetEtcProjects},
-		State{Advance: SetEtcProjid, Rollback: UnsetEtcProjid},
-		State{Advance: SetXfsQuota, Rollback: UnsetXfsQuota},
+		State{Advance: SetQuota, Rollback: UnsetQuota},
 		State{Advance: SetLxcConfig, Rollback: Pass},
 		State{Advance: SetHostname, Rollback: Pass},
 		State{Advance: SetNetworkConfig, Rollback: Pass},
@@ -360,9 +309,7 @@ func init() {
 		State{Advance: StopContainer, Rollback: Pass},
 		State{Advance: UnmountContainerLxcRoot, Rollback: MountContainerLxcRoot},
 		State{Advance: UnmountContainer, Rollback: MountContainer},
-		State{Advance: UnsetEtcProjects, Rollback: SetEtcProjects},
-		State{Advance: UnsetEtcProjid, Rollback: SetEtcProjid},
-		State{Advance: UnsetXfsQuota, Rollback: SetXfsQuota},
+		State{Advance: UnsetQuota, Rollback: SetQuota},
 	}
 
 	DestroyStates = []State{
@@ -380,9 +327,7 @@ func init() {
 		State{Advance: Pass, Rollback: ExtractTemplate},
 		State{Advance: UnmountContainerLxcRoot, Rollback: MountContainerLxcRoot},
 		State{Advance: UnmountContainer, Rollback: MountContainer},
-		State{Advance: UnsetXfsQuota, Rollback: SetXfsQuota},
-		State{Advance: UnsetEtcProjid, Rollback: SetEtcProjid},
-		State{Advance: UnsetEtcProjects, Rollback: SetEtcProjects},
+		State{Advance: UnsetQuota, Rollback: SetQuota},
 
 		State{Advance: DestroyContainerDeltaPath, Rollback: CreateContainerDeltaPath},
 		State{Advance: DestroyContainerPath, Rollback: CreateContainerPath},

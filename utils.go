@@ -40,7 +40,7 @@ func DeleteLineContains(file, pattern string) error {
 	src := []string{}
 	for {
 		line, err := reader.ReadString('\n')
-		if !strings.Contains(line, pattern) {
+		if !strings.Contains(line, pattern) && line != "\n" {
 			src = append(src, line)
 		}
 		if err != nil {

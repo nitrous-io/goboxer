@@ -90,3 +90,15 @@ func (b *Box) AddPublicKey(keys ...string) error {
 func (b *Box) RemovePublicKey(key string) error {
 	return DeleteLineContains(b.PublicKeysPath(), key)
 }
+
+func (b *Box) HomePath() string {
+	return path.Join(b.Disk, b.ContainerName()+"_delta", "rootfs", "home", "action")
+}
+
+func (b *Box) SetQuota() error {
+	return SetQuotaLimit(b.Id, b.ContainerName(), b.HomePath(), b.Disk, b.DiskSpace)
+}
+
+func (b *Box) UnsetQuota() error {
+	return RemoveQuotaLimit(b.Id, b.ContainerName(), b.HomePath(), b.Disk)
+}
