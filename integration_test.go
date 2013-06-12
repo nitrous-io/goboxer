@@ -59,12 +59,13 @@ func (s *IntegrationSuite) SetUpTest(c *C) {
 		Boxer:        s.Boxer,
 		ResourcePool: s.ResourcePool,
 		Handles: map[string]MessageHandler{
-			"aio:locate":  LocateBoxHandler,
-			"aio:create":  CreateBoxHandler,
-			"aio:start":   StartBoxHandler,
-			"aio:stop":    StopBoxHandler,
-			"aio:restart": RestartBoxHandler,
-			"aio:destroy": DestroyBoxHandler,
+			"aio:locate":    LocateBoxHandler,
+			"aio:create":    CreateBoxHandler,
+			"aio:start":     StartBoxHandler,
+			"aio:stop":      StopBoxHandler,
+			"aio:restart":   RestartBoxHandler,
+			"aio:destroy":   DestroyBoxHandler,
+			"aio:configure": ConfigureBoxHandler,
 		},
 	}
 }
@@ -307,4 +308,44 @@ func (s *IntegrationSuite) TestRestart(c *C) {
 		"/etc/projid":   []string{"mclovins-container-1:1"},
 		"/etc/projects": []string{"1:/lxc/disk1/mclovins-container-1_delta/rootfs/home/action"},
 	})
+}
+
+func (s *IntegrationSuite) TestAddPublicKey(c *C) {
+	s.Runtime.Receive(Message{
+		Id:         "testboxer",
+		BoxId:      "1",
+		Type:       "aio:create",
+		Name:       "mclovins-container",
+		Runtime:    "test",
+		Memory:     "256M",
+		DiskSpace:  "1G",
+		PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
+	})
+	defer s.deleteBox("1", "mclovins-container")
+
+	message, _ := s.Runtime.Receive(Message{
+		Id:       "testboxer",
+		BoxId:    "1",
+		Type:     "aio:configure",
+		DataType: "aio:configure:add_public_key",
+		Data:     "ssh-rsa publickey",
+		Name:     "mclovins-container-1",
+	})
+
+	c.Assert(message.Type, Equals, "aio:configured")
+	c.Assert(message.Id, Equals, "testboxer")
+	c.Assert(message.BoxId, Equals, "1")
+	c.Assert(message.Success, Equals, true)
+
+	root := "/lxc/disk1/mclovins-container-1"
+
+	var checkContainsContent = map[string][]string{
+		root + "/rootfs/etc/ssh/univ_public_keys": {
+			"ssh-rsa QWER",
+			"ssh-rsa ASDF",
+			"ssh-rsa publickey",
+		},
+	}
+
+	DoesContain(c, checkContainsContent)
 }

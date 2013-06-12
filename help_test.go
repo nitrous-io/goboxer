@@ -4,8 +4,6 @@ import (
 	"io/ioutil"
 	. "launchpad.net/gocheck"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"testing"

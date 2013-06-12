@@ -304,10 +304,7 @@ func SetDefaultKeyPair(c *BoxCommand) error {
 
 // Set Public Keys
 func SetPublicKeys(c *BoxCommand) error {
-	box := c.Box
-	sshPath := path.Join(box.RootFS(), "etc", "ssh", "univ_public_keys")
-	return ioutil.WriteFile(sshPath, []byte(strings.Join(box.PublicKeys,
-		"\n")), 0644)
+	return c.Box.AddPublicKey(c.Box.PublicKeys...)
 }
 
 func UnsetPublicKeys(c *BoxCommand) error {

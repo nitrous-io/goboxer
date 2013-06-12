@@ -204,5 +204,23 @@ func DestroyBoxHandler(m Message, r *Runtime) (Message, error) {
 }
 
 func ConfigureBoxHandler(m Message, r *Runtime) (Message, error) {
-	return Message{}, nil
+	box, err := r.ResourcePool.FindBox(m.Name)
+	if err != nil {
+		return r.NewInvalidParamMessage(), fmt.Errorf("BoxNotFound: %s", m.Name)
+	}
+	message := Message{
+		Type:       "aio:configured",
+		Id:         r.Id,
+		BoxId:      box.Id,
+		ReturnVars: m.ReturnVars,
+	}
+	switch m.DataType {
+	case "aio:configure:add_public_key":
+		if err := box.AddPublicKey(m.Data); err != nil {
+			return r.NewInvalidParamMessage(), fmt.Errorf("FailedToAddPublicKey: %s", m.Name)
+		}
+		message.Success = true
+		return message, nil
+	}
+	return r.NewInvalidParamMessage(), fmt.Errorf("NotHandled: %s", m.DataType)
 }

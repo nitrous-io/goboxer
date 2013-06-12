@@ -77,3 +77,12 @@ func (b *Box) RootFS() string {
 func (b *Box) ContainerFS() string {
 	return path.Join(b.Disk, b.ContainerName())
 }
+
+func (b *Box) PublicKeysPath() string {
+	return path.Join(b.RootFS(), "etc", "ssh", "univ_public_keys")
+}
+
+func (b *Box) AddPublicKey(keys ...string) error {
+	content := strings.Join(keys, "\n")
+	return Appendln(b.PublicKeysPath(), content)
+}
