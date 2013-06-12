@@ -82,21 +82,3 @@ func DoesHavePermissions(c *C, checkPermissions map[string][]int) {
 		c.Assert(uidAndGid[1], Equals, value[1], Commentf("Gid mismatched: %d", key))
 	}
 }
-
-func DestroyTestBox(name, ip string) error {
-	scriptPath, _ := filepath.Abs("./scripts/boxer-cleanup-tests")
-	stdout, err := exec.Command("sudo", scriptPath, name, ip).CombinedOutput()
-	if err != nil {
-		Debug("FailedToDestroyTestBox", string(stdout))
-	}
-	return err
-}
-
-func CreateTestBox(args ...string) error {
-	scriptPath, _ := filepath.Abs("./scripts/boxer-setup-test-container")
-	stdout, err := exec.Command(scriptPath, args...).CombinedOutput()
-	if err != nil {
-		Debug("FailedToCreateTestBox", string(stdout))
-	}
-	return err
-}
