@@ -13,7 +13,6 @@ import (
 	"os/exec"
 	"path"
 	"strings"
-	"time"
 )
 
 type Boxer struct {
@@ -320,17 +319,7 @@ func UnsetPublicKeys(c *BoxCommand) error {
 // TODO: improve how we are handling lxc operations. So inefficient to have to
 // wait like this!
 func waitLxc(name, status string) error {
-	for retries := 0; retries < 50; retries++ {
-		output, err := exec.Command("lxc-info", "-n", name).CombinedOutput()
-		if err != nil {
-			return err
-		}
-		if strings.Contains(string(output), status) {
-			return nil
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
-	return fmt.Errorf("Timeout: Wait for container %v for status %v", name, status)
+	return runCommand("lxc-wait", "-n", name, "-s", status)
 }
 
 // Stop Container
