@@ -59,6 +59,10 @@ func RunCommand(cmd string, args ...string) error {
 	return nil
 }
 
+func WaitLxc(name, status string) error {
+	return RunCommand("lxc-wait", "-n", name, "-s", status)
+}
+
 type ValueUnit struct {
 	Value float64
 	Unit  string

@@ -27,19 +27,6 @@ func newTestCommand() *BoxCommand {
 	}
 }
 
-func (s *StateMachineSuite) TestMergeState(c *C) {
-	a := []State{
-		State{Name: "start", Advance: startAdvance, Rollback: startRollback},
-	}
-	b := []State{
-		State{Name: "end", Advance: endAdvance, Rollback: endRollback},
-	}
-	res := MergeStates(a, b)
-	c.Assert(len(res), Equals, 2)
-	c.Assert(res[0].Name, Equals, "start")
-	c.Assert(res[1].Name, Equals, "end")
-}
-
 func (s *StateMachineSuite) TestAutoAdvance(c *C) {
 	m := newTestCommand()
 	c.Assert(m.States[m.CurrentIndex].Name, Equals, "start")

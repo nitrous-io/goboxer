@@ -54,13 +54,6 @@ func (e *CommandError) Error() string {
 	return fmt.Sprintf("CommandError: %+v-%+v", e.AdvanceStack, e.RollbackStack)
 }
 
-func MergeStates(a, b []State) []State {
-	c := make([]State, len(a)+len(b))
-	copy(c, a)
-	copy(c[len(a):], b)
-	return c
-}
-
 func advanceState(command *BoxCommand, errStack *CommandError) {
 	state := command.States[command.CurrentIndex]
 	err := state.Advance(command)
@@ -102,11 +95,5 @@ func rollbackState(command *BoxCommand, errStack *CommandError) {
 func Advance(command *BoxCommand) *CommandError {
 	errStack := &CommandError{}
 	advanceState(command, errStack)
-	return errStack
-}
-
-func Rollback(command *BoxCommand) *CommandError {
-	errStack := &CommandError{}
-	rollbackState(command, errStack)
 	return errStack
 }

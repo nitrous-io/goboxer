@@ -2,7 +2,6 @@ package goboxer
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"strconv"
@@ -34,12 +33,18 @@ type Box struct {
 	PublicKeys       []string
 }
 
-func (b *Box) ContainerName() string {
-	return fmt.Sprintf("%s-%s", b.Name, b.Id)
-}
+func (b *Box) ContainerName() string { return fmt.Sprintf("%s-%s", b.Name, b.Id) }
+func (b *Box) TemplatePath() string  { return b.Template + ".tar.gz" }
+func (b *Box) SetPublicKeys() error  { return b.AddPublicKey(b.PublicKeys...) }
 
-func (b *Box) TemplatePath() string {
-	return b.Template + ".tar.gz"
+func (b *Box) BoxIdFile() string      { return path.Join(b.RootFS(), "etc", "action", "box_id") }
+func (b *Box) PublicKeysPath() string { return path.Join(b.RootFS(), "etc", "ssh", "univ_public_keys") }
+func (b *Box) PrivateKeyPath() string { return path.Join("home", "action", ".ssh", "id_rsa") }
+func (b *Box) RootFS() string         { return path.Join(b.Disk, b.ContainerName(), "rootfs") }
+func (b *Box) ContainerFS() string    { return path.Join(b.Disk, b.ContainerName()) }
+
+func (b *Box) ContainerDeltaPath() string {
+	return path.Join(b.Disk, b.ContainerName()+"_delta")
 }
 
 func (b *Box) Uid() string {
@@ -50,10 +55,6 @@ func (b *Box) Uid() string {
 func (b *Box) Gid() string {
 	id, _ := strconv.Atoi(b.Id)
 	return strconv.Itoa(UidStart + id)
-}
-
-func (b *Box) BoxIdFile() string {
-	return path.Join(b.RootFS(), "etc", "action", "box_id")
 }
 
 // http://www.funtoo.org/wiki/Linux_Containers
@@ -73,29 +74,8 @@ func (b *Box) TotalMemory() string {
 	return fmt.Sprintf("%d%s", int(m.Value)*3, m.Unit)
 }
 
-func (b *Box) PrivateKeyPath() string {
-	return path.Join("home", "action", ".ssh", "id_rsa")
-}
-
-func (b *Box) RootFS() string {
-	return path.Join(b.Disk, b.ContainerName(), "rootfs")
-}
-
-func (b *Box) ContainerFS() string {
-	return path.Join(b.Disk, b.ContainerName())
-}
-
-func (b *Box) PublicKeysPath() string {
-	return path.Join(b.RootFS(), "etc", "ssh", "univ_public_keys")
-}
-
-func (b *Box) SetPublicKeys() error {
-	return b.AddPublicKey(b.PublicKeys...)
-}
-
 func (b *Box) AddPublicKey(keys ...string) error {
-	content := strings.Join(keys, "\n")
-	return Appendln(b.PublicKeysPath(), content)
+	return Appendln(b.PublicKeysPath(), strings.Join(keys, "\n"))
 }
 
 func (b *Box) RemovePublicKey(key string) error {
@@ -173,10 +153,6 @@ func (b *Box) SetBoxId() error {
 	return err
 }
 
-func (b *Box) UnsetBoxId() error {
-	return os.RemoveAll(b.BoxIdFile())
-}
-
 func (b *Box) SetNetworkConfig() error {
 	networkConfigPath := path.Join(b.RootFS(), "etc", "network", "interfaces")
 	networkConfig, err := os.Create(networkConfigPath)
@@ -237,37 +213,28 @@ func (b *Box) SetDefaultKeypair() error {
 		"/home/action/.ssh")
 }
 
-func (b *Box) RemoveAllPublicKeys() error {
-	sshPath := path.Join(b.RootFS(), "etc", "ssh", "univ_public_keys")
-	return ioutil.WriteFile(sshPath, []byte{}, 0644)
-}
-
 func (b *Box) StopContainer() error {
 	if err := RunCommand("lxc-stop", "-n", b.ContainerName()); err != nil {
 		return err
 	}
-	return waitLxc(b.ContainerName(), "STOPPED")
+	return WaitLxc(b.ContainerName(), "STOPPED")
 }
 
 func (b *Box) StartContainer() error {
 	if err := RunCommand("lxc-start", "-d", "-n", b.ContainerName()); err != nil {
 		return err
 	}
-	return waitLxc(b.ContainerName(), "RUNNING")
-}
-
-func waitLxc(name, status string) error {
-	return RunCommand("lxc-wait", "-n", name, "-s", status)
+	return WaitLxc(b.ContainerName(), "RUNNING")
 }
 
 func (b *Box) Mount(root string) error {
-	boxPath := path.Join(b.Disk, b.ContainerName())
-	boxDeltaPath := path.Join(b.Disk, b.ContainerName()+"_delta")
+	boxPath := b.ContainerFS()
+	boxDeltaPath := b.ContainerDeltaPath()
 	boxDeltaHomePath := path.Join(boxDeltaPath, "rootfs", "home", "action")
 	baseContainerPath := path.Join(b.Disk, "base_container_template")
 	lxcBoxPath := path.Join(root, b.ContainerName())
 
-	if err := os.MkdirAll(boxPath, 0755); err != nil {
+	if err := os.MkdirAll(b.ContainerFS(), 0755); err != nil {
 		return err
 	}
 	if err := os.MkdirAll(boxDeltaHomePath, 0755); err != nil {
@@ -284,18 +251,15 @@ func (b *Box) Mount(root string) error {
 
 func (b *Box) Unmount(root string) error {
 	lxcBoxPath := path.Join(root, b.ContainerName())
-	boxPath := path.Join(b.Disk, b.ContainerName())
 	if err := os.RemoveAll(lxcBoxPath); err != nil {
 		return err
 	}
-	return UnmountOverlay(boxPath)
+	return UnmountOverlay(b.ContainerFS())
 }
 
 func (b *Box) DeleteContainerData() error {
-	boxPath := path.Join(b.Disk, b.ContainerName())
-	boxDeltaPath := path.Join(b.Disk, b.ContainerName()+"_delta")
-	if err := os.RemoveAll(boxDeltaPath); err != nil {
+	if err := os.RemoveAll(b.ContainerDeltaPath()); err != nil {
 		return err
 	}
-	return os.RemoveAll(boxPath)
+	return os.RemoveAll(b.ContainerFS())
 }
