@@ -6,6 +6,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const UidStart = 15000
@@ -124,12 +125,17 @@ func (b *Box) SetPermission() error {
 	uid := b.Uid()
 	gid := b.Gid()
 	permission := fmt.Sprintf("%s:%s", b.Uid(), b.Gid())
+	start := time.Now()
 	if err := RunCommand("chroot", b.RootFS(), "usermod", "-u", uid, "action"); err != nil {
 		return err
 	}
+	fmt.Printf("set user id took %v\n", time.Now().Sub(start))
+	start = time.Now()
 	if err := RunCommand("chroot", b.RootFS(), "groupmod", "-g", gid, "action"); err != nil {
 		return err
 	}
+	fmt.Printf("set group id took %v\n", time.Now().Sub(start))
+	start = time.Now()
 	return RunCommand("chroot", b.RootFS(), "chown", "-R", permission, "/home/action")
 }
 

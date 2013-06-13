@@ -6,7 +6,9 @@
 package goboxer
 
 import (
+	"fmt"
 	"github.com/action-io/goboxer/host"
+	"time"
 )
 
 var runtimes []string
@@ -26,36 +28,36 @@ func init() {
 		"test",
 	}
 	CreateStates = []State{
-		State{Advance: MountContainer, Rollback: UnmountContainer},
-		State{Advance: SetupContainer, Rollback: Pass},
-		State{Advance: SetQuota, Rollback: UnsetQuota},
-		State{Advance: SetPortForwarding, Rollback: UnsetPortForwarding},
+		State{Name: "MountContainer", Advance: MountContainer, Rollback: UnmountContainer},
+		State{Name: "SetupContainer", Advance: SetupContainer, Rollback: Pass},
+		State{Name: "SetQuota", Advance: SetQuota, Rollback: UnsetQuota},
+		State{Name: "SetPortForwarding", Advance: SetPortForwarding, Rollback: UnsetPortForwarding},
 	}
 
 	StartStates = []State{
-		State{Advance: MountContainer, Rollback: UnmountContainer},
-		State{Advance: StartContainer, Rollback: StopContainer},
+		State{Name: "MountContainer", Advance: MountContainer, Rollback: UnmountContainer},
+		State{Name: "StartContainer", Advance: StartContainer, Rollback: StopContainer},
 	}
 
 	StopStates = []State{
-		State{Advance: StopContainer, Rollback: Pass},
-		State{Advance: UnmountContainer, Rollback: MountContainer},
-		State{Advance: UnsetQuota, Rollback: SetQuota},
+		State{Name: "StopContainer", Advance: StopContainer, Rollback: Pass},
+		State{Name: "UnmountContainer", Advance: UnmountContainer, Rollback: MountContainer},
+		State{Name: "UnsetQuota", Advance: UnsetQuota, Rollback: SetQuota},
 	}
 
 	DestroyStates = []State{
-		State{Advance: StopContainer, Rollback: Pass},
-		State{Advance: UnsetPortForwarding, Rollback: SetPortForwarding},
-		State{Advance: UnmountContainer, Rollback: MountContainer},
-		State{Advance: UnsetQuota, Rollback: SetQuota},
-		State{Advance: DeleteContainerData, Rollback: Pass},
+		State{Name: "StopContainer", Advance: StopContainer, Rollback: Pass},
+		State{Name: "UnsetPortForwading", Advance: UnsetPortForwarding, Rollback: SetPortForwarding},
+		State{Name: "UnmountContainer", Advance: UnmountContainer, Rollback: MountContainer},
+		State{Name: "UnsetQuota", Advance: UnsetQuota, Rollback: SetQuota},
+		State{Name: "DeleteContainerData", Advance: DeleteContainerData, Rollback: Pass},
 	}
 
 	RestartStates = []State{
-		State{Advance: StopContainer, Rollback: Pass},
-		State{Advance: UnmountContainer, Rollback: Pass},
-		State{Advance: MountContainer, Rollback: Pass},
-		State{Advance: StartContainer, Rollback: Pass},
+		State{Name: "StopContainer", Advance: StopContainer, Rollback: Pass},
+		State{Name: "UnmountContainer", Advance: UnmountContainer, Rollback: MountContainer},
+		State{Name: "MountContainer", Advance: MountContainer, Rollback: UnmountContainer},
+		State{Name: "StartContainer", Advance: StartContainer, Rollback: StopContainer},
 	}
 }
 
@@ -310,33 +312,52 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 
 func SetupContainer(c *BoxCommand) error {
 	box := c.Box
+	start := time.Now()
 	if err := box.ExtractTemplate(); err != nil {
 		return err
 	}
+	fmt.Printf("extract template took %v\n", time.Now().Sub(start))
+	start = time.Now()
 	if err := box.WriteConfig(); err != nil {
 		return err
 	}
+	fmt.Printf("write config took %v\n", time.Now().Sub(start))
+	start = time.Now()
 	if err := box.SetHostname(); err != nil {
 		return err
 	}
+	fmt.Printf("set hostname took %v\n", time.Now().Sub(start))
+	start = time.Now()
 	if err := box.SetNetworkConfig(); err != nil {
 		return err
 	}
+	fmt.Printf("set network config took %v\n", time.Now().Sub(start))
+	start = time.Now()
 	if err := box.SetWorkspace(); err != nil {
 		return err
 	}
+	fmt.Printf("set workspace took %v\n", time.Now().Sub(start))
+	start = time.Now()
 	if err := box.SetDefaultKeypair(); err != nil {
 		return err
 	}
+	fmt.Printf("set key pair %v\n", time.Now().Sub(start))
+	start = time.Now()
 	if err := box.SetPermission(); err != nil {
 		return err
 	}
+	fmt.Printf("set permission took %v\n", time.Now().Sub(start))
+	start = time.Now()
 	if err := box.SetBoxId(); err != nil {
 		return err
 	}
+	fmt.Printf("set box id took %v\n", time.Now().Sub(start))
+	start = time.Now()
 	if err := box.SetPublicKeys(); err != nil {
 		return err
 	}
+	fmt.Printf("set public keys took %v\n", time.Now().Sub(start))
+	start = time.Now()
 	return nil
 }
 

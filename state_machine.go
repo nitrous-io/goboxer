@@ -56,7 +56,9 @@ func (e *CommandError) Error() string {
 
 func advanceState(command *BoxCommand, errStack *CommandError) {
 	state := command.States[command.CurrentIndex]
+	start := time.Now()
 	err := state.Advance(command)
+	fmt.Printf("state %s advance took %v\n", state.Name, time.Now().Sub(start))
 	if err != nil {
 		stateError := NewStateError(state.Name, err)
 		errStack.AdvanceStack = append(errStack.AdvanceStack, stateError)
@@ -75,7 +77,9 @@ func advanceState(command *BoxCommand, errStack *CommandError) {
 
 func rollbackState(command *BoxCommand, errStack *CommandError) {
 	state := command.States[command.CurrentIndex]
+	start := time.Now()
 	err := state.Rollback(command)
+	fmt.Printf("state %s rollback took %v\n", state.Name, time.Now().Sub(start))
 	if err != nil {
 		stateError := NewStateError(state.Name, err)
 		// if the advance stack has errors, we will not try to re-advance

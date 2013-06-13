@@ -6,10 +6,12 @@
 package goboxer
 
 import (
+	"fmt"
 	"github.com/garyburd/redigo/redis"
 	. "launchpad.net/gocheck"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 type BoxerSuite struct {
@@ -436,4 +438,20 @@ func (s *BoxerSuite) TestChangeBoxSpecs(c *C) {
 
 	box, _ := s.ResourcePool.FindBox("mclovins-container-1")
 	c.Assert(box.State, Equals, "running")
+}
+
+func (s *BoxerSuite) TestBenchmarkBoxCreation(c *C) {
+	start := time.Now()
+	s.Boxer.Receive(Message{
+		Id:         "testboxer",
+		BoxId:      "1",
+		Type:       "aio:create",
+		Name:       "mclovins-container",
+		Runtime:    "test",
+		Memory:     "256M",
+		DiskSpace:  "1G",
+		PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
+	})
+	fmt.Println(time.Now().Sub(start))
+	defer s.deleteBox("1", "mclovins-container")
 }
