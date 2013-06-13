@@ -13,6 +13,15 @@ type QuotaInfo struct {
 }
 
 func SetQuotaLimit(id, name, path, projectContainer, limit string) error {
+	quotaInfo, err := ViewQuotaLimit(id, projectContainer)
+	if err != nil {
+		return err
+	}
+	newLimit := ConvertValueUnitToByte(ParseValueUnit(limit))
+	if quotaInfo.Used >= newLimit {
+		return fmt.Errorf("Current usage %d exceeded new limit %d",
+			quotaInfo.Used, newLimit)
+	}
 	if err := Appendln("/etc/projid", name+":"+id); err != nil {
 		return err
 	}
@@ -20,8 +29,9 @@ func SetQuotaLimit(id, name, path, projectContainer, limit string) error {
 		return err
 	}
 	// assume that xfs_quota works here
+	quotaValue := fmt.Sprintf("%d%s", int(ScaleUnit(newLimit, "M")), "M")
 	xfsquota("project -s "+name, projectContainer)
-	xfsquota("limit -p bhard="+limit+" "+name, projectContainer)
+	xfsquota(fmt.Sprintf("limit -p bhard=%s %s", quotaValue, name), projectContainer)
 	return nil
 }
 
@@ -42,6 +52,9 @@ func ViewQuotaLimit(id, projectContainer string) (QuotaInfo, error) {
 		return QuotaInfo{}, err
 	}
 	fields := strings.Fields(string(stdout))
+	if len(fields) == 0 {
+		return QuotaInfo{}, nil
+	}
 	used, _ := strconv.Atoi(fields[1])
 	limit, _ := strconv.Atoi(fields[3])
 	return QuotaInfo{Used: used, Limit: limit}, nil

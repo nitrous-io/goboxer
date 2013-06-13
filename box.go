@@ -2,12 +2,18 @@ package goboxer
 
 import (
 	"fmt"
+	"os"
 	"path"
 	"strconv"
 	"strings"
 )
 
 const UidStart = 15000
+
+type BoxSpec struct {
+	Memory    string `json:"memory"`
+	DiskSpace string `json:"diskSpace"`
+}
 
 type Box struct {
 	Id               string `json:"id"`
@@ -61,9 +67,9 @@ func (b *Box) MacAddress() string {
 	return fmt.Sprintf("02:00:%x:%x:%x:%x", ipList...)
 }
 
-// TODO: do it properly
 func (b *Box) TotalMemory() string {
-	return "768M"
+	m := ParseValueUnit(b.Memory)
+	return fmt.Sprintf("%d%s", int(m.Value)*3, m.Unit)
 }
 
 func (b *Box) PrivateKeyPath() string {
@@ -101,4 +107,30 @@ func (b *Box) SetQuota() error {
 
 func (b *Box) UnsetQuota() error {
 	return RemoveQuotaLimit(b.Id, b.ContainerName(), b.HomePath(), b.Disk)
+}
+
+func (b *Box) ChangeSpec(spec *BoxSpec) error {
+	if spec.Memory != b.Memory {
+		b.Memory = spec.Memory
+		if err := b.WriteConfig(); err != nil {
+			return err
+		}
+	}
+	if spec.DiskSpace != b.DiskSpace {
+		b.DiskSpace = spec.DiskSpace
+		if err := b.SetQuota(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (b *Box) WriteConfig() error {
+	lxcConfigPath := path.Join(b.Disk, b.ContainerName(), "config")
+	lxcConfig, err := os.Create(lxcConfigPath)
+	if err != nil {
+		return err
+	}
+	defer lxcConfig.Close()
+	return LxcTemplateCompiled.Execute(lxcConfig, b)
 }

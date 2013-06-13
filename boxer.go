@@ -109,14 +109,7 @@ func UnsetQuota(c *BoxCommand) error {
 
 // set lxc_config
 func SetLxcConfig(c *BoxCommand) error {
-	box := c.Box
-	lxcConfigPath := path.Join(box.Disk, box.ContainerName(), "config")
-	lxcConfig, err := os.Create(lxcConfigPath)
-	if err != nil {
-		return err
-	}
-	defer lxcConfig.Close()
-	return LxcTemplateCompiled.Execute(lxcConfig, box)
+	return c.Box.WriteConfig()
 }
 
 // set hostname

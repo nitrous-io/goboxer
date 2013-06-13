@@ -2,6 +2,7 @@
 package goboxer
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/action-io/goboxer/host"
 )
@@ -224,6 +225,16 @@ func ConfigureBoxHandler(m Message, r *Runtime) (Message, error) {
 	case "aio:configure:remove_public_key":
 		if err := box.RemovePublicKey(m.Data); err != nil {
 			return r.NewInvalidParamMessage(), fmt.Errorf("FailedToRemovePublicKey: %s", m.Name)
+		}
+		message.Success = true
+		return message, nil
+	case "aio:configure:change_specs":
+		spec := &BoxSpec{}
+		if err := json.Unmarshal([]byte(m.Data), spec); err != nil {
+			return r.NewInvalidParamMessage(), fmt.Errorf("FailedToReadSpec: %s", m.Data)
+		}
+		if err := box.ChangeSpec(spec); err != nil {
+			return r.NewInvalidParamMessage(), fmt.Errorf("FailedToChangeSpec: %s", m.Name)
 		}
 		message.Success = true
 		return message, nil

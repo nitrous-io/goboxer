@@ -385,3 +385,51 @@ func (s *IntegrationSuite) TestRemovePublicKey(c *C) {
 	}
 	DoesNotContain(c, checkContent)
 }
+
+func (s *IntegrationSuite) TestChangeBoxSpecs(c *C) {
+	s.Runtime.Receive(Message{
+		Id:         "testboxer",
+		BoxId:      "1",
+		Type:       "aio:create",
+		Name:       "mclovins-container",
+		Runtime:    "test",
+		Memory:     "256M",
+		DiskSpace:  "1G",
+		PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
+	})
+	defer s.deleteBox("1", "mclovins-container")
+	limit, _ := ViewQuotaLimit("1", "/lxc/disk1")
+	c.Assert(limit.Limit, Equals, 1024*1024)
+
+	newSpec := &BoxSpec{
+		Memory:    "512M",
+		DiskSpace: "2G",
+	}
+	newSpecData, _ := ToJSON(newSpec)
+
+	message, _ := s.Runtime.Receive(Message{
+		Id:       "testboxer",
+		BoxId:    "1",
+		Type:     "aio:configure",
+		DataType: "aio:configure:change_specs",
+		Data:     newSpecData,
+		Name:     "mclovins-container-1",
+	})
+
+	c.Assert(message.Type, Equals, "aio:configured")
+	c.Assert(message.Id, Equals, "testboxer")
+	c.Assert(message.BoxId, Equals, "1")
+	c.Assert(message.Success, Equals, true)
+
+	root := "/lxc/disk1/mclovins-container-1"
+	var checkContent = map[string][]string{
+		root + "/config": {
+			"lxc.cgroup.memory.limit_in_bytes = 512M",
+			"lxc.cgroup.memory.memsw.limit_in_bytes = 1536M",
+		},
+	}
+	DoesContain(c, checkContent)
+
+	newLimit, _ := ViewQuotaLimit("1", "/lxc/disk1")
+	c.Assert(newLimit.Limit, Equals, 2*1024*1024)
+}
