@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"strings"
 )
 
@@ -48,6 +49,14 @@ func DeleteLineContains(file, pattern string) error {
 		}
 	}
 	return ioutil.WriteFile(file, []byte(strings.Join(src, "")), 0)
+}
+
+func RunCommand(cmd string, args ...string) error {
+	command := exec.Command(cmd, args...)
+	if _, err := command.CombinedOutput(); err != nil {
+		return err
+	}
+	return nil
 }
 
 type ValueUnit struct {
