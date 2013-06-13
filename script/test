@@ -9,5 +9,5 @@ spec=${1}
 if [ -z "${spec}" ]; then
   sudo -E go test -gocheck.v
 else
-  sudo -E go test -gocheck.f ${spec}
+  sudo -E go test -gocheck.v -gocheck.f ${spec}
 fi

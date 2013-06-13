@@ -12,23 +12,22 @@ import (
 	"strings"
 )
 
-type IntegrationSuite struct {
+type BoxerSuite struct {
 	Redis        redis.Conn
 	Boxer        *Boxer
 	ResourcePool *ResourcePool
-	Runtime      *Runtime
 }
 
-var _ = Suite(&IntegrationSuite{})
+var _ = Suite(&BoxerSuite{})
 
-func (s *IntegrationSuite) insertResource(ip, gateway, networkInterface, port string) {
+func (s *BoxerSuite) insertResource(ip, gateway, networkInterface, port string) {
 	r := &Resource{Gateway: gateway, NetworkInterface: networkInterface, Port: port}
 	s.Redis.Do("RPUSH", "aio:available_resources", ip)
 	s.Redis.Do("HMSET", redis.Args{}.Add("aio:nwr:"+ip).AddFlat(r)...)
 }
 
-func (s *IntegrationSuite) deleteBox(id, name string) Message {
-	message, _ := s.Runtime.Receive(Message{
+func (s *BoxerSuite) deleteBox(id, name string) Message {
+	message := s.Boxer.Receive(Message{
 		Type:  "aio:destroy",
 		Id:    "testboxer",
 		BoxId: id,
@@ -37,26 +36,22 @@ func (s *IntegrationSuite) deleteBox(id, name string) Message {
 	return message
 }
 
-func (s *IntegrationSuite) SetUpTest(c *C) {
+func (s *BoxerSuite) SetUpTest(c *C) {
 	s.Redis, _ = redis.Dial("tcp", ":65000")
 	s.Redis.Do("Select", 13)
 	s.Redis.Do("FLUSHDB")
 	s.insertResource("192.168.254.2", "192.168.254.1", "br-lxc-254", "10002")
 
+	s.ResourcePool = &ResourcePool{Conn: s.Redis}
+
 	s.Boxer = &Boxer{
+		Id:           "testboxer",
 		Root:         "/var/lib/lxc",
 		Disks:        []string{"/lxc/disk1"},
 		SelectedDisk: "/lxc/disk1",
 		Runtimes: map[string]string{
 			"test": "test_container_template",
 		},
-	}
-
-	s.ResourcePool = &ResourcePool{Conn: s.Redis}
-
-	s.Runtime = &Runtime{
-		Id:           "testboxer",
-		Boxer:        s.Boxer,
 		ResourcePool: s.ResourcePool,
 		Handles: map[string]MessageHandler{
 			"aio:locate":    LocateBoxHandler,
@@ -70,14 +65,14 @@ func (s *IntegrationSuite) SetUpTest(c *C) {
 	}
 }
 
-func (s *IntegrationSuite) TearDownTest(c *C) {
+func (s *BoxerSuite) TearDownTest(c *C) {
 	s.Redis.Do("FLUSHDB")
 	s.Redis.Close()
 }
 
 // TODO: check if the quota is set correctly
-func (s *IntegrationSuite) TestCreateBox(c *C) {
-	message, _ := s.Runtime.Receive(Message{
+func (s *BoxerSuite) TestCreateBox(c *C) {
+	message := s.Boxer.Receive(Message{
 		Id:         "testboxer",
 		BoxId:      "1",
 		Type:       "aio:create",
@@ -151,8 +146,8 @@ func (s *IntegrationSuite) TestCreateBox(c *C) {
 	c.Assert(usedIp, Equals, "192.168.254.2")
 }
 
-func (s *IntegrationSuite) TestStop(c *C) {
-	s.Runtime.Receive(Message{
+func (s *BoxerSuite) TestStop(c *C) {
+	s.Boxer.Receive(Message{
 		Id:         "testboxer",
 		BoxId:      "1",
 		Type:       "aio:create",
@@ -162,7 +157,7 @@ func (s *IntegrationSuite) TestStop(c *C) {
 		DiskSpace:  "1G",
 		PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
 	})
-	message, _ := s.Runtime.Receive(Message{
+	message := s.Boxer.Receive(Message{
 		Id:    "testboxer",
 		BoxId: "1",
 		Type:  "aio:stop",
@@ -192,8 +187,8 @@ func (s *IntegrationSuite) TestStop(c *C) {
 	c.Assert(box.State, Equals, "stopped")
 }
 
-func (s *IntegrationSuite) TestStart(c *C) {
-	s.Runtime.Receive(Message{
+func (s *BoxerSuite) TestStart(c *C) {
+	s.Boxer.Receive(Message{
 		Id:         "testboxer",
 		BoxId:      "1",
 		Type:       "aio:create",
@@ -204,7 +199,7 @@ func (s *IntegrationSuite) TestStart(c *C) {
 		PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
 	})
 	defer s.deleteBox("1", "mclovins-container")
-	message, _ := s.Runtime.Receive(Message{
+	message := s.Boxer.Receive(Message{
 		Id:    "testboxer",
 		BoxId: "1",
 		Type:  "aio:start",
@@ -232,8 +227,8 @@ func (s *IntegrationSuite) TestStart(c *C) {
 	c.Assert(box.State, Equals, "running")
 }
 
-func (s *IntegrationSuite) TestDestroy(c *C) {
-	s.Runtime.Receive(Message{
+func (s *BoxerSuite) TestDestroy(c *C) {
+	s.Boxer.Receive(Message{
 		Id:         "testboxer",
 		BoxId:      "1",
 		Type:       "aio:create",
@@ -243,7 +238,7 @@ func (s *IntegrationSuite) TestDestroy(c *C) {
 		DiskSpace:  "1G",
 		PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
 	})
-	message, _ := s.Runtime.Receive(Message{
+	message := s.Boxer.Receive(Message{
 		Id:    "testboxer",
 		BoxId: "1",
 		Type:  "aio:destroy",
@@ -277,8 +272,8 @@ func (s *IntegrationSuite) TestDestroy(c *C) {
 	c.Assert(availableIp, Equals, "192.168.254.2")
 }
 
-func (s *IntegrationSuite) TestRestart(c *C) {
-	s.Runtime.Receive(Message{
+func (s *BoxerSuite) TestRestart(c *C) {
+	s.Boxer.Receive(Message{
 		Id:         "testboxer",
 		BoxId:      "1",
 		Type:       "aio:create",
@@ -289,7 +284,7 @@ func (s *IntegrationSuite) TestRestart(c *C) {
 		PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
 	})
 	defer s.deleteBox("1", "mclovins-container")
-	message, _ := s.Runtime.Receive(Message{
+	message := s.Boxer.Receive(Message{
 		Id:    "testboxer",
 		BoxId: "1",
 		Type:  "aio:restart",
@@ -319,8 +314,8 @@ func (s *IntegrationSuite) TestRestart(c *C) {
 	c.Assert(box.State, Equals, "running")
 }
 
-func (s *IntegrationSuite) TestAddPublicKey(c *C) {
-	s.Runtime.Receive(Message{
+func (s *BoxerSuite) TestAddPublicKey(c *C) {
+	s.Boxer.Receive(Message{
 		Id:         "testboxer",
 		BoxId:      "1",
 		Type:       "aio:create",
@@ -332,7 +327,7 @@ func (s *IntegrationSuite) TestAddPublicKey(c *C) {
 	})
 	defer s.deleteBox("1", "mclovins-container")
 
-	message, _ := s.Runtime.Receive(Message{
+	message := s.Boxer.Receive(Message{
 		Id:       "testboxer",
 		BoxId:    "1",
 		Type:     "aio:configure",
@@ -359,8 +354,8 @@ func (s *IntegrationSuite) TestAddPublicKey(c *C) {
 	DoesContain(c, checkContainsContent)
 }
 
-func (s *IntegrationSuite) TestRemovePublicKey(c *C) {
-	s.Runtime.Receive(Message{
+func (s *BoxerSuite) TestRemovePublicKey(c *C) {
+	s.Boxer.Receive(Message{
 		Id:         "testboxer",
 		BoxId:      "1",
 		Type:       "aio:create",
@@ -372,7 +367,7 @@ func (s *IntegrationSuite) TestRemovePublicKey(c *C) {
 	})
 	defer s.deleteBox("1", "mclovins-container")
 
-	message, _ := s.Runtime.Receive(Message{
+	message := s.Boxer.Receive(Message{
 		Id:       "testboxer",
 		BoxId:    "1",
 		Type:     "aio:configure",
@@ -395,8 +390,8 @@ func (s *IntegrationSuite) TestRemovePublicKey(c *C) {
 	DoesNotContain(c, checkContent)
 }
 
-func (s *IntegrationSuite) TestChangeBoxSpecs(c *C) {
-	s.Runtime.Receive(Message{
+func (s *BoxerSuite) TestChangeBoxSpecs(c *C) {
+	s.Boxer.Receive(Message{
 		Id:         "testboxer",
 		BoxId:      "1",
 		Type:       "aio:create",
@@ -410,7 +405,7 @@ func (s *IntegrationSuite) TestChangeBoxSpecs(c *C) {
 	limit, _ := ViewQuotaLimit("1", "/lxc/disk1")
 	c.Assert(limit.Limit, Equals, 1024*1024)
 
-	message, _ := s.Runtime.Receive(Message{
+	message := s.Boxer.Receive(Message{
 		Id:       "testboxer",
 		BoxId:    "1",
 		Type:     "aio:configure",
