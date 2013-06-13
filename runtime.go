@@ -2,7 +2,7 @@
 package goboxer
 
 import (
-	"encoding/json"
+	//"encoding/json"
 	"fmt"
 	"github.com/action-io/goboxer/host"
 )
@@ -45,9 +45,9 @@ type Message struct {
 	SshKeyPair  []string `json:"sshKeyPair"`
 
 	// for normal message
-	DataType string `json:"dataType"`
-	Data     string `json:"data"`
-	Success  bool   `json:"success"`
+	DataType string      `json:"dataType"`
+	Data     interface{} `json:"data"`
+	Success  bool        `json:"success"`
 }
 
 // a handler will receive message and runtime, do some work with it and return
@@ -119,13 +119,13 @@ func CreateBoxHandler(m Message, r *Runtime) (Message, error) {
 		Port:             resource.Port,
 	}
 	if err := r.Boxer.Create(box); !err.Success() {
-		Debug("FailedToCreateBox", err)
 		r.ResourcePool.Release(resource.Ip)
 		msg.Success = false
 		return msg, nil
 	}
 	if err := r.ResourcePool.SaveBox(box); err != nil {
-		Debug("FailedToSaveBox", err)
+		msg.Success = false
+		return msg, nil
 	}
 	msg.Port = box.Port
 	msg.Success = true
@@ -217,22 +217,24 @@ func ConfigureBoxHandler(m Message, r *Runtime) (Message, error) {
 	}
 	switch m.DataType {
 	case "aio:configure:add_public_key":
-		if err := box.AddPublicKey(m.Data); err != nil {
+		data := (m.Data).(string)
+		if err := box.AddPublicKey(data); err != nil {
 			return r.NewInvalidParamMessage(), fmt.Errorf("FailedToAddPublicKey: %s", m.Name)
 		}
 		message.Success = true
 		return message, nil
 	case "aio:configure:remove_public_key":
-		if err := box.RemovePublicKey(m.Data); err != nil {
+		data := (m.Data).(string)
+		if err := box.RemovePublicKey(data); err != nil {
 			return r.NewInvalidParamMessage(), fmt.Errorf("FailedToRemovePublicKey: %s", m.Name)
 		}
 		message.Success = true
 		return message, nil
 	case "aio:configure:change_specs":
+		data := (m.Data).(map[string]interface{})
 		spec := &BoxSpec{}
-		if err := json.Unmarshal([]byte(m.Data), spec); err != nil {
-			return r.NewInvalidParamMessage(), fmt.Errorf("FailedToReadSpec: %s", m.Data)
-		}
+		spec.Memory = (data["memory"]).(string)
+		spec.DiskSpace = (data["diskSpace"]).(string)
 		if err := box.ChangeSpec(spec); err != nil {
 			return r.NewInvalidParamMessage(), fmt.Errorf("FailedToChangeSpec: %s", m.Name)
 		}

@@ -401,19 +401,16 @@ func (s *IntegrationSuite) TestChangeBoxSpecs(c *C) {
 	limit, _ := ViewQuotaLimit("1", "/lxc/disk1")
 	c.Assert(limit.Limit, Equals, 1024*1024)
 
-	newSpec := &BoxSpec{
-		Memory:    "512M",
-		DiskSpace: "2G",
-	}
-	newSpecData, _ := ToJSON(newSpec)
-
 	message, _ := s.Runtime.Receive(Message{
 		Id:       "testboxer",
 		BoxId:    "1",
 		Type:     "aio:configure",
 		DataType: "aio:configure:change_specs",
-		Data:     newSpecData,
-		Name:     "mclovins-container-1",
+		Data: map[string]interface{}{
+			"memory":    "512M",
+			"diskSpace": "2G",
+		},
+		Name: "mclovins-container-1",
 	})
 
 	c.Assert(message.Type, Equals, "aio:configured")

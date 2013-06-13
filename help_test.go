@@ -22,7 +22,6 @@ func exists(path string) bool {
 	if os.IsNotExist(err) {
 		return false
 	}
-	Debug("Exists", err)
 	return false
 }
 

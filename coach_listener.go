@@ -29,12 +29,10 @@ func (c *CoachListener) Listen() {
 			c.SendInvalidParam()
 			return
 		}
-		Debug(returnedMessage)
 		if messageJSON, err = ToJSON(returnedMessage); err != nil {
 			c.SendInvalidParam()
 			return
 		}
-		Debug(messageJSON)
 		c.replyCoach(messageJSON)
 	case redis.Subscription:
 		Debug("ok. subscribed")

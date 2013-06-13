@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-const VERSION = "0.0.2"
+const VERSION = "0.0.3"
 const ADVERTISE_INTERVAL = 5001
 
 var runtimesTemplate map[string]string
