@@ -140,13 +140,18 @@ func StartBoxHandler(m Message, r *Runtime) (Message, error) {
 	if err := r.Boxer.Start(box); !err.Success() {
 		return r.NewInvalidParamMessage(), fmt.Errorf("BoxFailedToStart: %s", m.Name)
 	}
-	return Message{
+	msg := Message{
 		Type:       "aio:started",
 		Id:         r.Id,
 		BoxId:      box.Id,
 		ReturnVars: m.ReturnVars,
 		Success:    true,
-	}, nil
+	}
+	box.State = "running"
+	if err := r.ResourcePool.SaveBox(box); err != nil {
+		msg.Success = false
+	}
+	return msg, nil
 }
 
 func StopBoxHandler(m Message, r *Runtime) (Message, error) {
@@ -157,13 +162,18 @@ func StopBoxHandler(m Message, r *Runtime) (Message, error) {
 	if err := r.Boxer.Stop(box); !err.Success() {
 		return r.NewInvalidParamMessage(), fmt.Errorf("BoxFailedToStop: %s", m.Name)
 	}
-	return Message{
+	msg := Message{
 		Type:       "aio:stopped",
 		Id:         r.Id,
 		BoxId:      box.Id,
 		ReturnVars: m.ReturnVars,
 		Success:    true,
-	}, nil
+	}
+	box.State = "stopped"
+	if err := r.ResourcePool.SaveBox(box); err != nil {
+		msg.Success = false
+	}
+	return msg, nil
 }
 
 func RestartBoxHandler(m Message, r *Runtime) (Message, error) {
@@ -174,13 +184,18 @@ func RestartBoxHandler(m Message, r *Runtime) (Message, error) {
 	if err := r.Boxer.Restart(box); !err.Success() {
 		return r.NewInvalidParamMessage(), fmt.Errorf("BoxFailedToRestart: %s", m.Name)
 	}
-	return Message{
+	msg := Message{
 		Type:       "aio:restarted",
 		Id:         r.Id,
 		BoxId:      box.Id,
 		ReturnVars: m.ReturnVars,
 		Success:    true,
-	}, nil
+	}
+	box.State = "running"
+	if err := r.ResourcePool.SaveBox(box); err != nil {
+		msg.Success = false
+	}
+	return msg, nil
 }
 
 func DestroyBoxHandler(m Message, r *Runtime) (Message, error) {
@@ -238,7 +253,14 @@ func ConfigureBoxHandler(m Message, r *Runtime) (Message, error) {
 		if err := box.ChangeSpec(spec); err != nil {
 			return r.NewInvalidParamMessage(), fmt.Errorf("FailedToChangeSpec: %s", m.Name)
 		}
+		if err := r.Boxer.Restart(box); !err.Success() {
+			return r.NewInvalidParamMessage(), fmt.Errorf("BoxFailedToStop: %s", m.Name)
+		}
 		message.Success = true
+		box.State = "running"
+		if err := r.ResourcePool.SaveBox(box); err != nil {
+			message.Success = false
+		}
 		return message, nil
 	}
 	return r.NewInvalidParamMessage(), fmt.Errorf("NotHandled: %s", m.DataType)

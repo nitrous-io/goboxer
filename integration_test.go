@@ -187,6 +187,9 @@ func (s *IntegrationSuite) TestStop(c *C) {
 		"/etc/projid":   []string{"mclovins-container-1:1"},
 		"/etc/projects": []string{"1:/lxc/disk1/mclovins-container-1_delta/rootfs/home/action"},
 	})
+
+	box, _ := s.ResourcePool.FindBox("mclovins-container-1")
+	c.Assert(box.State, Equals, "stopped")
 }
 
 func (s *IntegrationSuite) TestStart(c *C) {
@@ -224,6 +227,9 @@ func (s *IntegrationSuite) TestStart(c *C) {
 		"/etc/projid":   []string{"mclovins-container-1:1"},
 		"/etc/projects": []string{"1:/lxc/disk1/mclovins-container-1_delta/rootfs/home/action"},
 	})
+
+	box, _ := s.ResourcePool.FindBox("mclovins-container-1")
+	c.Assert(box.State, Equals, "running")
 }
 
 func (s *IntegrationSuite) TestDestroy(c *C) {
@@ -308,6 +314,9 @@ func (s *IntegrationSuite) TestRestart(c *C) {
 		"/etc/projid":   []string{"mclovins-container-1:1"},
 		"/etc/projects": []string{"1:/lxc/disk1/mclovins-container-1_delta/rootfs/home/action"},
 	})
+
+	box, _ := s.ResourcePool.FindBox("mclovins-container-1")
+	c.Assert(box.State, Equals, "running")
 }
 
 func (s *IntegrationSuite) TestAddPublicKey(c *C) {
@@ -429,4 +438,7 @@ func (s *IntegrationSuite) TestChangeBoxSpecs(c *C) {
 
 	newLimit, _ := ViewQuotaLimit("1", "/lxc/disk1")
 	c.Assert(newLimit.Limit, Equals, 2*1024*1024)
+
+	box, _ := s.ResourcePool.FindBox("mclovins-container-1")
+	c.Assert(box.State, Equals, "running")
 }
