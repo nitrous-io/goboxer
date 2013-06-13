@@ -27,7 +27,7 @@ func (s *BoxerSuite) insertResource(ip, gateway, networkInterface, port string) 
 }
 
 func (s *BoxerSuite) deleteBox(id, name string) Message {
-	message, _ := s.Boxer.Receive(Message{
+	message := s.Boxer.Receive(Message{
 		Type:  "aio:destroy",
 		Id:    "testboxer",
 		BoxId: id,
@@ -72,7 +72,7 @@ func (s *BoxerSuite) TearDownTest(c *C) {
 
 // TODO: check if the quota is set correctly
 func (s *BoxerSuite) TestCreateBox(c *C) {
-	message, _ := s.Boxer.Receive(Message{
+	message := s.Boxer.Receive(Message{
 		Id:         "testboxer",
 		BoxId:      "1",
 		Type:       "aio:create",
@@ -157,7 +157,7 @@ func (s *BoxerSuite) TestStop(c *C) {
 		DiskSpace:  "1G",
 		PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
 	})
-	message, _ := s.Boxer.Receive(Message{
+	message := s.Boxer.Receive(Message{
 		Id:    "testboxer",
 		BoxId: "1",
 		Type:  "aio:stop",
@@ -199,7 +199,7 @@ func (s *BoxerSuite) TestStart(c *C) {
 		PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
 	})
 	defer s.deleteBox("1", "mclovins-container")
-	message, _ := s.Boxer.Receive(Message{
+	message := s.Boxer.Receive(Message{
 		Id:    "testboxer",
 		BoxId: "1",
 		Type:  "aio:start",
@@ -238,7 +238,7 @@ func (s *BoxerSuite) TestDestroy(c *C) {
 		DiskSpace:  "1G",
 		PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
 	})
-	message, _ := s.Boxer.Receive(Message{
+	message := s.Boxer.Receive(Message{
 		Id:    "testboxer",
 		BoxId: "1",
 		Type:  "aio:destroy",
@@ -284,7 +284,7 @@ func (s *BoxerSuite) TestRestart(c *C) {
 		PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
 	})
 	defer s.deleteBox("1", "mclovins-container")
-	message, _ := s.Boxer.Receive(Message{
+	message := s.Boxer.Receive(Message{
 		Id:    "testboxer",
 		BoxId: "1",
 		Type:  "aio:restart",
@@ -327,7 +327,7 @@ func (s *BoxerSuite) TestAddPublicKey(c *C) {
 	})
 	defer s.deleteBox("1", "mclovins-container")
 
-	message, _ := s.Boxer.Receive(Message{
+	message := s.Boxer.Receive(Message{
 		Id:       "testboxer",
 		BoxId:    "1",
 		Type:     "aio:configure",
@@ -367,7 +367,7 @@ func (s *BoxerSuite) TestRemovePublicKey(c *C) {
 	})
 	defer s.deleteBox("1", "mclovins-container")
 
-	message, _ := s.Boxer.Receive(Message{
+	message := s.Boxer.Receive(Message{
 		Id:       "testboxer",
 		BoxId:    "1",
 		Type:     "aio:configure",
@@ -405,7 +405,7 @@ func (s *BoxerSuite) TestChangeBoxSpecs(c *C) {
 	limit, _ := ViewQuotaLimit("1", "/lxc/disk1")
 	c.Assert(limit.Limit, Equals, 1024*1024)
 
-	message, _ := s.Boxer.Receive(Message{
+	message := s.Boxer.Receive(Message{
 		Id:       "testboxer",
 		BoxId:    "1",
 		Type:     "aio:configure",

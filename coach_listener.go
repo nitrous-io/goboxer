@@ -17,7 +17,6 @@ type CoachListener struct {
 func (c *CoachListener) Listen() {
 	switch msg := c.BoxerPubSub.Receive().(type) {
 	case redis.Message:
-		var returnedMessage Message
 		var messageJSON string
 		var err error
 		message := Message{}
@@ -25,10 +24,7 @@ func (c *CoachListener) Listen() {
 			c.SendInvalidParam()
 			return
 		}
-		if returnedMessage, err = c.Boxer.Receive(message); err != nil {
-			c.SendInvalidParam()
-			return
-		}
+		returnedMessage := c.Boxer.Receive(message)
 		if messageJSON, err = ToJSON(returnedMessage); err != nil {
 			c.SendInvalidParam()
 			return
