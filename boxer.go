@@ -10,7 +10,13 @@ import (
 )
 
 var runtimes []string
+var CreateStates []State
+var StartStates []State
+var StopStates []State
+var RestartStates []State
+var DestroyStates []State
 
+// TODO: remove fixed runtimes here and used cofnfigurable runtimes from Boxer
 func init() {
 	runtimes = []string{
 		"rails",
@@ -18,6 +24,38 @@ func init() {
 		"django",
 		"golang",
 		"test",
+	}
+	CreateStates = []State{
+		State{Advance: MountContainer, Rollback: UnmountContainer},
+		State{Advance: SetupContainer, Rollback: Pass},
+		State{Advance: SetQuota, Rollback: UnsetQuota},
+		State{Advance: SetPortForwarding, Rollback: UnsetPortForwarding},
+	}
+
+	StartStates = []State{
+		State{Advance: MountContainer, Rollback: UnmountContainer},
+		State{Advance: StartContainer, Rollback: StopContainer},
+	}
+
+	StopStates = []State{
+		State{Advance: StopContainer, Rollback: Pass},
+		State{Advance: UnmountContainer, Rollback: MountContainer},
+		State{Advance: UnsetQuota, Rollback: SetQuota},
+	}
+
+	DestroyStates = []State{
+		State{Advance: StopContainer, Rollback: Pass},
+		State{Advance: UnsetPortForwarding, Rollback: SetPortForwarding},
+		State{Advance: UnmountContainer, Rollback: MountContainer},
+		State{Advance: UnsetQuota, Rollback: SetQuota},
+		State{Advance: DeleteContainerData, Rollback: Pass},
+	}
+
+	RestartStates = []State{
+		State{Advance: StopContainer, Rollback: Pass},
+		State{Advance: UnmountContainer, Rollback: Pass},
+		State{Advance: MountContainer, Rollback: Pass},
+		State{Advance: StartContainer, Rollback: Pass},
 	}
 }
 
@@ -312,47 +350,6 @@ func StartContainer(c *BoxCommand) error      { return c.Box.StartContainer() }
 func StopContainer(c *BoxCommand) error       { return c.Box.StopContainer() }
 func DeleteContainerData(c *BoxCommand) error { return c.Box.DeleteContainerData() }
 func Pass(c *BoxCommand) error                { return nil }
-
-var CreateStates []State
-var StartStates []State
-var StopStates []State
-var RestartStates []State
-var DestroyStates []State
-
-func init() {
-	CreateStates = []State{
-		State{Advance: MountContainer, Rollback: UnmountContainer},
-		State{Advance: SetupContainer, Rollback: Pass},
-		State{Advance: SetQuota, Rollback: UnsetQuota},
-		State{Advance: SetPortForwarding, Rollback: UnsetPortForwarding},
-	}
-
-	StartStates = []State{
-		State{Advance: MountContainer, Rollback: UnmountContainer},
-		State{Advance: StartContainer, Rollback: StopContainer},
-	}
-
-	StopStates = []State{
-		State{Advance: StopContainer, Rollback: Pass},
-		State{Advance: UnmountContainer, Rollback: MountContainer},
-		State{Advance: UnsetQuota, Rollback: SetQuota},
-	}
-
-	DestroyStates = []State{
-		State{Advance: StopContainer, Rollback: Pass},
-		State{Advance: UnsetPortForwarding, Rollback: SetPortForwarding},
-		State{Advance: UnmountContainer, Rollback: MountContainer},
-		State{Advance: UnsetQuota, Rollback: SetQuota},
-		State{Advance: DeleteContainerData, Rollback: Pass},
-	}
-
-	RestartStates = []State{
-		State{Advance: StopContainer, Rollback: Pass},
-		State{Advance: UnmountContainer, Rollback: Pass},
-		State{Advance: MountContainer, Rollback: Pass},
-		State{Advance: StartContainer, Rollback: Pass},
-	}
-}
 
 func (boxer *Boxer) Create(box *Box) *CommandError {
 	return Advance(&BoxCommand{
