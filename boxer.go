@@ -7,17 +7,273 @@ package goboxer
 
 import (
 	"fmt"
+	"github.com/action-io/goboxer/host"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
 )
 
+var runtimes []string
+
+func init() {
+	runtimes = []string{
+		"rails",
+		"nodejs",
+		"django",
+		"golang",
+		"test",
+	}
+}
+
+// we concat all messages type here and use `Receive` to distribute correct
+// type to correct function for now
+type Message struct {
+	// all messages can have these
+	Id         string            `json:"id"`
+	BoxId      string            `json:"boxId"`
+	Type       string            `json:"type"`
+	ReturnVars map[string]string `json:"returnVars"`
+
+	// for advertise message
+	FreeMemory int      `json:"freeMemory"`
+	Runtimes   []string `json:"runtimes"`
+
+	// for create message
+	// Name is used subsequently in coach message to describe containerName
+	// i.e. 123-testbox
+	Name        string   `json:"name"`
+	Port        string   `json:"port"`
+	Runtime     string   `json:"runtime"`
+	SnapshotURL string   `json:"snapshotURL"`
+	Memory      string   `json:"memory"`
+	DiskSpace   string   `json:"diskSpace"`
+	PublicKeys  []string `json:"publicKeys"`
+	SshKeyPair  []string `json:"sshKeyPair"`
+
+	// for normal message
+	DataType string      `json:"dataType"`
+	Data     interface{} `json:"data"`
+	Success  bool        `json:"success"`
+}
+
+// a handler will receive message and runtime, do some work with it and return
+// a new message
+type MessageHandler func(m Message, boxer *Boxer) (Message, error)
+
 type Boxer struct {
+	Id           string
 	Root         string
 	SelectedDisk string
 	Disks        []string
+	ResourcePool *ResourcePool
 	Runtimes     map[string]string
+	Handles      map[string]MessageHandler
+}
+
+func (boxer *Boxer) Receive(msg Message) (Message, error) {
+	handle, ok := boxer.Handles[msg.Type]
+	if !ok {
+		return Message{}, fmt.Errorf("Invalid Message: unknown type %s", msg.Type)
+	}
+	msg.Id = boxer.Id
+	return handle(msg, boxer)
+}
+
+func (boxer *Boxer) NewAdvertiseMessage() Message {
+	return Message{
+		Type:       "aio:advertise",
+		Id:         boxer.Id,
+		Runtimes:   runtimes,
+		FreeMemory: int(host.FreeMemory()),
+	}
+}
+
+func (boxer *Boxer) NewInvalidParamMessage() Message {
+	return Message{
+		Type:    "aio:invalid:params",
+		Id:      boxer.Id,
+		Success: false,
+	}
+}
+
+func LocateBoxHandler(m Message, boxer *Boxer) (Message, error) {
+	return boxer.NewAdvertiseMessage(), nil
+}
+
+func CreateBoxHandler(m Message, boxer *Boxer) (Message, error) {
+	msg := Message{
+		Type:  "aio:created",
+		Id:    boxer.Id,
+		BoxId: m.BoxId,
+	}
+	resource, err := boxer.ResourcePool.Acquire()
+	if err != nil {
+		msg.Success = false
+		return msg, nil
+	}
+	box := &Box{
+		Id:               m.BoxId,
+		BoxerId:          m.Id,
+		Name:             m.Name,
+		Runtime:          m.Runtime,
+		Memory:           m.Memory,
+		DiskSpace:        m.DiskSpace,
+		PublicKeys:       m.PublicKeys,
+		SnapshotURL:      m.SnapshotURL,
+		Disk:             boxer.SelectedDisk,
+		Template:         boxer.Runtimes[m.Runtime],
+		Ip:               resource.Ip,
+		Gateway:          resource.Gateway,
+		NetworkInterface: resource.NetworkInterface,
+		Port:             resource.Port,
+	}
+	if err := boxer.Create(box); !err.Success() {
+		boxer.ResourcePool.Release(resource.Ip)
+		msg.Success = false
+		return msg, nil
+	}
+	if err := boxer.ResourcePool.SaveBox(box); err != nil {
+		msg.Success = false
+		return msg, nil
+	}
+	msg.Port = box.Port
+	msg.Success = true
+	return msg, nil
+}
+
+func StartBoxHandler(m Message, boxer *Boxer) (Message, error) {
+	box, err := boxer.ResourcePool.FindBox(m.Name)
+	if err != nil {
+		return boxer.NewInvalidParamMessage(), fmt.Errorf("BoxNotFound: %s", m.Name)
+	}
+	if err := boxer.Start(box); !err.Success() {
+		return boxer.NewInvalidParamMessage(), fmt.Errorf("BoxFailedToStart: %s", m.Name)
+	}
+	msg := Message{
+		Type:       "aio:started",
+		Id:         boxer.Id,
+		BoxId:      box.Id,
+		ReturnVars: m.ReturnVars,
+		Success:    true,
+	}
+	box.State = "running"
+	if err := boxer.ResourcePool.SaveBox(box); err != nil {
+		msg.Success = false
+	}
+	return msg, nil
+}
+
+func StopBoxHandler(m Message, boxer *Boxer) (Message, error) {
+	box, err := boxer.ResourcePool.FindBox(m.Name)
+	if err != nil {
+		return boxer.NewInvalidParamMessage(), fmt.Errorf("BoxNotFound: %s", m.Name)
+	}
+	if err := boxer.Stop(box); !err.Success() {
+		return boxer.NewInvalidParamMessage(), fmt.Errorf("BoxFailedToStop: %s", m.Name)
+	}
+	msg := Message{
+		Type:       "aio:stopped",
+		Id:         boxer.Id,
+		BoxId:      box.Id,
+		ReturnVars: m.ReturnVars,
+		Success:    true,
+	}
+	box.State = "stopped"
+	if err := boxer.ResourcePool.SaveBox(box); err != nil {
+		msg.Success = false
+	}
+	return msg, nil
+}
+
+func RestartBoxHandler(m Message, boxer *Boxer) (Message, error) {
+	box, err := boxer.ResourcePool.FindBox(m.Name)
+	if err != nil {
+		return boxer.NewInvalidParamMessage(), fmt.Errorf("BoxNotFound: %s", m.Name)
+	}
+	if err := boxer.Restart(box); !err.Success() {
+		return boxer.NewInvalidParamMessage(), fmt.Errorf("BoxFailedToRestart: %s", m.Name)
+	}
+	msg := Message{
+		Type:       "aio:restarted",
+		Id:         boxer.Id,
+		BoxId:      box.Id,
+		ReturnVars: m.ReturnVars,
+		Success:    true,
+	}
+	box.State = "running"
+	if err := boxer.ResourcePool.SaveBox(box); err != nil {
+		msg.Success = false
+	}
+	return msg, nil
+}
+
+func DestroyBoxHandler(m Message, boxer *Boxer) (Message, error) {
+	box, err := boxer.ResourcePool.FindBox(m.Name)
+	if err != nil {
+		return boxer.NewInvalidParamMessage(), fmt.Errorf("BoxNotFound: %s", m.Name)
+	}
+	if err := boxer.Destroy(box); !err.Success() {
+		return boxer.NewInvalidParamMessage(), fmt.Errorf("BoxFailedToDestroy: %s", m.Name)
+	}
+	if err := boxer.ResourcePool.Release(box.Ip); err != nil {
+		return boxer.NewInvalidParamMessage(),
+			fmt.Errorf("BoxFailedToReleaseResource %s with ip: %s", box.Id, box.Ip)
+	}
+	return Message{
+		Type:       "aio:destroyed",
+		Id:         boxer.Id,
+		BoxId:      box.Id,
+		ReturnVars: m.ReturnVars,
+		Success:    true,
+	}, nil
+}
+
+func ConfigureBoxHandler(m Message, boxer *Boxer) (Message, error) {
+	box, err := boxer.ResourcePool.FindBox(m.Name)
+	if err != nil {
+		return boxer.NewInvalidParamMessage(), fmt.Errorf("BoxNotFound: %s", m.Name)
+	}
+	message := Message{
+		Type:       "aio:configured",
+		Id:         boxer.Id,
+		BoxId:      box.Id,
+		ReturnVars: m.ReturnVars,
+	}
+	switch m.DataType {
+	case "aio:configure:add_public_key":
+		data := (m.Data).(string)
+		if err := box.AddPublicKey(data); err != nil {
+			return boxer.NewInvalidParamMessage(), fmt.Errorf("FailedToAddPublicKey: %s", m.Name)
+		}
+		message.Success = true
+		return message, nil
+	case "aio:configure:remove_public_key":
+		data := (m.Data).(string)
+		if err := box.RemovePublicKey(data); err != nil {
+			return boxer.NewInvalidParamMessage(), fmt.Errorf("FailedToRemovePublicKey: %s", m.Name)
+		}
+		message.Success = true
+		return message, nil
+	case "aio:configure:change_specs":
+		data := (m.Data).(map[string]interface{})
+		spec := &BoxSpec{}
+		spec.Memory = (data["memory"]).(string)
+		spec.DiskSpace = (data["diskSpace"]).(string)
+		if err := box.ChangeSpec(spec); err != nil {
+			return boxer.NewInvalidParamMessage(), fmt.Errorf("FailedToChangeSpec: %s", m.Name)
+		}
+		if err := boxer.Restart(box); !err.Success() {
+			return boxer.NewInvalidParamMessage(), fmt.Errorf("BoxFailedToStop: %s", m.Name)
+		}
+		message.Success = true
+		box.State = "running"
+		if err := boxer.ResourcePool.SaveBox(box); err != nil {
+			message.Success = false
+		}
+		return message, nil
+	}
+	return boxer.NewInvalidParamMessage(), fmt.Errorf("NotHandled: %s", m.DataType)
 }
 
 func runCommand(cmd string, args ...string) error {

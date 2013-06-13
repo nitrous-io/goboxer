@@ -109,24 +109,20 @@ func main() {
 		os.Exit(1)
 	}
 
+	resourcePool := &goboxer.ResourcePool{Conn: storeConn}
+
 	boxer := &goboxer.Boxer{
+		Id:           config.Id,
 		Root:         "/var/lib/lxc",
 		Runtimes:     runtimesTemplate,
 		SelectedDisk: config.SelectedDisk,
 		Disks:        config.Disks,
-	}
-
-	resourcePool := &goboxer.ResourcePool{Conn: storeConn}
-
-	boxerRuntime := &goboxer.Runtime{
-		Id:           config.Id,
-		Boxer:        boxer,
 		Handles:      handlers,
 		ResourcePool: resourcePool,
 	}
 
 	coachListener := &goboxer.CoachListener{
-		Runtime:      boxerRuntime,
+		Boxer:        boxer,
 		BoxerConn:    boxerConn,
 		CoachConn:    coachConn,
 		BoxerPubSub:  redis.PubSubConn{boxerConn},
