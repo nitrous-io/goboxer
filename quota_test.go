@@ -1,9 +1,11 @@
 package goboxer
 
 import (
+	"io/ioutil"
 	. "launchpad.net/gocheck"
 	"os"
 	"os/exec"
+	"strings"
 )
 
 type QuotaSuite struct{}
@@ -28,9 +30,26 @@ func (s *QuotaSuite) TestSetQuotaLimit(c *C) {
 		"/etc/projects": {"123:/lxc/disk1/test_quota"},
 	})
 
-	info, err := ViewQuotaLimit("123", "/lxc/disk1")
+	info, _ := ViewQuotaLimit("123", "/lxc/disk1")
 	c.Assert(info.Used, Equals, 0)
 	c.Assert(info.Limit, Equals, 512*1024)
+}
+
+func (s *QuotaSuite) TestSetLimitMultipleTimes(c *C) {
+	SetQuotaLimit("123", "test-123", "/lxc/disk1/test_quota", "/lxc/disk1", "3M")
+	SetQuotaLimit("123", "test-123", "/lxc/disk1/test_quota", "/lxc/disk1", "3M")
+	defer RemoveQuotaLimit("123", "test-123", "/lxc/disk1/test_quota", "/lxc/disk1")
+
+	// it doesnt duplicate the contents of projid and projects as well as
+	// xfs_quota
+	projidContent, _ := ioutil.ReadFile("/etc/projid")
+	projectsContent, _ := ioutil.ReadFile("/etc/projects")
+
+	c.Assert(strings.Count(string(projidContent), "test-123"), Equals, 1)
+	c.Assert(strings.Count(string(projectsContent), "test_quota"), Equals, 1)
+
+	info, _ := ViewQuotaLimit("123", "/lxc/disk1")
+	c.Assert(info.Limit, Equals, 3*1024)
 }
 
 func (s *QuotaSuite) TestRemoveQuotaLimit(c *C) {

@@ -22,10 +22,10 @@ func SetQuotaLimit(id, name, path, projectContainer, limit string) error {
 		return fmt.Errorf("Current usage %d exceeded new limit %d",
 			quotaInfo.Used, newLimit)
 	}
-	if err := Appendln("/etc/projid", name+":"+id); err != nil {
+	if err := AppendlnUnlessContain("/etc/projid", name+":"+id); err != nil {
 		return err
 	}
-	if err := Appendln("/etc/projects", id+":"+path); err != nil {
+	if err := AppendlnUnlessContain("/etc/projects", id+":"+path); err != nil {
 		return err
 	}
 	// assume that xfs_quota works here
