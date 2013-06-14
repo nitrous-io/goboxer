@@ -77,6 +77,7 @@ func parseConfig(configPath string) (config Config, err error) {
 func main() {
 	flConfigPath := flag.String("c", "", "Set config path of the program")
 	flVersion := flag.Bool("v", false, "Show current version")
+	flStartAll := flag.Bool("start-all", false, "Start all containers")
 	flag.Parse()
 	if *flVersion {
 		fmt.Println("Current Goboxer Version:", VERSION)
@@ -119,6 +120,17 @@ func main() {
 		Disks:        config.Disks,
 		Handles:      handlers,
 		ResourcePool: resourcePool,
+	}
+
+	if *flStartAll {
+		fmt.Println("Starting all containers ...")
+		if err := boxer.Init(); err != nil {
+			fmt.Println("Failed to start all boxes: %v", err)
+			os.Exit(-1)
+			return
+		}
+		os.Exit(0)
+		return
 	}
 
 	coachListener := &goboxer.CoachListener{

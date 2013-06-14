@@ -418,3 +418,12 @@ func (boxer *Boxer) StartAll(boxes []*Box) error {
 	}
 	return nil
 }
+
+// start all running boxes based on data from `ResourcePool`
+func (boxer *Boxer) Init() error {
+	boxes, err := boxer.ResourcePool.FindRunningBoxes()
+	if err != nil {
+		return err
+	}
+	return boxer.StartAll(boxes)
+}
