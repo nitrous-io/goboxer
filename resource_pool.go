@@ -48,6 +48,12 @@ func (rp *ResourcePool) Release(ip string) (err error) {
 	return err
 }
 
+// Wrapper around `ResourcePool#SaveBox` so we can update the state in one line
+func (rp *ResourcePool) UpdateState(box *Box, state string) error {
+	box.State = state
+	return rp.SaveBox(box)
+}
+
 func (rp *ResourcePool) SaveBox(box *Box) error {
 	json, err := ToJSON(box)
 	if err != nil {

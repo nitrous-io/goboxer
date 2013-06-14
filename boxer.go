@@ -190,8 +190,7 @@ func StartBoxHandler(m Message, boxer *Boxer) Message {
 		ReturnVars: m.ReturnVars,
 		Success:    true,
 	}
-	box.State = "running"
-	if err := boxer.ResourcePool.SaveBox(box); err != nil {
+	if err := boxer.ResourcePool.UpdateState(box, "running"); err != nil {
 		msg.Success = false
 	}
 	return msg
@@ -212,8 +211,7 @@ func StopBoxHandler(m Message, boxer *Boxer) Message {
 		ReturnVars: m.ReturnVars,
 		Success:    true,
 	}
-	box.State = "stopped"
-	if err := boxer.ResourcePool.SaveBox(box); err != nil {
+	if err := boxer.ResourcePool.UpdateState(box, "stopped"); err != nil {
 		msg.Success = false
 	}
 	return msg
@@ -234,8 +232,7 @@ func RestartBoxHandler(m Message, boxer *Boxer) Message {
 		ReturnVars: m.ReturnVars,
 		Success:    true,
 	}
-	box.State = "running"
-	if err := boxer.ResourcePool.SaveBox(box); err != nil {
+	if err := boxer.ResourcePool.UpdateState(box, "running"); err != nil {
 		msg.Success = false
 	}
 	return msg
@@ -299,8 +296,7 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 			return boxer.NewInvalidParamMessage()
 		}
 		message.Success = true
-		box.State = "running"
-		if err := boxer.ResourcePool.SaveBox(box); err != nil {
+		if err := boxer.ResourcePool.UpdateState(box, "running"); err != nil {
 			message.Success = false
 		}
 		return message
