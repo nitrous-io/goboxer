@@ -59,3 +59,37 @@ func (s *ResourcePoolSuite) TestReleaseValidResource(c *C) {
 	availableIp, _ := redis.String(s.conn.Do("RPOP", "aio:available_resources"))
 	c.Assert(availableIp, Equals, "192.168.2.2")
 }
+
+func makeTestBox(id, state string) *Box {
+	return &Box{
+		Id:               id,
+		State:            state,
+		Name:             "test",
+		Runtime:          "test",
+		Template:         "test_template",
+		Ip:               "192.168.254.2",
+		Gateway:          "br-lxc-254",
+		NetworkInterface: "192.168.254.1",
+		Memory:           "256M",
+		DiskSpace:        "1G",
+	}
+
+}
+
+func (s *ResourcePoolSuite) TestFindRunningBoxes(c *C) {
+	box1json, _ := ToJSON(makeTestBox("1", "running"))
+	box2json, _ := ToJSON(makeTestBox("2", "stopped"))
+	box3json, _ := ToJSON(makeTestBox("3", "running"))
+	s.conn.Do("HSET", "aio:boxes", "test-1", box1json)
+	s.conn.Do("HSET", "aio:boxes", "test-2", box2json)
+	s.conn.Do("HSET", "aio:boxes", "test-3", box3json)
+
+	rs := &ResourcePool{Conn: s.conn}
+	b, _ := rs.FindRunningBoxes()
+
+	c.Assert(len(b), Equals, 2)
+	c.Assert(b[0].Id, Equals, "3")
+	c.Assert(b[0].State, Equals, "running")
+	c.Assert(b[1].Id, Equals, "1")
+	c.Assert(b[1].State, Equals, "running")
+}
