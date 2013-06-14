@@ -26,6 +26,11 @@ func (s *BoxerSuite) insertResource(ip, gateway, networkInterface, port string) 
 	s.Redis.Do("HMSET", redis.Args{}.Add("aio:nwr:"+ip).AddFlat(r)...)
 }
 
+func (s *BoxerSuite) assertBoxState(c *C, containerName, state string) {
+	box, _ := s.ResourcePool.FindBox(containerName)
+	c.Assert(box.State, Equals, state)
+}
+
 func (s *BoxerSuite) deleteBox(id, name string) Message {
 	message := s.Boxer.Receive(Message{
 		Type:  "aio:destroy",
@@ -170,8 +175,7 @@ func (s *BoxerSuite) TestStop(c *C) {
 	c.Assert(message.BoxId, Equals, "1")
 	c.Assert(message.Success, Equals, true)
 
-	stdout, _ := exec.Command("sudo", "lxc-info", "-n", "mclovins-container-1").CombinedOutput()
-	c.Assert(strings.Contains(string(stdout), "STOPPED"), Equals, true)
+	AssertLxcState(c, "mclovins-container-1", "STOPPED")
 
 	DoesNotExist(c, []string{
 		"/var/lib/lxc/mclovins-container-1",
@@ -183,8 +187,7 @@ func (s *BoxerSuite) TestStop(c *C) {
 		"/etc/projects": []string{"1:/lxc/disk1/mclovins-container-1_delta/rootfs/home/action"},
 	})
 
-	box, _ := s.ResourcePool.FindBox("mclovins-container-1")
-	c.Assert(box.State, Equals, "stopped")
+	s.assertBoxState(c, "mclovins-container-1", "stopped")
 }
 
 func (s *BoxerSuite) TestStart(c *C) {
@@ -211,8 +214,7 @@ func (s *BoxerSuite) TestStart(c *C) {
 	c.Assert(message.BoxId, Equals, "1")
 	c.Assert(message.Success, Equals, true)
 
-	stdout, _ := exec.Command("sudo", "lxc-info", "-n", "mclovins-container-1").CombinedOutput()
-	c.Assert(strings.Contains(string(stdout), "RUNNING"), Equals, true)
+	AssertLxcState(c, "mclovins-container-1", "RUNNING")
 
 	DoesExist(c, []string{
 		"/var/lib/lxc/mclovins-container-1/rootfs",
@@ -223,8 +225,7 @@ func (s *BoxerSuite) TestStart(c *C) {
 		"/etc/projects": []string{"1:/lxc/disk1/mclovins-container-1_delta/rootfs/home/action"},
 	})
 
-	box, _ := s.ResourcePool.FindBox("mclovins-container-1")
-	c.Assert(box.State, Equals, "running")
+	s.assertBoxState(c, "mclovins-container-1", "running")
 }
 
 func (s *BoxerSuite) TestDestroy(c *C) {
@@ -250,8 +251,7 @@ func (s *BoxerSuite) TestDestroy(c *C) {
 	c.Assert(message.BoxId, Equals, "1")
 	c.Assert(message.Success, Equals, true)
 
-	stdout, _ := exec.Command("sudo", "lxc-info", "-n", "mclovins-container-1").CombinedOutput()
-	c.Assert(strings.Contains(string(stdout), "STOPPED"), Equals, true)
+	AssertLxcState(c, "mclovins-container-1", "STOPPED")
 
 	DoesNotExist(c, []string{
 		"/var/lib/lxc/mclovins-container-1",
@@ -296,8 +296,7 @@ func (s *BoxerSuite) TestRestart(c *C) {
 	c.Assert(message.BoxId, Equals, "1")
 	c.Assert(message.Success, Equals, true)
 
-	stdout, _ := exec.Command("sudo", "lxc-info", "-n", "mclovins-container-1").CombinedOutput()
-	c.Assert(strings.Contains(string(stdout), "RUNNING"), Equals, true)
+	AssertLxcState(c, "mclovins-container-1", "RUNNING")
 
 	DoesExist(c, []string{
 		"/var/lib/lxc/mclovins-container-1",
@@ -310,8 +309,7 @@ func (s *BoxerSuite) TestRestart(c *C) {
 		"/etc/projects": []string{"1:/lxc/disk1/mclovins-container-1_delta/rootfs/home/action"},
 	})
 
-	box, _ := s.ResourcePool.FindBox("mclovins-container-1")
-	c.Assert(box.State, Equals, "running")
+	s.assertBoxState(c, "mclovins-container-1", "running")
 }
 
 func (s *BoxerSuite) TestAddPublicKey(c *C) {
@@ -434,8 +432,7 @@ func (s *BoxerSuite) TestChangeBoxSpecs(c *C) {
 	newLimit, _ := ViewQuotaLimit("1", "/lxc/disk1")
 	c.Assert(newLimit.Limit, Equals, 2*1024*1024)
 
-	box, _ := s.ResourcePool.FindBox("mclovins-container-1")
-	c.Assert(box.State, Equals, "running")
+	s.assertBoxState(c, "mclovins-container-1", "running")
 }
 
 func (s *BoxerSuite) TestNewAdvertiseMessage(c *C) {
@@ -446,5 +443,53 @@ func (s *BoxerSuite) TestNewAdvertiseMessage(c *C) {
 		"ruby": "ruby_template",
 	}
 	m = s.Boxer.NewAdvertiseMessage()
-	c.Assert(m.Runtimes, DeepEquals, []string{"ruby", "test"})
+	c.Assert(len(m.Runtimes), Equals, 2)
+	c.Assert(SliceInclude(m.Runtimes, "ruby"), Equals, true)
+	c.Assert(SliceInclude(m.Runtimes, "test"), Equals, true)
+}
+
+func (s *BoxerSuite) TestStartAll(c *C) {
+	s.insertResource("192.168.254.3", "192.168.254.1", "br-lxc-254", "10003")
+	for _, id := range []string{"1", "2"} {
+		s.Boxer.Receive(Message{
+			Id:         "testboxer",
+			BoxId:      id,
+			Type:       "aio:create",
+			Name:       "mclovins-container",
+			Runtime:    "test",
+			Memory:     "256M",
+			DiskSpace:  "1G",
+			PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
+		})
+		defer s.deleteBox(id, "mclovins-container")
+	}
+
+	AssertLxcState(c, "mclovins-container-1", "STOPPED")
+	AssertLxcState(c, "mclovins-container-2", "STOPPED")
+
+	box1, _ := s.ResourcePool.FindBox("mclovins-container-1")
+	box2, _ := s.ResourcePool.FindBox("mclovins-container-2")
+	s.Boxer.StartAll([]*Box{box1, box2})
+
+	AssertLxcState(c, "mclovins-container-1", "RUNNING")
+	AssertLxcState(c, "mclovins-container-2", "RUNNING")
+
+	DoesExist(c, []string{
+		"/var/lib/lxc/mclovins-container-1/rootfs",
+		"/var/lib/lxc/mclovins-container-2/rootfs",
+	})
+
+	DoesContain(c, map[string][]string{
+		"/etc/projid": []string{
+			"mclovins-container-1:1",
+			"mclovins-container-2:2",
+		},
+		"/etc/projects": []string{
+			"1:/lxc/disk1/mclovins-container-1_delta/rootfs/home/action",
+			"2:/lxc/disk1/mclovins-container-2_delta/rootfs/home/action",
+		},
+	})
+
+	s.assertBoxState(c, "mclovins-container-1", "running")
+	s.assertBoxState(c, "mclovins-container-2", "running")
 }

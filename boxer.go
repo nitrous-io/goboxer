@@ -6,6 +6,7 @@
 package goboxer
 
 import (
+	"fmt"
 	"github.com/action-io/goboxer/host"
 )
 
@@ -389,4 +390,31 @@ func (boxer *Boxer) Destroy(box *Box) *CommandError {
 		Box:    box,
 		States: DestroyStates,
 	})
+}
+
+// Given a list of boxes, try to start all of them.
+// This should process all the boxes even when some cant be started
+func (boxer *Boxer) StartAll(boxes []*Box) error {
+	var errors []error
+	for _, box := range boxes {
+		err := Advance(&BoxCommand{
+			Name:   "Start",
+			Boxer:  boxer,
+			Box:    box,
+			States: StartStates,
+		})
+		if err.Success() {
+			// make sure that the box are in running state
+			if err := boxer.ResourcePool.UpdateState(box, "running"); err != nil {
+				errors = append(errors, err)
+			}
+		} else {
+			errors = append(errors, fmt.Errorf("Failed to start box: %s",
+				box.ContainerName()))
+		}
+	}
+	if len(errors) > 0 {
+		return fmt.Errorf("Failed to start all boxes %v", errors)
+	}
+	return nil
 }
