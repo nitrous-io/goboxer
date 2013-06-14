@@ -95,6 +95,14 @@ type Boxer struct {
 	Handles      map[string]MessageHandler
 }
 
+// return back a slice of keys for the runtimes
+//
+//		boxer.Runtimes = map[string]string{
+// 		 	"rails": "ruby_template",
+// 		 	"django": "python_template",
+// 		}
+// 		boxer.runtimeKeys()
+// 		>> []string{"django", "rails"}
 func (boxer *Boxer) runtimeKeys() []string {
 	var keys []string
 	for k := range boxer.Runtimes {
@@ -103,6 +111,21 @@ func (boxer *Boxer) runtimeKeys() []string {
 	return keys
 }
 
+// This is the main logical entry point for a boxer program. It accepts an
+// incoming `Message` ( from Coach via Redis ) and return back a `Message`
+// which we can used to reply back to Coach
+//
+// The handlers are created when we created the `Boxer` instance and stored
+// inside `Handles` attributes. For example:
+//
+//		boxer.Handlers = map[string]MessageHandler{
+//			"aio:locate": LocateBoxHandler,
+//			"aio:create": CreateBoxHandler,
+//		}
+//
+// Then, whenever we received a `Message` with `Type` == "aio:locate" or
+// "aio:create", we knows how to dispatch the message to `LocateBoxHandler` and
+// `CreateBoxHandler` function correctly
 func (boxer *Boxer) Receive(msg Message) Message {
 	handle, ok := boxer.Handles[msg.Type]
 	if !ok {
