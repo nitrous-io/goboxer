@@ -437,3 +437,14 @@ func (s *BoxerSuite) TestChangeBoxSpecs(c *C) {
 	box, _ := s.ResourcePool.FindBox("mclovins-container-1")
 	c.Assert(box.State, Equals, "running")
 }
+
+func (s *BoxerSuite) TestNewAdvertiseMessage(c *C) {
+	m := s.Boxer.NewAdvertiseMessage()
+	c.Assert(m.Runtimes, DeepEquals, []string{"test"})
+	s.Boxer.Runtimes = map[string]string{
+		"test": "test_container_template",
+		"ruby": "ruby_template",
+	}
+	m = s.Boxer.NewAdvertiseMessage()
+	c.Assert(m.Runtimes, DeepEquals, []string{"ruby", "test"})
+}

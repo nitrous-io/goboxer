@@ -9,22 +9,13 @@ import (
 	"github.com/action-io/goboxer/host"
 )
 
-var runtimes []string
 var CreateStates []State
 var StartStates []State
 var StopStates []State
 var RestartStates []State
 var DestroyStates []State
 
-// TODO: remove fixed runtimes here and used cofnfigurable runtimes from Boxer
 func init() {
-	runtimes = []string{
-		"rails",
-		"nodejs",
-		"django",
-		"golang",
-		"test",
-	}
 	CreateStates = []State{
 		State{Advance: MountContainer, Rollback: UnmountContainer},
 		State{Advance: SetupContainer, Rollback: Pass},
@@ -104,6 +95,14 @@ type Boxer struct {
 	Handles      map[string]MessageHandler
 }
 
+func (boxer *Boxer) runtimeKeys() []string {
+	var keys []string
+	for k := range boxer.Runtimes {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
 func (boxer *Boxer) Receive(msg Message) Message {
 	handle, ok := boxer.Handles[msg.Type]
 	if !ok {
@@ -117,7 +116,7 @@ func (boxer *Boxer) NewAdvertiseMessage() Message {
 	return Message{
 		Type:       "aio:advertise",
 		Id:         boxer.Id,
-		Runtimes:   runtimes,
+		Runtimes:   boxer.runtimeKeys(),
 		FreeMemory: int(host.FreeMemory()),
 	}
 }
