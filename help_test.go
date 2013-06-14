@@ -4,6 +4,7 @@ import (
 	"io/ioutil"
 	. "launchpad.net/gocheck"
 	"os"
+	"os/exec"
 	"strings"
 	"syscall"
 	"testing"
@@ -34,6 +35,22 @@ func getUidAndGid(file string) []int {
 		int(s.Sys().(*syscall.Stat_t).Uid),
 		int(s.Sys().(*syscall.Stat_t).Gid),
 	}
+}
+
+// check if []string contains the specified string
+func SliceInclude(slice []string, target string) bool {
+	for _, i := range slice {
+		if i == target {
+			return true
+		}
+	}
+	return false
+}
+
+// given an lxc container name, assert that its has the specified state
+func AssertLxcState(c *C, containerName, state string) {
+	stdout, _ := exec.Command("sudo", "lxc-info", "-n", containerName).CombinedOutput()
+	c.Assert(strings.Contains(string(stdout), state), Equals, true)
 }
 
 func DoesExist(c *C, checkExists []string) {

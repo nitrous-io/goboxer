@@ -74,3 +74,23 @@ func (rp *ResourcePool) FindBox(containerName string) (*Box, error) {
 	}
 	return box, nil
 }
+
+// Find all instance of `Box` that has `containerState` equals to `running` in
+// the redis database
+func (rp *ResourcePool) FindRunningBoxes() ([]*Box, error) {
+	var boxes []*Box
+	boxNames, err := redis.Strings(rp.Conn.Do("HKEYS", "aio:boxes"))
+	if err != nil {
+		return []*Box{}, err
+	}
+	for _, name := range boxNames {
+		box, err := rp.FindBox(name)
+		if err != nil {
+			return []*Box{}, err
+		}
+		if box.State == "running" {
+			boxes = append(boxes, box)
+		}
+	}
+	return boxes, nil
+}
