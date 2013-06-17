@@ -333,22 +333,22 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 func InfoRequestBoxHandler(m Message, boxer *Boxer) Message {
 	box, err := boxer.ResourcePool.FindBox(m.Name)
 	if err != nil {
-		Debug(err)
 		return boxer.NewInvalidParamMessage()
 	}
-	info, err := box.Info()
-	if err != nil {
-		Debug(err)
-		return boxer.NewInvalidParamMessage()
-	}
-	return Message{
+	message := Message{
 		Type:       "aio:info_response",
 		Id:         boxer.Id,
 		BoxId:      box.Id,
 		ReturnVars: m.ReturnVars,
-		Success:    true,
-		Info:       info,
 	}
+	info, err := box.Info()
+	if err != nil {
+		message.Success = false
+		return message
+	}
+	message.Info = info
+	message.Success = true
+	return message
 }
 
 func SetupContainer(c *BoxCommand) error {
