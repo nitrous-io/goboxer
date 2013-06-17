@@ -7,7 +7,8 @@ shopt -s nullglob
 spec=${1}
 
 if [ -z "${spec}" ]; then
-  sudo -E go test -gocheck.v
+  sudo -E go test -gocheck.v github.com/action-io/goboxer/...
+  sudo -E go test -test.v github.com/action-io/goboxer/host
 else
   sudo -E go test -gocheck.v -gocheck.f ${spec}
 fi
