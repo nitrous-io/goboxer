@@ -59,13 +59,14 @@ func (s *BoxerSuite) SetUpTest(c *C) {
 		},
 		ResourcePool: s.ResourcePool,
 		Handles: map[string]MessageHandler{
-			"aio:locate":    LocateBoxHandler,
-			"aio:create":    CreateBoxHandler,
-			"aio:start":     StartBoxHandler,
-			"aio:stop":      StopBoxHandler,
-			"aio:restart":   RestartBoxHandler,
-			"aio:destroy":   DestroyBoxHandler,
-			"aio:configure": ConfigureBoxHandler,
+			"aio:locate":       LocateBoxHandler,
+			"aio:create":       CreateBoxHandler,
+			"aio:start":        StartBoxHandler,
+			"aio:stop":         StopBoxHandler,
+			"aio:restart":      RestartBoxHandler,
+			"aio:destroy":      DestroyBoxHandler,
+			"aio:configure":    ConfigureBoxHandler,
+			"aio:info_request": InfoRequestBoxHandler,
 		},
 	}
 }
@@ -492,4 +493,40 @@ func (s *BoxerSuite) TestStartAll(c *C) {
 
 	s.assertBoxState(c, "mclovins-container-1", "running")
 	s.assertBoxState(c, "mclovins-container-2", "running")
+}
+
+func (s *BoxerSuite) TestInfo(c *C) {
+	s.Boxer.Receive(Message{
+		Id:         "testboxer",
+		BoxId:      "1",
+		Type:       "aio:create",
+		Name:       "mclovins-container",
+		Runtime:    "test",
+		Memory:     "256M",
+		DiskSpace:  "1G",
+		PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
+	})
+	defer s.deleteBox("1", "mclovins-container")
+	s.Boxer.Receive(Message{
+		Id:    "testboxer",
+		BoxId: "1",
+		Type:  "aio:start",
+		Name:  "mclovins-container-1",
+	})
+
+	message := s.Boxer.Receive(Message{
+		Id:    "testboxer",
+		BoxId: "1",
+		Type:  "aio:info_request",
+		Name:  "mclovins-container-1",
+	})
+
+	c.Assert(message.Type, Equals, "aio:info_response")
+	c.Assert(message.Id, Equals, "testboxer")
+	c.Assert(message.BoxId, Equals, "1")
+	c.Assert(message.Success, Equals, true)
+
+	c.Assert(message.Info.StorageUsage, Matches, "([0-9]+.*)?")
+	c.Assert(message.Info.MemoryUsage, Matches, "([0-9]+.*)?")
+	c.Assert(message.Info.LxcStatus, Equals, "RUNNING")
 }
