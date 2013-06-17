@@ -26,13 +26,14 @@ func init() {
 		"golang": "golang_template",
 	}
 	handlers = map[string]goboxer.MessageHandler{
-		"aio:locate":    goboxer.LocateBoxHandler,
-		"aio:create":    goboxer.CreateBoxHandler,
-		"aio:start":     goboxer.StartBoxHandler,
-		"aio:stop":      goboxer.StopBoxHandler,
-		"aio:restart":   goboxer.RestartBoxHandler,
-		"aio:destroy":   goboxer.DestroyBoxHandler,
-		"aio:configure": goboxer.ConfigureBoxHandler,
+		"aio:locate":       goboxer.LocateBoxHandler,
+		"aio:create":       goboxer.CreateBoxHandler,
+		"aio:start":        goboxer.StartBoxHandler,
+		"aio:stop":         goboxer.StopBoxHandler,
+		"aio:restart":      goboxer.RestartBoxHandler,
+		"aio:destroy":      goboxer.DestroyBoxHandler,
+		"aio:configure":    goboxer.ConfigureBoxHandler,
+		"aio:info_request": goboxer.InfoRequestBoxHandler,
 	}
 }
 
