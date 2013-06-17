@@ -10,6 +10,7 @@ import (
 	"github.com/action-io/goboxer/host"
 )
 
+var handlers map[string]MessageHandler
 var CreateStates []State
 var StartStates []State
 var StopStates []State
@@ -17,6 +18,17 @@ var RestartStates []State
 var DestroyStates []State
 
 func init() {
+	handlers = map[string]MessageHandler{
+		"aio:locate":       LocateBoxHandler,
+		"aio:create":       CreateBoxHandler,
+		"aio:start":        StartBoxHandler,
+		"aio:stop":         StopBoxHandler,
+		"aio:restart":      RestartBoxHandler,
+		"aio:destroy":      DestroyBoxHandler,
+		"aio:configure":    ConfigureBoxHandler,
+		"aio:info_request": InfoRequestBoxHandler,
+	}
+
 	CreateStates = []State{
 		State{Advance: MountContainer, Rollback: UnmountContainer},
 		State{Advance: SetupContainer, Rollback: Pass},
@@ -97,6 +109,19 @@ type Boxer struct {
 	ResourcePool *ResourcePool
 	Runtimes     map[string]string
 	Handles      map[string]MessageHandler
+}
+
+func NewBoxer(id, root, selectedDisk string, disks []string,
+	runtimes map[string]string, resourcePool *ResourcePool) *Boxer {
+	return &Boxer{
+		Id:           id,
+		Root:         root,
+		Runtimes:     runtimes,
+		SelectedDisk: selectedDisk,
+		Disks:        disks,
+		Handles:      handlers,
+		ResourcePool: resourcePool,
+	}
 }
 
 // return back a slice of keys for the runtimes

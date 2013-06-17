@@ -49,26 +49,16 @@ func (s *BoxerSuite) SetUpTest(c *C) {
 
 	s.ResourcePool = &ResourcePool{Conn: s.Redis}
 
-	s.Boxer = &Boxer{
-		Id:           "testboxer",
-		Root:         "/var/lib/lxc",
-		Disks:        []string{"/lxc/disk1"},
-		SelectedDisk: "/lxc/disk1",
-		Runtimes: map[string]string{
+	s.Boxer = NewBoxer(
+		"testboxer",
+		"/var/lib/lxc",
+		"/lxc/disk1",
+		[]string{"/lxc/disk1"},
+		map[string]string{
 			"test": "test_container_template",
 		},
-		ResourcePool: s.ResourcePool,
-		Handles: map[string]MessageHandler{
-			"aio:locate":       LocateBoxHandler,
-			"aio:create":       CreateBoxHandler,
-			"aio:start":        StartBoxHandler,
-			"aio:stop":         StopBoxHandler,
-			"aio:restart":      RestartBoxHandler,
-			"aio:destroy":      DestroyBoxHandler,
-			"aio:configure":    ConfigureBoxHandler,
-			"aio:info_request": InfoRequestBoxHandler,
-		},
-	}
+		s.ResourcePool,
+	)
 }
 
 func (s *BoxerSuite) TearDownTest(c *C) {

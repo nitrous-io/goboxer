@@ -15,21 +15,6 @@ import (
 const VERSION = "0.0.4"
 const ADVERTISE_INTERVAL = 5001
 
-var handlers map[string]goboxer.MessageHandler
-
-func init() {
-	handlers = map[string]goboxer.MessageHandler{
-		"aio:locate":       goboxer.LocateBoxHandler,
-		"aio:create":       goboxer.CreateBoxHandler,
-		"aio:start":        goboxer.StartBoxHandler,
-		"aio:stop":         goboxer.StopBoxHandler,
-		"aio:restart":      goboxer.RestartBoxHandler,
-		"aio:destroy":      goboxer.DestroyBoxHandler,
-		"aio:configure":    goboxer.ConfigureBoxHandler,
-		"aio:info_request": goboxer.InfoRequestBoxHandler,
-	}
-}
-
 type Config struct {
 	Id             string            `json:"id"`
 	BoxerChannel   string            `json:"boxerChannel"`
@@ -107,15 +92,14 @@ func main() {
 
 	resourcePool := &goboxer.ResourcePool{Conn: storeConn}
 
-	boxer := &goboxer.Boxer{
-		Id:           config.Id,
-		Root:         "/var/lib/lxc",
-		Runtimes:     config.Runtimes,
-		SelectedDisk: config.SelectedDisk,
-		Disks:        config.Disks,
-		Handles:      handlers,
-		ResourcePool: resourcePool,
-	}
+	boxer := goboxer.NewBoxer(
+		config.Id,
+		"/var/lib/lxc",
+		config.SelectedDisk,
+		config.Disks,
+		config.Runtimes,
+		resourcePool,
+	)
 
 	if *flStartAll {
 		fmt.Println("Starting all containers ...")
