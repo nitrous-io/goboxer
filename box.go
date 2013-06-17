@@ -267,19 +267,21 @@ func (b *Box) DeleteContainerData() error {
 }
 
 // Return current memory usage of the box as memory cgroup reported it
-func (b *Box) MemoryUsageInBytes() (string, error) {
+// the unit if B, so if we want to convert to MB, it needs to be divided with
+// 1024 * 1024
+func (b *Box) MemoryUsageInBytes() (int, error) {
 	filename := fmt.Sprintf("/sys/fs/cgroup/memory/lxc/%s/memory.usage_in_bytes",
 		b.ContainerName())
 	file, err := os.Open(filename)
 	if err != nil {
-		return "0", err
+		return 0, err
 	}
 	scanner := bufio.NewScanner(file)
 	scanner.Scan()
 	if err := scanner.Err(); err != nil {
-		return "0", err
+		return 0, err
 	}
-	return scanner.Text(), nil
+	return strconv.Atoi(scanner.Text())
 }
 
 // Return current state of the box. It is the string that lxc used to annotate
@@ -299,12 +301,14 @@ func (b *Box) StorageUsage() (int, error) {
 	return quotaInfo.Used, nil
 }
 
+// Return BoxInfo with `MB` units
 func (b *Box) Info() (BoxInfo, error) {
 	var info BoxInfo
 	if memoryUsage, err := b.MemoryUsageInBytes(); err != nil {
 		return info, err
 	} else {
-		info.MemoryUsage = memoryUsage
+		info.MemoryUsage = strconv.FormatFloat(
+			float64(memoryUsage)/(1024*1024), 'f', 3, 64)
 	}
 	if state, err := b.LxcState(); err != nil {
 		return info, err
@@ -314,7 +318,8 @@ func (b *Box) Info() (BoxInfo, error) {
 	if storageUsage, err := b.StorageUsage(); err != nil {
 		return info, err
 	} else {
-		info.StorageUsage = strconv.Itoa(storageUsage)
+		info.StorageUsage = strconv.FormatFloat(
+			ScaleUnit(storageUsage, "M"), 'f', 3, 64)
 	}
 	return info, nil
 }
