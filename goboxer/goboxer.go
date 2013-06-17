@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-const VERSION = "0.0.4"
+const VERSION = "0.0.5"
 const ADVERTISE_INTERVAL = 5001
 
 type Config struct {
