@@ -3,6 +3,7 @@ package goboxer
 import (
 	"bufio"
 	"fmt"
+	"github.com/action-io/goboxer/lxc"
 	"os"
 	"path"
 	"strconv"
@@ -221,17 +222,11 @@ func (b *Box) SetDefaultKeypair() error {
 }
 
 func (b *Box) StopContainer() error {
-	if err := RunCommand("lxc-stop", "-n", b.ContainerName()); err != nil {
-		return err
-	}
-	return WaitLxc(b.ContainerName(), "STOPPED")
+	return lxc.Stop(b.ContainerName())
 }
 
 func (b *Box) StartContainer() error {
-	if err := RunCommand("lxc-start", "-d", "-n", b.ContainerName()); err != nil {
-		return err
-	}
-	return WaitLxc(b.ContainerName(), "RUNNING")
+	return lxc.Start(b.ContainerName())
 }
 
 func (b *Box) Mount(root string) error {
@@ -292,13 +287,7 @@ func (b *Box) MemoryUsageInBytes() (string, error) {
 // - RUNNING
 // - STOPPED
 func (b *Box) LxcState() (string, error) {
-	var state, status string
-	info, err := OutputCommand("lxc-info", "-n", b.ContainerName())
-	if err != nil {
-		return "", err
-	}
-	_, err = fmt.Sscanln(string(info), &state, &status)
-	return status, err
+	return lxc.Status(b.ContainerName())
 }
 
 // Return current storage usage in kb
