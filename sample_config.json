@@ -7,5 +7,11 @@
   "redisMQHost": "127.0.0.1",
   "redisMQPort": "6379",
   "redisStoreHost": "127.0.0.1",
-  "redisStorePort": "6379"
+  "redisStorePort": "6379",
+  "runtimes": {
+    "rails": "ruby_template",
+    "nodejs": "nodejs_template",
+    "django": "python_template",
+    "golang": "golang_template"
+  }
 }

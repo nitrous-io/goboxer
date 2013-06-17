@@ -15,16 +15,9 @@ import (
 const VERSION = "0.0.4"
 const ADVERTISE_INTERVAL = 5001
 
-var runtimesTemplate map[string]string
 var handlers map[string]goboxer.MessageHandler
 
 func init() {
-	runtimesTemplate = map[string]string{
-		"rails":  "ruby_template",
-		"nodejs": "nodejs_template",
-		"django": "python_template",
-		"golang": "golang_template",
-	}
 	handlers = map[string]goboxer.MessageHandler{
 		"aio:locate":       goboxer.LocateBoxHandler,
 		"aio:create":       goboxer.CreateBoxHandler,
@@ -38,15 +31,16 @@ func init() {
 }
 
 type Config struct {
-	Id             string   `json:"id"`
-	BoxerChannel   string   `json:"boxerChannel"`
-	CoachChannel   string   `json:"coachChannel"`
-	RedisMQHost    string   `json:"redisMQHost"`
-	RedisMQPort    string   `json:"redisMQPort"`
-	RedisStoreHost string   `json:"redisStoreHost"`
-	RedisStorePort string   `json:"redisStorePort"`
-	SelectedDisk   string   `json:"selectedDisk"`
-	Disks          []string `json:"disks"`
+	Id             string            `json:"id"`
+	BoxerChannel   string            `json:"boxerChannel"`
+	CoachChannel   string            `json:"coachChannel"`
+	RedisMQHost    string            `json:"redisMQHost"`
+	RedisMQPort    string            `json:"redisMQPort"`
+	RedisStoreHost string            `json:"redisStoreHost"`
+	RedisStorePort string            `json:"redisStorePort"`
+	SelectedDisk   string            `json:"selectedDisk"`
+	Disks          []string          `json:"disks"`
+	Runtimes       map[string]string `json:"runtimes"`
 }
 
 func (c Config) RedisMQAddr() string {
@@ -116,7 +110,7 @@ func main() {
 	boxer := &goboxer.Boxer{
 		Id:           config.Id,
 		Root:         "/var/lib/lxc",
-		Runtimes:     runtimesTemplate,
+		Runtimes:     config.Runtimes,
 		SelectedDisk: config.SelectedDisk,
 		Disks:        config.Disks,
 		Handles:      handlers,
