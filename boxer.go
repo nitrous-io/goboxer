@@ -80,6 +80,9 @@ type Message struct {
 	DataType string      `json:"dataType"`
 	Data     interface{} `json:"data"`
 	Success  bool        `json:"success"`
+
+	// For info message
+	Info BoxInfo `json:"info"`
 }
 
 // a handler will receive message and runtime, do some work with it and return
@@ -325,6 +328,27 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 		return message
 	}
 	return boxer.NewInvalidParamMessage()
+}
+
+func InfoRequestBoxHandler(m Message, boxer *Boxer) Message {
+	box, err := boxer.ResourcePool.FindBox(m.Name)
+	if err != nil {
+		Debug(err)
+		return boxer.NewInvalidParamMessage()
+	}
+	info, err := box.Info()
+	if err != nil {
+		Debug(err)
+		return boxer.NewInvalidParamMessage()
+	}
+	return Message{
+		Type:       "aio:info_response",
+		Id:         boxer.Id,
+		BoxId:      box.Id,
+		ReturnVars: m.ReturnVars,
+		Success:    true,
+		Info:       info,
+	}
 }
 
 func SetupContainer(c *BoxCommand) error {

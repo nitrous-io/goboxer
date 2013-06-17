@@ -81,6 +81,10 @@ func RunCommand(cmd string, args ...string) error {
 	return nil
 }
 
+func OutputCommand(cmd string, args ...string) ([]byte, error) {
+	return exec.Command(cmd, args...).CombinedOutput()
+}
+
 func WaitLxc(name, status string) error {
 	return RunCommand("lxc-wait", "-n", name, "-s", status)
 }

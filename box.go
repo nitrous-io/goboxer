@@ -1,6 +1,7 @@
 package goboxer
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path"
@@ -13,6 +14,12 @@ const UidStart = 15000
 type BoxSpec struct {
 	Memory    string `json:"memory"`
 	DiskSpace string `json:"diskSpace"`
+}
+
+type BoxInfo struct {
+	StorageUsage string `json:"storageUsage"`
+	MemoryUsage  string `json:"memoryUsage"`
+	LxcStatus    string `json:"lxcStatus"`
 }
 
 type Box struct {
@@ -262,4 +269,63 @@ func (b *Box) DeleteContainerData() error {
 		return err
 	}
 	return os.RemoveAll(b.ContainerFS())
+}
+
+// Return current memory usage of the box as memory cgroup reported it
+func (b *Box) MemoryUsageInBytes() (string, error) {
+	filename := fmt.Sprintf("/sys/fs/cgroup/memory/lxc/%s/memory.usage_in_bytes",
+		b.ContainerName())
+	file, err := os.Open(filename)
+	if err != nil {
+		return "0", err
+	}
+	scanner := bufio.NewScanner(file)
+	scanner.Scan()
+	if err := scanner.Err(); err != nil {
+		return "0", err
+	}
+	return scanner.Text(), nil
+}
+
+// Return current state of the box. It is the string that lxc used to annotate
+// container's state such as
+// - RUNNING
+// - STOPPED
+func (b *Box) LxcState() (string, error) {
+	var state, status string
+	info, err := OutputCommand("lxc-info", "-n", b.ContainerName())
+	if err != nil {
+		return "", err
+	}
+	_, err = fmt.Sscanln(string(info), &state, &status)
+	return status, err
+}
+
+// Return current storage usage in kb
+func (b *Box) StorageUsage() (int, error) {
+	quotaInfo, err := ViewQuotaLimit(b.Id, b.Disk)
+	if err != nil {
+		return 0, err
+	}
+	return quotaInfo.Used, nil
+}
+
+func (b *Box) Info() (BoxInfo, error) {
+	var info BoxInfo
+	if memoryUsage, err := b.MemoryUsageInBytes(); err != nil {
+		return info, err
+	} else {
+		info.MemoryUsage = memoryUsage
+	}
+	if state, err := b.LxcState(); err != nil {
+		return info, err
+	} else {
+		info.LxcStatus = state
+	}
+	if storageUsage, err := b.StorageUsage(); err != nil {
+		return info, err
+	} else {
+		info.StorageUsage = strconv.Itoa(storageUsage)
+	}
+	return info, nil
 }
