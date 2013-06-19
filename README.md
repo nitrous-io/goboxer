@@ -3,9 +3,13 @@
 - Get go1.1.1 from golang.org as ubuntu oneiric version seems to be outdated
   ```
   mkdir -p ~/golang-src
+
   cd ~/golang-src
+
   wget https://go.googlecode.com/files/go1.1.1.linux-amd64.tar.gz
+  
   tar -xzf go1.1.1.linux-amd64.tar.gz
+  
   sudo mv go /usr/local
   ```
 - add /usr/local/go/bin into your PATH
