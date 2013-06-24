@@ -351,6 +351,13 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 			message.Success = false
 		}
 		return message
+	case "aio:configure:set_env_variables":
+		data := (m.Data).(map[string]interface{})
+		message.Success = true
+		if err := box.SetEnv(data); err != nil {
+			message.Success = false
+		}
+		return message
 	}
 	return boxer.NewInvalidParamMessage()
 }

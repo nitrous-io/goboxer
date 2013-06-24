@@ -50,6 +50,7 @@ func (b *Box) PublicKeysPath() string { return path.Join(b.RootFS(), "etc", "ssh
 func (b *Box) PrivateKeyPath() string { return path.Join("home", "action", ".ssh", "id_rsa") }
 func (b *Box) RootFS() string         { return path.Join(b.Disk, b.ContainerName(), "rootfs") }
 func (b *Box) ContainerFS() string    { return path.Join(b.Disk, b.ContainerName()) }
+func (b *Box) EnvPath() string        { return path.Join(b.RootFS(), "etc", "environment") }
 
 func (b *Box) ContainerDeltaPath() string {
 	return path.Join(b.Disk, b.ContainerName()+"_delta")
@@ -322,4 +323,15 @@ func (b *Box) Info() (BoxInfo, error) {
 			ScaleUnit(storageUsage, "M"), 'f', 3, 64)
 	}
 	return info, nil
+}
+
+// set env of the box
+// This set env as KEY=value lines into /etc/environment of the box, which
+// should be loaded automatically when environment starts
+func (b *Box) SetEnv(data map[string]interface{}) error {
+	newEnv := []string{}
+	for key, value := range data {
+		newEnv = append(newEnv, fmt.Sprintf("%s=%s", key, value.(string)))
+	}
+	return Appendln(b.EnvPath(), strings.Join(newEnv, "\n"))
 }
