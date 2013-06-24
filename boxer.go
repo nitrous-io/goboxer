@@ -358,6 +358,13 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 			message.Success = false
 		}
 		return message
+	case "aio:configure:remove_env_variables":
+		data := (m.Data).([]string)
+		message.Success = true
+		if err := box.RemoveEnv(data); err != nil {
+			message.Success = false
+		}
+		return message
 	}
 	return boxer.NewInvalidParamMessage()
 }

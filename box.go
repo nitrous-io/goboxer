@@ -335,3 +335,13 @@ func (b *Box) SetEnv(data map[string]interface{}) error {
 	}
 	return Appendln(b.EnvPath(), strings.Join(newEnv, "\n"))
 }
+
+// Remove env variables from the box
+func (b *Box) RemoveEnv(data []string) (err error) {
+	for _, value := range data {
+		if err = DeleteLineContains(b.EnvPath(), value+"="); err != nil {
+			return err
+		}
+	}
+	return
+}
