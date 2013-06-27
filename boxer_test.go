@@ -612,3 +612,31 @@ func (s *BoxerSuite) TestRemoveEnvVariables(c *C) {
 		},
 	})
 }
+
+func (s *BoxerSuite) TestInvalidConfigureDataDoesNotPanic(c *C) {
+	s.Boxer.Receive(Message{
+		Id:         "testboxer",
+		BoxId:      "1",
+		Type:       "aio:create",
+		Name:       "mclovins-container",
+		Runtime:    "test",
+		Memory:     "256M",
+		DiskSpace:  "1G",
+		PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
+	})
+	defer s.deleteBox("1", "mclovins-container")
+
+	message := s.Boxer.Receive(Message{
+		Id:       "testboxer",
+		BoxId:    "1",
+		Type:     "aio:configure",
+		Name:     "mclovins-container-1",
+		DataType: "aio:configure:set_env_variables",
+		Data: []string{
+			"so wrong",
+			"i dont know what to say",
+		},
+	})
+
+	c.Assert(message.Type, Equals, "aio:invalid:params")
+}
