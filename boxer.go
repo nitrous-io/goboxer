@@ -322,24 +322,39 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 	}
 	switch m.DataType {
 	case "aio:configure:add_public_key":
-		data := (m.Data).(string)
+		data, ok := (m.Data).(string)
+		if !ok {
+			return boxer.NewInvalidParamMessage()
+		}
 		if err := box.AddPublicKey(data); err != nil {
 			return boxer.NewInvalidParamMessage()
 		}
 		message.Success = true
 		return message
 	case "aio:configure:remove_public_key":
-		data := (m.Data).(string)
+		data, ok := (m.Data).(string)
+		if !ok {
+			return boxer.NewInvalidParamMessage()
+		}
 		if err := box.RemovePublicKey(data); err != nil {
 			return boxer.NewInvalidParamMessage()
 		}
 		message.Success = true
 		return message
 	case "aio:configure:change_specs":
-		data := (m.Data).(map[string]interface{})
+		data, ok := (m.Data).(map[string]interface{})
+		if !ok {
+			return boxer.NewInvalidParamMessage()
+		}
 		spec := &BoxSpec{}
-		spec.Memory = (data["memory"]).(string)
-		spec.DiskSpace = (data["diskSpace"]).(string)
+		spec.Memory, ok = (data["memory"]).(string)
+		if !ok {
+			return boxer.NewInvalidParamMessage()
+		}
+		spec.DiskSpace, ok = (data["diskSpace"]).(string)
+		if !ok {
+			return boxer.NewInvalidParamMessage()
+		}
 		if err := box.ChangeSpec(spec); err != nil {
 			return boxer.NewInvalidParamMessage()
 		}
@@ -348,6 +363,26 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 		}
 		message.Success = true
 		if err := boxer.ResourcePool.UpdateState(box, "running"); err != nil {
+			message.Success = false
+		}
+		return message
+	case "aio:configure:set_env_variables":
+		data, ok := (m.Data).(map[string]interface{})
+		if !ok {
+			return boxer.NewInvalidParamMessage()
+		}
+		message.Success = true
+		if err := box.SetEnv(data); err != nil {
+			message.Success = false
+		}
+		return message
+	case "aio:configure:remove_env_variables":
+		data, ok := (m.Data).([]string)
+		if !ok {
+			return boxer.NewInvalidParamMessage()
+		}
+		message.Success = true
+		if err := box.RemoveEnv(data); err != nil {
 			message.Success = false
 		}
 		return message
