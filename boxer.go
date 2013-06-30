@@ -216,6 +216,7 @@ func CreateBoxHandler(m Message, boxer *Boxer) Message {
 	}
 	box.boxer = boxer
 	if err := boxer.Create(box); !err.Success() {
+		Debug("CREATE ERROR", err)
 		boxer.ResourcePool.Release(resource.Ip)
 		msg.Success = false
 		return msg

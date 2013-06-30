@@ -210,7 +210,7 @@ func (b *Box) ExtractTemplate() error {
 }
 
 func (b *Box) SetPortForwarding() error {
-	log.Printf("setting port forwardinrg for box: %s", b.ContainerName())
+	log.Printf("Set port forwarding for box: %s", b.ContainerName())
 	b.boxer.Lock()
 	defer b.boxer.Unlock()
 	return RunCommand("iptables", "-t", "nat", "-A", "PREROUTING", "-p", "tcp",
@@ -219,6 +219,7 @@ func (b *Box) SetPortForwarding() error {
 }
 
 func (b *Box) UnsetPortForwarding() error {
+	log.Printf("Unset port forwarding for box: %s", b.ContainerName())
 	b.boxer.Lock()
 	defer b.boxer.Unlock()
 	return RunCommand("iptables", "-t", "nat", "-D", "PREROUTING", "-p", "tcp",

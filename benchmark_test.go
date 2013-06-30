@@ -47,10 +47,10 @@ func (s *BenchmarkSuite) SetUpTest(c *C) {
 	s.Redis.Do("Select", 13)
 	s.Redis.Do("FLUSHDB")
 
-	for i := 1; i <= NUM_BOX; i++ {
+	for i := 2; i <= NUM_BOX; i++ {
 		is := strconv.Itoa(i)
 		s.insertResource("192.168.253."+is, "192.168.243.1", "br-lxc-253",
-			"1000"+is)
+			strconv.Itoa(10000+i))
 	}
 
 	s.ResourcePool = &ResourcePool{Conn: s.Redis}
@@ -80,7 +80,7 @@ func (s *BenchmarkSuite) BenchmarkCreate(c *C) {
 			defer wg.Done()
 
 			istr := strconv.Itoa(i)
-			s.Boxer.Receive(Message{
+			message := s.Boxer.Receive(Message{
 				Id:         "testboxer",
 				BoxId:      istr,
 				Type:       "aio:create",
@@ -90,6 +90,10 @@ func (s *BenchmarkSuite) BenchmarkCreate(c *C) {
 				DiskSpace:  "1G",
 				PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
 			})
+
+			c.Assert(message.Type, Equals, "aio:created")
+			c.Assert(message.BoxId, Equals, istr)
+			c.Assert(message.Success, Equals, true)
 
 			root := "/lxc/disk1/mclovins-container-" + istr
 			var checkExists = []string{
