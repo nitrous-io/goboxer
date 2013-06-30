@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"github.com/action-io/goboxer/lxc"
+	"log"
 	"os"
 	"path"
 	"strconv"
@@ -86,10 +87,12 @@ func (b *Box) TotalMemory() string {
 }
 
 func (b *Box) AddPublicKey(keys ...string) error {
+	log.Printf("Adding public keys for box: %s", b.ContainerName())
 	return Appendln(b.PublicKeysPath(), strings.Join(keys, "\n"))
 }
 
 func (b *Box) RemovePublicKey(key string) error {
+	log.Printf("Removing public keys for box: %s", b.ContainerName())
 	return DeleteLineContains(b.PublicKeysPath(), key)
 }
 
@@ -98,14 +101,21 @@ func (b *Box) HomePath() string {
 }
 
 func (b *Box) SetQuota() error {
+	log.Printf("Setting quota for box: %s", b.ContainerName())
+	b.boxer.Lock()
+	defer b.boxer.Unlock()
 	return SetQuotaLimit(b.Id, b.ContainerName(), b.HomePath(), b.Disk, b.DiskSpace)
 }
 
 func (b *Box) UnsetQuota() error {
+	log.Printf("Removing quota for box: %s", b.ContainerName())
+	b.boxer.Lock()
+	defer b.boxer.Unlock()
 	return RemoveQuotaLimit(b.Id, b.ContainerName(), b.HomePath(), b.Disk)
 }
 
 func (b *Box) ChangeSpec(spec *BoxSpec) error {
+	log.Printf("Change spec for box: %s", b.ContainerName())
 	if spec.Memory != b.Memory {
 		b.Memory = spec.Memory
 		if err := b.WriteConfig(); err != nil {
@@ -122,6 +132,7 @@ func (b *Box) ChangeSpec(spec *BoxSpec) error {
 }
 
 func (b *Box) WriteConfig() error {
+	log.Printf("Writing lxc config for box: %s", b.ContainerName())
 	lxcConfigPath := path.Join(b.Disk, b.ContainerName(), "config")
 	lxcConfig, err := os.Create(lxcConfigPath)
 	if err != nil {
@@ -132,6 +143,7 @@ func (b *Box) WriteConfig() error {
 }
 
 func (b *Box) SetPermission() error {
+	log.Printf("Setting permission for box: %s", b.ContainerName())
 	uid := b.Uid()
 	gid := b.Gid()
 	permission := fmt.Sprintf("%s:%s", b.Uid(), b.Gid())
@@ -145,6 +157,7 @@ func (b *Box) SetPermission() error {
 }
 
 func (b *Box) SetWorkspace() error {
+	log.Printf("Setting workspace dir for box: %s", b.ContainerName())
 	workspacePath := path.Join(b.RootFS(), "home", "action", "workspace")
 	if err := os.MkdirAll(workspacePath, 0755); err != nil {
 		return err
@@ -155,6 +168,7 @@ func (b *Box) SetWorkspace() error {
 }
 
 func (b *Box) SetBoxId() error {
+	log.Printf("Setting box id file for box: %s", b.ContainerName())
 	boxIdFile, err := os.Create(b.BoxIdFile())
 	if err != nil {
 		return err
@@ -165,6 +179,7 @@ func (b *Box) SetBoxId() error {
 }
 
 func (b *Box) SetNetworkConfig() error {
+	log.Printf("Setting network config file for box: %s", b.ContainerName())
 	networkConfigPath := path.Join(b.RootFS(), "etc", "network", "interfaces")
 	networkConfig, err := os.Create(networkConfigPath)
 	if err != nil {
@@ -175,6 +190,7 @@ func (b *Box) SetNetworkConfig() error {
 }
 
 func (b *Box) SetHostname() error {
+	log.Printf("Setting workspace dir for box: %s", b.ContainerName())
 	hostNamePath := path.Join(b.RootFS(), "etc", "hostname")
 	hostName, err := os.Create(hostNamePath)
 	if err != nil {
@@ -186,6 +202,7 @@ func (b *Box) SetHostname() error {
 }
 
 func (b *Box) ExtractTemplate() error {
+	log.Printf("extracting template for box: %s", b.ContainerName())
 	boxDeltaPath := path.Join(b.Disk, b.ContainerName()+"_delta")
 	boxDeltaHomePath := path.Join(boxDeltaPath, "rootfs", "home", "action")
 	homeDataPath := path.Join(b.Disk, b.TemplatePath())
@@ -193,17 +210,23 @@ func (b *Box) ExtractTemplate() error {
 }
 
 func (b *Box) SetPortForwarding() error {
+	log.Printf("setting port forwardinrg for box: %s", b.ContainerName())
+	b.boxer.Lock()
+	defer b.boxer.Unlock()
 	return RunCommand("iptables", "-t", "nat", "-A", "PREROUTING", "-p", "tcp",
 		"--dport", b.Port, "-j", "DNAT", "--to",
 		b.Ip+":22")
 }
 
 func (b *Box) UnsetPortForwarding() error {
+	b.boxer.Lock()
+	defer b.boxer.Unlock()
 	return RunCommand("iptables", "-t", "nat", "-D", "PREROUTING", "-p", "tcp",
 		"--dport", b.Port, "-j", "DNAT", "--to", b.Ip+":22")
 }
 
 func (b *Box) SetDefaultKeypair() error {
+	log.Printf("setting default key pair for box: %s", b.ContainerName())
 	sshPath := path.Join(b.RootFS(), "home", "action", ".ssh")
 	sshKeyFile := path.Join(b.RootFS(), b.PrivateKeyPath())
 	if err := os.MkdirAll(sshPath, 0755); err != nil {
@@ -225,14 +248,20 @@ func (b *Box) SetDefaultKeypair() error {
 }
 
 func (b *Box) StopContainer() error {
+	log.Printf("stop box: %s", b.ContainerName())
 	return lxc.Stop(b.ContainerName())
 }
 
 func (b *Box) StartContainer() error {
+	log.Printf("start box: %s", b.ContainerName())
 	return lxc.Start(b.ContainerName())
 }
 
 func (b *Box) Mount(root string) error {
+	log.Printf("mount box: %s", b.ContainerName())
+	b.boxer.Lock()
+	defer b.boxer.Unlock()
+
 	boxPath := b.ContainerFS()
 	boxDeltaPath := b.ContainerDeltaPath()
 	boxDeltaHomePath := path.Join(boxDeltaPath, "rootfs", "home", "action")
@@ -255,6 +284,9 @@ func (b *Box) Mount(root string) error {
 }
 
 func (b *Box) Unmount(root string) error {
+	log.Printf("unmount box: %s", b.ContainerName())
+	b.boxer.Lock()
+	defer b.boxer.Unlock()
 	lxcBoxPath := path.Join(root, b.ContainerName())
 	if err := os.RemoveAll(lxcBoxPath); err != nil {
 		return err
@@ -263,6 +295,7 @@ func (b *Box) Unmount(root string) error {
 }
 
 func (b *Box) DeleteContainerData() error {
+	log.Printf("delete data for box: %s", b.ContainerName())
 	if err := os.RemoveAll(b.ContainerDeltaPath()); err != nil {
 		return err
 	}
@@ -306,6 +339,7 @@ func (b *Box) StorageUsage() (int, error) {
 
 // Return BoxInfo with `MB` units
 func (b *Box) Info() (BoxInfo, error) {
+	log.Printf("getting info for box: %s", b.ContainerName())
 	var info BoxInfo
 	if memoryUsage, err := b.MemoryUsageInBytes(); err != nil {
 		return info, err
@@ -331,6 +365,7 @@ func (b *Box) Info() (BoxInfo, error) {
 // This set env as KEY=value lines into /etc/environment of the box, which
 // should be loaded automatically when environment starts
 func (b *Box) SetEnv(data map[string]interface{}) error {
+	log.Printf("set environment for box: %s", b.ContainerName())
 	newEnv := []string{}
 	for key, value := range data {
 		newEnv = append(newEnv, fmt.Sprintf("%s=%s", key, value.(string)))
@@ -340,6 +375,7 @@ func (b *Box) SetEnv(data map[string]interface{}) error {
 
 // Remove env variables from the box
 func (b *Box) RemoveEnv(data []string) (err error) {
+	log.Printf("remove environment for box: %s", b.ContainerName())
 	for _, value := range data {
 		if err = DeleteLineContains(b.EnvPath(), value+"="); err != nil {
 			return err

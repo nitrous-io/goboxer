@@ -8,6 +8,7 @@ package goboxer
 import (
 	"fmt"
 	"github.com/action-io/goboxer/host"
+	"sync"
 )
 
 var handlers map[string]MessageHandler
@@ -102,6 +103,7 @@ type Message struct {
 type MessageHandler func(m Message, boxer *Boxer) Message
 
 type Boxer struct {
+	sync.Mutex
 	Id           string
 	Root         string
 	SelectedDisk string
@@ -505,6 +507,7 @@ func (boxer *Boxer) Destroy(box *Box) *CommandError {
 func (boxer *Boxer) StartAll(boxes []*Box) error {
 	var errors []error
 	for _, box := range boxes {
+		box.boxer = boxer
 		err := Advance(&BoxCommand{
 			Name:   "Start",
 			Boxer:  boxer,
