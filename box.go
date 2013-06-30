@@ -39,6 +39,8 @@ type Box struct {
 	Runtime          string
 	SnapshotURL      string
 	PublicKeys       []string
+	// hold a reference to boxer so that we can access mutex capabilities
+	boxer *Boxer
 }
 
 func (b *Box) ContainerName() string { return fmt.Sprintf("%s-%s", b.Name, b.Id) }
