@@ -1,0 +1,59 @@
+#!/bin/bash
+#
+# Arguments:
+# --no-tag: dont built a new tag but use the most recent tag
+# This build, package the goboxer binary and deploy to s3
+
+[ -n "$DEBUG" ] && set -o xtrace
+set -o errexit
+shopt -s nullglob
+
+NO_COLOR="\x1b[0m"
+OK_COLOR="\x1b[32;01m"
+ERROR_COLOR="\x1b[31;01m"
+WARN_COLOR="\x1b[33;01m"
+PACKAGE="github.com/action-io/goboxer"
+ARG=$1
+
+# get the parent directory of where this script is
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ] ; do SOURCE="$(readlink "$SOURCE")"; done
+DIR="$( cd -P "$( dirname "$SOURCE" )/.." && pwd )"
+
+# Change into that directory
+cd $DIR
+
+# if an argument is defined, we only accept --no-tag and do an early exit if
+# encounter anything else
+if [[ $ARG ]]; then
+  if [ "$ARG" == "--no-tag" ]; then
+    TAG=`git tag | grep -E "[0-9\.]+$" | sort -nr | head -n 1`
+  else
+    echo -e "${ERROR_COLOR}INVALID ARGUMENT: $ARG${NO_COLOR}"
+    exit 1
+  fi
+# otherwise, take the current date and add that as a tag to git
+else
+  echo -e "${OK_COLOR}--> ADDING GIT TAG!............${NO_COLOR}"
+  TAG=`date +"%d%m%Y%H%M%S"`
+  USER=`git config user.name`.chomp
+  MSG="${USER} BUILT VERSION ${TAG} OF GOBOXER"
+
+  echo -e "${OK_COLOR}--> CHECKING NEW TAG TO GIT ${TAG}${NO_COLOR}"
+  git tag -m "${MSG}" ${TAG}
+  echo -e "${OK_COLOR}--> PUSHING NEW TAG TO GIT ${TAG}${NO_COLOR}"
+  git push origin ${TAG}
+fi
+
+echo -e "${OK_COLOR}--> GO BOXER!............${NO_COLOR}"
+go build -v -o bin/goboxer $PACKAGE
+
+BINRELEASE="goboxer_${TAG}.tgz"
+
+echo -e "${OK_COLOR}--> PACKAGE GOBOXER!............${NO_COLOR}"
+tar -f bin/${BINRELEASE} -zv -c bin/goboxer
+tar -f bin/goboxer_latest.tgz -zv -c bin/goboxer
+
+echo -e "${OK_COLOR}--> PUSH TO S3!............${NO_COLOR}"
+s3cmd put bin/${BINRELEASE} s3://bombay-apse.action.io/${BINRELEASE}
+s3cmd put bin/goboxer_latest.tgz s3://bombay-apse.action.io/goboxer_latest.tgz
