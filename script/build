@@ -17,9 +17,11 @@ SOURCE="${BASH_SOURCE[0]}"
 while [ -h "$SOURCE" ] ; do SOURCE="$(readlink "$SOURCE")"; done
 DIR="$( cd -P "$( dirname "$SOURCE" )/.." && pwd )"
 
+GIT_COMMIT=$(git rev-parse --short HEAD)
+
 # Change into that directory
 cd $DIR
 
-echo -e "${OK_COLOR}--> GO BOXER!............${NO_COLOR}"
-go build -v -o bin/goboxer $PACKAGE
-go install -v $PACKAGE/...
+echo -e "${OK_COLOR}--> GO BOXER $GIT_COMMIT!............${NO_COLOR}"
+go build -ldflags "-X main.version ${GIT_COMMIT}" -v -o bin/goboxer $PACKAGE
+go install -ldflags "-X main.version ${GIT_COMMIT}" -v $PACKAGE/...

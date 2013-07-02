@@ -11,11 +11,13 @@ WARN_COLOR=\033[33;01m
 test:
 	@./script/test
 
-bin: test
+build:
 	@mkdir -p bin/
 	@echo "$(OK_COLOR)==> Installing dependencies$(NO_COLOR)"
 	@go get -d -v ./...
 	@./script/build
+
+bin: test build
 
 release: test
 	@./script/release

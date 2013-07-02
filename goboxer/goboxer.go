@@ -12,7 +12,8 @@ import (
 	"time"
 )
 
-const VERSION = "0.0.5"
+var version string
+
 const ADVERTISE_INTERVAL = 5001
 
 type Config struct {
@@ -60,7 +61,7 @@ func main() {
 	flStartAll := flag.Bool("start-all", false, "Start all containers")
 	flag.Parse()
 	if *flVersion {
-		fmt.Println(VERSION)
+		fmt.Println(version)
 		return
 	}
 	if *flConfigPath == "" {

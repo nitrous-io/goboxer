@@ -22,6 +22,7 @@ DIR="$( cd -P "$( dirname "$SOURCE" )/.." && pwd )"
 
 # Change into that directory
 cd $DIR
+GIT_COMMIT=$(git rev-parse --short HEAD)
 
 # if an argument is defined, we only accept --no-tag and do an early exit if
 # encounter anything else
@@ -46,7 +47,7 @@ else
 fi
 
 echo -e "${OK_COLOR}--> GO BOXER!............${NO_COLOR}"
-go build -v -o bin/goboxer $PACKAGE
+go build -ldflags "-X main.version ${GIT_COMMIT}" -v -o bin/goboxer $PACKAGE
 
 BINRELEASE="goboxer_${TAG}.tgz"
 
