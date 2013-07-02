@@ -56,13 +56,33 @@ func StartBenchmark(boxer *Boxer, numBox int) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
+			var err error
 			start := time.Now()
 			istr := strconv.Itoa(i)
 
-			benchmarkCreate(boxer, istr)
-			benchmarkStart(boxer, istr)
-			benchmarkStop(boxer, istr)
-			benchmarkDestroy(boxer, istr)
+			err = benchmarkCreate(boxer, istr)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+
+			err = benchmarkStart(boxer, istr)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+
+			err = benchmarkStop(boxer, istr)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+
+			err = benchmarkDestroy(boxer, istr)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
 
 			collection.Add(istr, "total", time.Since(start).Seconds())
 		}(i)
@@ -73,7 +93,8 @@ func StartBenchmark(boxer *Boxer, numBox int) {
 	printSummary()
 }
 
-func benchmarkCreate(boxer *Boxer, id string) {
+func benchmarkCreate(boxer *Boxer, id string) error {
+	fmt.Println("Create box: ", id)
 	start := time.Now()
 	message := boxer.Receive(Message{
 		Id:         boxer.Id,
@@ -87,10 +108,16 @@ func benchmarkCreate(boxer *Boxer, id string) {
 	})
 
 	duration := time.Since(start).Seconds()
-	collection.Add(id, message.Type, duration)
+	if message.Type == "aio:created" {
+		collection.Add(id, message.Type, duration)
+		return nil
+	} else {
+		return fmt.Errorf("Failed to create %s", id)
+	}
 }
 
-func benchmarkStart(boxer *Boxer, id string) {
+func benchmarkStart(boxer *Boxer, id string) error {
+	fmt.Println("Start box: ", id)
 	start := time.Now()
 	message := boxer.Receive(Message{
 		Id:    boxer.Id,
@@ -100,10 +127,16 @@ func benchmarkStart(boxer *Boxer, id string) {
 	})
 
 	duration := time.Since(start).Seconds()
-	collection.Add(id, message.Type, duration)
+	if message.Type == "aio:started" {
+		collection.Add(id, message.Type, duration)
+		return nil
+	} else {
+		return fmt.Errorf("Failed to start %s", id)
+	}
 }
 
-func benchmarkStop(boxer *Boxer, id string) {
+func benchmarkStop(boxer *Boxer, id string) error {
+	fmt.Println("Stop box: ", id)
 	start := time.Now()
 	message := boxer.Receive(Message{
 		Id:    boxer.Id,
@@ -113,10 +146,16 @@ func benchmarkStop(boxer *Boxer, id string) {
 	})
 
 	duration := time.Since(start).Seconds()
-	collection.Add(id, message.Type, duration)
+	if message.Type == "aio:stopped" {
+		collection.Add(id, message.Type, duration)
+		return nil
+	} else {
+		return fmt.Errorf("Failed to stop %s", id)
+	}
 }
 
-func benchmarkDestroy(boxer *Boxer, id string) {
+func benchmarkDestroy(boxer *Boxer, id string) error {
+	fmt.Println("Destroy box: ", id)
 	start := time.Now()
 	message := boxer.Receive(Message{
 		Id:    boxer.Id,
@@ -125,7 +164,12 @@ func benchmarkDestroy(boxer *Boxer, id string) {
 		Name:  "mclovins-container-" + id,
 	})
 	duration := time.Since(start).Seconds()
-	collection.Add(id, message.Type, duration)
+	if message.Type == "aio:destroyed" {
+		collection.Add(id, message.Type, duration)
+		return nil
+	} else {
+		return fmt.Errorf("Failed to destroy %s", id)
+	}
 }
 
 func printSummary() {
