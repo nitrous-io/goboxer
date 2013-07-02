@@ -8,6 +8,7 @@ package goboxer
 import (
 	"fmt"
 	"github.com/action-io/goboxer/host"
+	"sync"
 )
 
 var handlers map[string]MessageHandler
@@ -102,6 +103,7 @@ type Message struct {
 type MessageHandler func(m Message, boxer *Boxer) Message
 
 type Boxer struct {
+	sync.Mutex
 	Id           string
 	Root         string
 	SelectedDisk string
@@ -212,7 +214,9 @@ func CreateBoxHandler(m Message, boxer *Boxer) Message {
 		NetworkInterface: resource.NetworkInterface,
 		Port:             resource.Port,
 	}
+	box.boxer = boxer
 	if err := boxer.Create(box); !err.Success() {
+		Debug("CREATE ERROR", err)
 		boxer.ResourcePool.Release(resource.Ip)
 		msg.Success = false
 		return msg
@@ -227,7 +231,7 @@ func CreateBoxHandler(m Message, boxer *Boxer) Message {
 }
 
 func StartBoxHandler(m Message, boxer *Boxer) Message {
-	box, err := boxer.ResourcePool.FindBox(m.Name)
+	box, err := boxer.findBox(m.Name)
 	if err != nil {
 		return boxer.NewInvalidParamMessage()
 	}
@@ -248,7 +252,7 @@ func StartBoxHandler(m Message, boxer *Boxer) Message {
 }
 
 func StopBoxHandler(m Message, boxer *Boxer) Message {
-	box, err := boxer.ResourcePool.FindBox(m.Name)
+	box, err := boxer.findBox(m.Name)
 	if err != nil {
 		return boxer.NewInvalidParamMessage()
 	}
@@ -269,7 +273,7 @@ func StopBoxHandler(m Message, boxer *Boxer) Message {
 }
 
 func RestartBoxHandler(m Message, boxer *Boxer) Message {
-	box, err := boxer.ResourcePool.FindBox(m.Name)
+	box, err := boxer.findBox(m.Name)
 	if err != nil {
 		return boxer.NewInvalidParamMessage()
 	}
@@ -290,7 +294,7 @@ func RestartBoxHandler(m Message, boxer *Boxer) Message {
 }
 
 func DestroyBoxHandler(m Message, boxer *Boxer) Message {
-	box, err := boxer.ResourcePool.FindBox(m.Name)
+	box, err := boxer.findBox(m.Name)
 	if err != nil {
 		return boxer.NewInvalidParamMessage()
 	}
@@ -310,7 +314,7 @@ func DestroyBoxHandler(m Message, boxer *Boxer) Message {
 }
 
 func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
-	box, err := boxer.ResourcePool.FindBox(m.Name)
+	box, err := boxer.findBox(m.Name)
 	if err != nil {
 		return boxer.NewInvalidParamMessage()
 	}
@@ -391,7 +395,7 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 }
 
 func InfoRequestBoxHandler(m Message, boxer *Boxer) Message {
-	box, err := boxer.ResourcePool.FindBox(m.Name)
+	box, err := boxer.findBox(m.Name)
 	if err != nil {
 		return boxer.NewInvalidParamMessage()
 	}
@@ -504,6 +508,7 @@ func (boxer *Boxer) Destroy(box *Box) *CommandError {
 func (boxer *Boxer) StartAll(boxes []*Box) error {
 	var errors []error
 	for _, box := range boxes {
+		box.boxer = boxer
 		err := Advance(&BoxCommand{
 			Name:   "Start",
 			Boxer:  boxer,
@@ -533,4 +538,14 @@ func (boxer *Boxer) Init() error {
 		return err
 	}
 	return boxer.StartAll(boxes)
+}
+
+// wrapper around ResourcePool#FindBox so we can set Boxer property of box
+func (boxer *Boxer) findBox(name string) (*Box, error) {
+	box, err := boxer.ResourcePool.FindBox(name)
+	if err != nil {
+		return nil, err
+	}
+	box.boxer = boxer
+	return box, nil
 }
