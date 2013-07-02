@@ -60,7 +60,7 @@ func main() {
 	flStartAll := flag.Bool("start-all", false, "Start all containers")
 	flag.Parse()
 	if *flVersion {
-		fmt.Println("Current Goboxer Version:", VERSION)
+		fmt.Println(VERSION)
 		return
 	}
 	if *flConfigPath == "" {
