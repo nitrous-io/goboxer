@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/exec"
 	"strings"
@@ -75,7 +76,8 @@ func DeleteLineContains(file, pattern string) error {
 
 func RunCommand(cmd string, args ...string) error {
 	command := exec.Command(cmd, args...)
-	if _, err := command.CombinedOutput(); err != nil {
+	if stdout, err := command.CombinedOutput(); err != nil {
+		log.Printf("Command %v failed with output %s", command, string(stdout))
 		return err
 	}
 	return nil
