@@ -114,7 +114,6 @@ func StartBenchmark(boxer *Boxer, numBox int) {
 }
 
 func benchmarkCreate(boxer *Boxer, id string) error {
-	fmt.Println("Create box: ", id)
 	start := time.Now()
 	message := boxer.Receive(Message{
 		Id:         boxer.Id,
@@ -137,7 +136,6 @@ func benchmarkCreate(boxer *Boxer, id string) error {
 }
 
 func benchmarkStart(boxer *Boxer, id string) error {
-	fmt.Println("Start box: ", id)
 	start := time.Now()
 	message := boxer.Receive(Message{
 		Id:    boxer.Id,
@@ -156,7 +154,6 @@ func benchmarkStart(boxer *Boxer, id string) error {
 }
 
 func benchmarkStop(boxer *Boxer, id string) error {
-	fmt.Println("Stop box: ", id)
 	start := time.Now()
 	message := boxer.Receive(Message{
 		Id:    boxer.Id,
@@ -175,7 +172,6 @@ func benchmarkStop(boxer *Boxer, id string) error {
 }
 
 func benchmarkDestroy(boxer *Boxer, id string) error {
-	fmt.Println("Destroy box: ", id)
 	start := time.Now()
 	message := boxer.Receive(Message{
 		Id:    boxer.Id,
