@@ -8,7 +8,6 @@ package goboxer
 import (
 	"fmt"
 	"github.com/action-io/goboxer/host"
-	"log"
 	"sync"
 )
 
@@ -217,13 +216,13 @@ func CreateBoxHandler(m Message, boxer *Boxer) Message {
 	}
 	box.boxer = boxer
 	if err := boxer.Create(box); !err.Success() {
-		log.Printf("ERROR: Fail to create %v, err: %v\n", box, err)
+		logger.Printf("ERROR: Fail to create %v, err: %v\n", box, err)
 		boxer.ResourcePool.Release(resource.Ip)
 		msg.Success = false
 		return msg
 	}
 	if err := boxer.ResourcePool.SaveBox(box); err != nil {
-		log.Printf("ERROR: Fail to save %v, err: %v\n", box, err)
+		logger.Printf("ERROR: Fail to save %v, err: %v\n", box, err)
 		msg.Success = false
 		return msg
 	}
@@ -238,7 +237,7 @@ func StartBoxHandler(m Message, boxer *Boxer) Message {
 		return boxer.NewInvalidParamMessage()
 	}
 	if err := boxer.Start(box); !err.Success() {
-		log.Printf("ERROR: Fail to start %v, err: %v\n", box, err)
+		logger.Printf("ERROR: Fail to start %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
 	}
 	msg := Message{
@@ -249,7 +248,7 @@ func StartBoxHandler(m Message, boxer *Boxer) Message {
 		Success:    true,
 	}
 	if err := boxer.ResourcePool.UpdateState(box, "running"); err != nil {
-		log.Printf("ERROR: Fail to update box state %v, err: %v\n", box, err)
+		logger.Printf("ERROR: Fail to update box state %v, err: %v\n", box, err)
 		msg.Success = false
 	}
 	return msg
@@ -258,11 +257,11 @@ func StartBoxHandler(m Message, boxer *Boxer) Message {
 func StopBoxHandler(m Message, boxer *Boxer) Message {
 	box, err := boxer.findBox(m.Name)
 	if err != nil {
-		log.Printf("ERROR: Fail to find box %v, err: %v\n", box, err)
+		logger.Printf("ERROR: Fail to find box %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
 	}
 	if err := boxer.Stop(box); !err.Success() {
-		log.Printf("ERROR: Fail to stop box %v, err: %v\n", box, err)
+		logger.Printf("ERROR: Fail to stop box %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
 	}
 	msg := Message{
@@ -273,7 +272,7 @@ func StopBoxHandler(m Message, boxer *Boxer) Message {
 		Success:    true,
 	}
 	if err := boxer.ResourcePool.UpdateState(box, "stopped"); err != nil {
-		log.Printf("ERROR: Fail to update box state %v, err: %v\n", box, err)
+		logger.Printf("ERROR: Fail to update box state %v, err: %v\n", box, err)
 		msg.Success = false
 	}
 	return msg
@@ -282,11 +281,11 @@ func StopBoxHandler(m Message, boxer *Boxer) Message {
 func RestartBoxHandler(m Message, boxer *Boxer) Message {
 	box, err := boxer.findBox(m.Name)
 	if err != nil {
-		log.Printf("ERROR: Fail to find box %v, err: %v\n", box, err)
+		logger.Printf("ERROR: Fail to find box %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
 	}
 	if err := boxer.Restart(box); !err.Success() {
-		log.Printf("ERROR: Fail to restart box %v, err: %v\n", box, err)
+		logger.Printf("ERROR: Fail to restart box %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
 	}
 	msg := Message{
@@ -297,7 +296,7 @@ func RestartBoxHandler(m Message, boxer *Boxer) Message {
 		Success:    true,
 	}
 	if err := boxer.ResourcePool.UpdateState(box, "running"); err != nil {
-		log.Printf("ERROR: Fail to update box state %v, err: %v\n", box, err)
+		logger.Printf("ERROR: Fail to update box state %v, err: %v\n", box, err)
 		msg.Success = false
 	}
 	return msg
@@ -306,15 +305,15 @@ func RestartBoxHandler(m Message, boxer *Boxer) Message {
 func DestroyBoxHandler(m Message, boxer *Boxer) Message {
 	box, err := boxer.findBox(m.Name)
 	if err != nil {
-		log.Printf("ERROR: Fail to find box %v, err: %v\n", box, err)
+		logger.Printf("ERROR: Fail to find box %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
 	}
 	if err := boxer.Destroy(box); !err.Success() {
-		log.Printf("ERROR: Fail to destroy box %v, err: %v\n", box, err)
+		logger.Printf("ERROR: Fail to destroy box %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
 	}
 	if err := boxer.ResourcePool.Release(box.Ip); err != nil {
-		log.Printf("ERROR: Fail to release box %v, err: %v\n", box, err)
+		logger.Printf("ERROR: Fail to release box %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
 	}
 	return Message{
