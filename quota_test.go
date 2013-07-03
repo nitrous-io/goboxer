@@ -14,10 +14,14 @@ var _ = Suite(&QuotaSuite{})
 
 func (s *QuotaSuite) SetUpTest(c *C) {
 	os.MkdirAll("/lxc/disk1/test_quota", 0644)
+	RunCommand("mv", "/etc/projid", "/etc/projid.bk")
+	RunCommand("mv", "/etc/projects", "/etc/projects.bk")
 }
 
 func (s *QuotaSuite) TearDownTest(c *C) {
 	os.RemoveAll("/lxc/disk1/test_quota")
+	RunCommand("mv", "/etc/projid.bk", "/etc/projid")
+	RunCommand("mv", "/etc/projects.bk", "/etc/projects")
 }
 
 func (s *QuotaSuite) TestSetQuotaLimit(c *C) {

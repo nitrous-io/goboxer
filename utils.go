@@ -36,10 +36,14 @@ func Appendln(location, content string) error {
 // content
 func AppendlnUnlessContain(location, content string) error {
 	isContain, err := FileContains(location, content)
-	if err != nil {
+	if os.IsNotExist(err) {
+		if _, err = os.Create(location); err != nil {
+			return err
+		}
+		return Appendln(location, content)
+	} else if err != nil {
 		return err
-	}
-	if !isContain {
+	} else if !isContain {
 		return Appendln(location, content)
 	}
 	return nil
