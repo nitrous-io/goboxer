@@ -7,6 +7,7 @@ package goboxer
 import (
 	"encoding/json"
 	"github.com/garyburd/redigo/redis"
+	"sync"
 )
 
 type Resource struct {
@@ -18,9 +19,12 @@ type Resource struct {
 
 type ResourcePool struct {
 	Conn redis.Conn
+	sync.Mutex
 }
 
 func (rp *ResourcePool) Acquire() (resource *Resource, err error) {
+	rp.Lock()
+	defer rp.Unlock()
 	var ip string
 	var resourceValues []interface{}
 
@@ -41,6 +45,8 @@ func (rp *ResourcePool) Acquire() (resource *Resource, err error) {
 }
 
 func (rp *ResourcePool) Release(ip string) (err error) {
+	rp.Lock()
+	defer rp.Unlock()
 	rp.Conn.Send("MULTI")
 	rp.Conn.Send("LREM", "aio:used_resources", 0, ip)
 	rp.Conn.Send("RPUSH", "aio:available_resources", ip)
@@ -55,6 +61,8 @@ func (rp *ResourcePool) UpdateState(box *Box, state string) error {
 }
 
 func (rp *ResourcePool) SaveBox(box *Box) error {
+	rp.Lock()
+	defer rp.Unlock()
 	json, err := ToJSON(box)
 	if err != nil {
 		return err
@@ -64,6 +72,8 @@ func (rp *ResourcePool) SaveBox(box *Box) error {
 }
 
 func (rp *ResourcePool) FindBox(containerName string) (*Box, error) {
+	rp.Lock()
+	defer rp.Unlock()
 	box := &Box{}
 	boxjson, err := redis.Bytes(rp.Conn.Do("HGET", "aio:boxes", containerName))
 	if err != nil {
@@ -79,7 +89,7 @@ func (rp *ResourcePool) FindBox(containerName string) (*Box, error) {
 // the redis database
 func (rp *ResourcePool) FindRunningBoxes() ([]*Box, error) {
 	var boxes []*Box
-	boxNames, err := redis.Strings(rp.Conn.Do("HKEYS", "aio:boxes"))
+	boxNames, err := rp.getBoxNames()
 	if err != nil {
 		return []*Box{}, err
 	}
@@ -93,4 +103,10 @@ func (rp *ResourcePool) FindRunningBoxes() ([]*Box, error) {
 		}
 	}
 	return boxes, nil
+}
+
+func (rp *ResourcePool) getBoxNames() ([]string, error) {
+	rp.Lock()
+	defer rp.Unlock()
+	return redis.Strings(rp.Conn.Do("HKEYS", "aio:boxes"))
 }

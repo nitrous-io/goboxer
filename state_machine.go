@@ -2,6 +2,7 @@ package goboxer
 
 import (
 	"fmt"
+	"log"
 	"time"
 )
 
@@ -95,5 +96,8 @@ func rollbackState(command *BoxCommand, errStack *CommandError) {
 func Advance(command *BoxCommand) *CommandError {
 	errStack := &CommandError{}
 	advanceState(command, errStack)
+	if !errStack.Success() {
+		log.Println("Error:", errStack.Error())
+	}
 	return errStack
 }
