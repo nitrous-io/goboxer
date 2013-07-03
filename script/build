@@ -23,5 +23,4 @@ GIT_COMMIT=$(git rev-parse --short HEAD)
 cd $DIR
 
 echo -e "${OK_COLOR}--> GO BOXER $GIT_COMMIT!............${NO_COLOR}"
-go build -ldflags "-X main.version ${GIT_COMMIT}" -v -o bin/goboxer $PACKAGE
 go install -ldflags "-X main.version ${GIT_COMMIT}" -v $PACKAGE/...

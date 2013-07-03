@@ -47,7 +47,8 @@ else
 fi
 
 echo -e "${OK_COLOR}--> GO BOXER!............${NO_COLOR}"
-go build -ldflags "-X main.version ${GIT_COMMIT}" -v -o bin/goboxer $PACKAGE
+go install -ldflags "-X main.version ${GIT_COMMIT}" -v $PACKAGE/...
+cp $GOBIN/goboxer bin/goboxer
 
 BINRELEASE="goboxer_${TAG}.tgz"
 
