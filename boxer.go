@@ -32,36 +32,36 @@ func init() {
 	}
 
 	CreateStates = []State{
-		State{Advance: MountContainer, Rollback: UnmountContainer},
-		State{Advance: SetupContainer, Rollback: Pass},
-		State{Advance: SetQuota, Rollback: UnsetQuota},
-		State{Advance: SetPortForwarding, Rollback: UnsetPortForwarding},
+		State{Name: "CreateMountContainer", Advance: MountContainer, Rollback: UnmountContainer},
+		State{Name: "CreateSetupContainer", Advance: SetupContainer, Rollback: Pass},
+		State{Name: "CreateSetQuota", Advance: SetQuota, Rollback: UnsetQuota},
+		State{Name: "CreateSetPortForwarding", Advance: SetPortForwarding, Rollback: UnsetPortForwarding},
 	}
 
 	StartStates = []State{
-		State{Advance: MountContainer, Rollback: UnmountContainer},
-		State{Advance: StartContainer, Rollback: StopContainer},
+		State{Name: "StartMountContainer", Advance: MountContainer, Rollback: UnmountContainer},
+		State{Name: "StartStartContainer", Advance: StartContainer, Rollback: StopContainer},
 	}
 
 	StopStates = []State{
-		State{Advance: StopContainer, Rollback: Pass},
-		State{Advance: UnmountContainer, Rollback: MountContainer},
-		State{Advance: UnsetQuota, Rollback: SetQuota},
+		State{Name: "StopStopContainer", Advance: StopContainer, Rollback: Pass},
+		State{Name: "StopUnmountContainer", Advance: UnmountContainer, Rollback: MountContainer},
+		State{Name: "StopUnsetQuota", Advance: UnsetQuota, Rollback: SetQuota},
 	}
 
 	DestroyStates = []State{
-		State{Advance: StopContainer, Rollback: Pass},
-		State{Advance: UnsetPortForwarding, Rollback: SetPortForwarding},
-		State{Advance: UnmountContainer, Rollback: MountContainer},
-		State{Advance: UnsetQuota, Rollback: SetQuota},
-		State{Advance: DeleteContainerData, Rollback: Pass},
+		State{Name: "DestroyStopContainer", Advance: StopContainer, Rollback: Pass},
+		State{Name: "DestroyUnsetPortForwarding", Advance: UnsetPortForwarding, Rollback: SetPortForwarding},
+		State{Name: "DestroyUnmountCcontainer", Advance: UnmountContainer, Rollback: MountContainer},
+		State{Name: "DestroyUnsetQuota", Advance: UnsetQuota, Rollback: SetQuota},
+		State{Name: "DestroyDeleteContainerData", Advance: DeleteContainerData, Rollback: Pass},
 	}
 
 	RestartStates = []State{
-		State{Advance: StopContainer, Rollback: Pass},
-		State{Advance: UnmountContainer, Rollback: Pass},
-		State{Advance: MountContainer, Rollback: Pass},
-		State{Advance: StartContainer, Rollback: Pass},
+		State{Name: "RestartStopContainer", Advance: StopContainer, Rollback: Pass},
+		State{Name: "RestartUnmountContainer", Advance: UnmountContainer, Rollback: Pass},
+		State{Name: "RestartMountContainer", Advance: MountContainer, Rollback: Pass},
+		State{Name: "RestartStartContainer", Advance: StartContainer, Rollback: Pass},
 	}
 }
 
