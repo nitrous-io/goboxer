@@ -8,7 +8,6 @@ package goboxer
 import (
 	"fmt"
 	"github.com/action-io/goboxer/host"
-	"log"
 	"sync"
 )
 
@@ -21,47 +20,47 @@ var DestroyStates []State
 
 func init() {
 	handlers = map[string]MessageHandler{
-		"aio:locate":       LocateBoxHandler,
-		"aio:create":       CreateBoxHandler,
-		"aio:start":        StartBoxHandler,
-		"aio:stop":         StopBoxHandler,
-		"aio:restart":      RestartBoxHandler,
-		"aio:destroy":      DestroyBoxHandler,
-		"aio:configure":    ConfigureBoxHandler,
-		"aio:info_request": InfoRequestBoxHandler,
+		"aio:locate":       logger.LogHandler("aio:locate", LocateBoxHandler),
+		"aio:create":       logger.LogHandler("aio:create", CreateBoxHandler),
+		"aio:start":        logger.LogHandler("aio:start", StartBoxHandler),
+		"aio:stop":         logger.LogHandler("aio:stop", StopBoxHandler),
+		"aio:restart":      logger.LogHandler("aio:restart", RestartBoxHandler),
+		"aio:destroy":      logger.LogHandler("aio:destroy", DestroyBoxHandler),
+		"aio:configure":    logger.LogHandler("aio:configure", ConfigureBoxHandler),
+		"aio:info_request": logger.LogHandler("aio:info_request", InfoRequestBoxHandler),
 	}
 
 	CreateStates = []State{
-		State{Advance: MountContainer, Rollback: UnmountContainer},
-		State{Advance: SetupContainer, Rollback: Pass},
-		State{Advance: SetQuota, Rollback: UnsetQuota},
-		State{Advance: SetPortForwarding, Rollback: UnsetPortForwarding},
+		State{Name: "CreateMountContainer", Advance: MountContainer, Rollback: UnmountContainer},
+		State{Name: "CreateSetupContainer", Advance: SetupContainer, Rollback: Pass},
+		State{Name: "CreateSetQuota", Advance: SetQuota, Rollback: UnsetQuota},
+		State{Name: "CreateSetPortForwarding", Advance: SetPortForwarding, Rollback: UnsetPortForwarding},
 	}
 
 	StartStates = []State{
-		State{Advance: MountContainer, Rollback: UnmountContainer},
-		State{Advance: StartContainer, Rollback: StopContainer},
+		State{Name: "StartMountContainer", Advance: MountContainer, Rollback: UnmountContainer},
+		State{Name: "StartStartContainer", Advance: StartContainer, Rollback: StopContainer},
 	}
 
 	StopStates = []State{
-		State{Advance: StopContainer, Rollback: Pass},
-		State{Advance: UnmountContainer, Rollback: MountContainer},
-		State{Advance: UnsetQuota, Rollback: SetQuota},
+		State{Name: "StopStopContainer", Advance: StopContainer, Rollback: Pass},
+		State{Name: "StopUnmountContainer", Advance: UnmountContainer, Rollback: MountContainer},
+		State{Name: "StopUnsetQuota", Advance: UnsetQuota, Rollback: SetQuota},
 	}
 
 	DestroyStates = []State{
-		State{Advance: StopContainer, Rollback: Pass},
-		State{Advance: UnsetPortForwarding, Rollback: SetPortForwarding},
-		State{Advance: UnmountContainer, Rollback: MountContainer},
-		State{Advance: UnsetQuota, Rollback: SetQuota},
-		State{Advance: DeleteContainerData, Rollback: Pass},
+		State{Name: "DestroyStopContainer", Advance: StopContainer, Rollback: Pass},
+		State{Name: "DestroyUnsetPortForwarding", Advance: UnsetPortForwarding, Rollback: SetPortForwarding},
+		State{Name: "DestroyUnmountCcontainer", Advance: UnmountContainer, Rollback: MountContainer},
+		State{Name: "DestroyUnsetQuota", Advance: UnsetQuota, Rollback: SetQuota},
+		State{Name: "DestroyDeleteContainerData", Advance: DeleteContainerData, Rollback: Pass},
 	}
 
 	RestartStates = []State{
-		State{Advance: StopContainer, Rollback: Pass},
-		State{Advance: UnmountContainer, Rollback: Pass},
-		State{Advance: MountContainer, Rollback: Pass},
-		State{Advance: StartContainer, Rollback: Pass},
+		State{Name: "RestartStopContainer", Advance: StopContainer, Rollback: Pass},
+		State{Name: "RestartUnmountContainer", Advance: UnmountContainer, Rollback: Pass},
+		State{Name: "RestartMountContainer", Advance: MountContainer, Rollback: Pass},
+		State{Name: "RestartStartContainer", Advance: StartContainer, Rollback: Pass},
 	}
 }
 
@@ -217,13 +216,13 @@ func CreateBoxHandler(m Message, boxer *Boxer) Message {
 	}
 	box.boxer = boxer
 	if err := boxer.Create(box); !err.Success() {
-		log.Printf("ERROR: Fail to create %v, err: %v\n", box, err)
+		logger.Printf("ERROR: Fail to create %v, err: %v\n", box, err)
 		boxer.ResourcePool.Release(resource.Ip)
 		msg.Success = false
 		return msg
 	}
 	if err := boxer.ResourcePool.SaveBox(box); err != nil {
-		log.Printf("ERROR: Fail to save %v, err: %v\n", box, err)
+		logger.Printf("ERROR: Fail to save %v, err: %v\n", box, err)
 		msg.Success = false
 		return msg
 	}
@@ -238,7 +237,7 @@ func StartBoxHandler(m Message, boxer *Boxer) Message {
 		return boxer.NewInvalidParamMessage()
 	}
 	if err := boxer.Start(box); !err.Success() {
-		log.Printf("ERROR: Fail to start %v, err: %v\n", box, err)
+		logger.Printf("ERROR: Fail to start %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
 	}
 	msg := Message{
@@ -249,7 +248,7 @@ func StartBoxHandler(m Message, boxer *Boxer) Message {
 		Success:    true,
 	}
 	if err := boxer.ResourcePool.UpdateState(box, "running"); err != nil {
-		log.Printf("ERROR: Fail to update box state %v, err: %v\n", box, err)
+		logger.Printf("ERROR: Fail to update box state %v, err: %v\n", box, err)
 		msg.Success = false
 	}
 	return msg
@@ -258,11 +257,11 @@ func StartBoxHandler(m Message, boxer *Boxer) Message {
 func StopBoxHandler(m Message, boxer *Boxer) Message {
 	box, err := boxer.findBox(m.Name)
 	if err != nil {
-		log.Printf("ERROR: Fail to find box %v, err: %v\n", box, err)
+		logger.Printf("ERROR: Fail to find box %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
 	}
 	if err := boxer.Stop(box); !err.Success() {
-		log.Printf("ERROR: Fail to stop box %v, err: %v\n", box, err)
+		logger.Printf("ERROR: Fail to stop box %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
 	}
 	msg := Message{
@@ -273,7 +272,7 @@ func StopBoxHandler(m Message, boxer *Boxer) Message {
 		Success:    true,
 	}
 	if err := boxer.ResourcePool.UpdateState(box, "stopped"); err != nil {
-		log.Printf("ERROR: Fail to update box state %v, err: %v\n", box, err)
+		logger.Printf("ERROR: Fail to update box state %v, err: %v\n", box, err)
 		msg.Success = false
 	}
 	return msg
@@ -282,11 +281,11 @@ func StopBoxHandler(m Message, boxer *Boxer) Message {
 func RestartBoxHandler(m Message, boxer *Boxer) Message {
 	box, err := boxer.findBox(m.Name)
 	if err != nil {
-		log.Printf("ERROR: Fail to find box %v, err: %v\n", box, err)
+		logger.Printf("ERROR: Fail to find box %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
 	}
 	if err := boxer.Restart(box); !err.Success() {
-		log.Printf("ERROR: Fail to restart box %v, err: %v\n", box, err)
+		logger.Printf("ERROR: Fail to restart box %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
 	}
 	msg := Message{
@@ -297,7 +296,7 @@ func RestartBoxHandler(m Message, boxer *Boxer) Message {
 		Success:    true,
 	}
 	if err := boxer.ResourcePool.UpdateState(box, "running"); err != nil {
-		log.Printf("ERROR: Fail to update box state %v, err: %v\n", box, err)
+		logger.Printf("ERROR: Fail to update box state %v, err: %v\n", box, err)
 		msg.Success = false
 	}
 	return msg
@@ -306,15 +305,15 @@ func RestartBoxHandler(m Message, boxer *Boxer) Message {
 func DestroyBoxHandler(m Message, boxer *Boxer) Message {
 	box, err := boxer.findBox(m.Name)
 	if err != nil {
-		log.Printf("ERROR: Fail to find box %v, err: %v\n", box, err)
+		logger.Printf("ERROR: Fail to find box %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
 	}
 	if err := boxer.Destroy(box); !err.Success() {
-		log.Printf("ERROR: Fail to destroy box %v, err: %v\n", box, err)
+		logger.Printf("ERROR: Fail to destroy box %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
 	}
 	if err := boxer.ResourcePool.Release(box.Ip); err != nil {
-		log.Printf("ERROR: Fail to release box %v, err: %v\n", box, err)
+		logger.Printf("ERROR: Fail to release box %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
 	}
 	return Message{
