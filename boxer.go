@@ -21,14 +21,14 @@ var DestroyStates []State
 
 func init() {
 	handlers = map[string]MessageHandler{
-		"aio:locate":       LocateBoxHandler,
-		"aio:create":       CreateBoxHandler,
-		"aio:start":        StartBoxHandler,
-		"aio:stop":         StopBoxHandler,
-		"aio:restart":      RestartBoxHandler,
-		"aio:destroy":      DestroyBoxHandler,
-		"aio:configure":    ConfigureBoxHandler,
-		"aio:info_request": InfoRequestBoxHandler,
+		"aio:locate":       logger.LogHandler("aio:locate", LocateBoxHandler),
+		"aio:create":       logger.LogHandler("aio:create", CreateBoxHandler),
+		"aio:start":        logger.LogHandler("aio:start", StartBoxHandler),
+		"aio:stop":         logger.LogHandler("aio:stop", StopBoxHandler),
+		"aio:restart":      logger.LogHandler("aio:restart", RestartBoxHandler),
+		"aio:destroy":      logger.LogHandler("aio:destroy", DestroyBoxHandler),
+		"aio:configure":    logger.LogHandler("aio:configure", ConfigureBoxHandler),
+		"aio:info_request": logger.LogHandler("aio:info_request", InfoRequestBoxHandler),
 	}
 
 	CreateStates = []State{
