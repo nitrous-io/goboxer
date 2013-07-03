@@ -8,6 +8,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const UidStart = 15000
@@ -100,6 +101,9 @@ func (b *Box) HomePath() string {
 func (b *Box) SetQuota() error {
 	b.boxer.Lock()
 	defer b.boxer.Unlock()
+	defer logger.LogDuration(
+		fmt.Sprintf("%s:SetQuota", b.ContainerName()),
+	)(time.Now())
 	return SetQuotaLimit(b.Id, b.ContainerName(), b.HomePath(), b.Disk, b.DiskSpace)
 }
 
@@ -136,6 +140,9 @@ func (b *Box) WriteConfig() error {
 }
 
 func (b *Box) SetPermission() error {
+	defer logger.LogDuration(
+		fmt.Sprintf("%s:SetPermission", b.ContainerName()),
+	)(time.Now())
 	uid := b.Uid()
 	gid := b.Gid()
 	permission := fmt.Sprintf("%s:%s", b.Uid(), b.Gid())
@@ -190,6 +197,9 @@ func (b *Box) SetHostname() error {
 }
 
 func (b *Box) ExtractTemplate() error {
+	defer logger.LogDuration(
+		fmt.Sprintf("%s:ExtractTemplate", b.ContainerName()),
+	)(time.Now())
 	boxDeltaPath := path.Join(b.Disk, b.ContainerName()+"_delta")
 	boxDeltaHomePath := path.Join(boxDeltaPath, "rootfs", "home", "action")
 	homeDataPath := path.Join(b.Disk, b.TemplatePath())
@@ -233,16 +243,25 @@ func (b *Box) SetDefaultKeypair() error {
 }
 
 func (b *Box) StopContainer() error {
+	defer logger.LogDuration(
+		fmt.Sprintf("%s:StopContainer", b.ContainerName()),
+	)(time.Now())
 	return lxc.Stop(b.ContainerName())
 }
 
 func (b *Box) StartContainer() error {
+	defer logger.LogDuration(
+		fmt.Sprintf("%s:StartContainer", b.ContainerName()),
+	)(time.Now())
 	return lxc.Start(b.ContainerName())
 }
 
 func (b *Box) Mount(root string) error {
 	b.boxer.Lock()
 	defer b.boxer.Unlock()
+	defer logger.LogDuration(
+		fmt.Sprintf("%s:Mount", b.ContainerName()),
+	)(time.Now())
 
 	boxPath := b.ContainerFS()
 	boxDeltaPath := b.ContainerDeltaPath()

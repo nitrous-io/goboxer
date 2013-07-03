@@ -43,3 +43,9 @@ func (d debugging) LogHandler(name string, handler MessageHandler) MessageHandle
 		return msg
 	}
 }
+
+func (d debugging) LogDuration(msg string) func(time.Time) {
+	return func(start time.Time) {
+		d.Println(msg, time.Since(start).Seconds())
+	}
+}
