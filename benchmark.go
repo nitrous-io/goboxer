@@ -11,9 +11,29 @@ import (
 
 type benchmarkResult map[string]float64
 
-func (b *benchmarkResult) toString() string {
-	s, _ := ToJSON(b)
-	return s
+// a benchmark result will contains these keys together with their durations
+// - aio:created
+// - aio:started
+// - aio:stopped
+// - aio:destroyed
+// - aio:invalid:params when things go wrong
+func (b benchmarkResult) toString() string {
+	var durations []interface{}
+	format := ""
+	for _, key := range []string{
+		"aio:created",
+		"aio:started",
+		"aio:stopped",
+		"aio:destroyed",
+		"aio:invalid:params",
+	} {
+		val, ok := b[key]
+		if ok {
+			format += "%s\t"
+			durations = append(durations, strconv.FormatFloat(val, 'f', 3, 64))
+		}
+	}
+	return fmt.Sprintf(format, durations...)
 }
 
 type benchmarkCollection struct {
@@ -174,7 +194,8 @@ func benchmarkDestroy(boxer *Boxer, id string) error {
 
 func printSummary() {
 	fmt.Println("--> Details:")
+	fmt.Printf("id:\taio:created\t\aio:started\t\aio:stopped\taio:destroyed\taio:invalid:params\n")
 	for id, res := range collection.results {
-		fmt.Printf("%v		%v\n", id, res.toString())
+		fmt.Printf("%v\t%v\n", id, res.toString())
 	}
 }
