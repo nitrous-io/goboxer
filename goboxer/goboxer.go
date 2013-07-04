@@ -60,6 +60,7 @@ func main() {
 	flVersion := flag.Bool("v", false, "Show current version")
 	flStartAll := flag.Bool("start-all", false, "Start all containers")
 	flBenchmark := flag.Bool("benchmark", false, "Start benchmark mode")
+	flBenchmarkStartAll := flag.Bool("benchmark-start-all", false, "Start benchmark mode for start all")
 	flNumBox := flag.Int("num", 10, "Number of box that will be created in benchmark mode")
 	flag.Parse()
 	if *flVersion {
@@ -112,6 +113,16 @@ func main() {
 			return
 		}
 		os.Exit(0)
+		return
+	}
+
+	if *flBenchmarkStartAll {
+		if *flNumBox > 0 {
+			goboxer.StartBenchmarkAll(boxer, *flNumBox)
+		} else {
+			fmt.Println("Required -num option in benchmark mode")
+			os.Exit(0)
+		}
 		return
 	}
 
