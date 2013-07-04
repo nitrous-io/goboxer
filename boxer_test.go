@@ -261,6 +261,9 @@ func (s *BoxerSuite) TestDestroy(c *C) {
 	// check redis
 	availableIp, _ := redis.String(s.Redis.Do("RPOP", "aio:available_resources"))
 	c.Assert(availableIp, Equals, "192.168.254.2")
+	// box should be deleted from the collection
+	res, _ := s.Redis.Do("HGET", "aio:boxes", "mclovins-container-1")
+	c.Assert(res, IsNil)
 }
 
 func (s *BoxerSuite) TestRestart(c *C) {

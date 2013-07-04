@@ -45,8 +45,6 @@ func (rp *ResourcePool) Acquire() (resource *Resource, err error) {
 }
 
 func (rp *ResourcePool) Release(ip string) (err error) {
-	rp.Lock()
-	defer rp.Unlock()
 	rp.Conn.Send("MULTI")
 	rp.Conn.Send("LREM", "aio:used_resources", 0, ip)
 	rp.Conn.Send("RPUSH", "aio:available_resources", ip)
@@ -83,6 +81,16 @@ func (rp *ResourcePool) FindBox(containerName string) (*Box, error) {
 		return nil, err
 	}
 	return box, nil
+}
+
+func (rp *ResourcePool) DeleteBox(box *Box) (err error) {
+	rp.Lock()
+	defer rp.Unlock()
+	if err = rp.Release(box.Ip); err != nil {
+		return
+	}
+	_, err = rp.Conn.Do("HDEL", "aio:boxes", box.ContainerName())
+	return
 }
 
 // Find all instance of `Box` that has `containerState` equals to `running` in
