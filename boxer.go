@@ -39,6 +39,7 @@ func init() {
 
 	StartStates = []State{
 		State{Name: "StartMountContainer", Advance: MountContainer, Rollback: UnmountContainer},
+		State{Name: "StartSetQuota", Advance: SetQuota, Rollback: UnsetQuota},
 		State{Name: "StartStartContainer", Advance: StartContainer, Rollback: StopContainer},
 	}
 
