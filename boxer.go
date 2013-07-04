@@ -312,7 +312,7 @@ func DestroyBoxHandler(m Message, boxer *Boxer) Message {
 		logger.Printf("ERROR: Fail to destroy box %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
 	}
-	if err := boxer.ResourcePool.Release(box.Ip); err != nil {
+	if err := boxer.ResourcePool.DeleteBox(box); err != nil {
 		logger.Printf("ERROR: Fail to release box %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
 	}

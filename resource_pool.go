@@ -85,6 +85,16 @@ func (rp *ResourcePool) FindBox(containerName string) (*Box, error) {
 	return box, nil
 }
 
+func (rp *ResourcePool) DeleteBox(box *Box) (err error) {
+	if err = rp.Release(box.Ip); err != nil {
+		return
+	}
+	rp.Lock()
+	defer rp.Unlock()
+	_, err = rp.Conn.Do("HDEL", "aio:boxes", box.ContainerName())
+	return
+}
+
 // Find all instance of `Box` that has `containerState` equals to `running` in
 // the redis database
 func (rp *ResourcePool) FindRunningBoxes() ([]*Box, error) {
