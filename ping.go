@@ -5,8 +5,14 @@ import (
 	"fmt"
 	"github.com/garyburd/redigo/redis"
 	"net/http"
-	"sync"
 )
+
+type PingConfig struct {
+	Host      string
+	Port      string
+	MQAddr    string
+	StoreAddr string
+}
 
 // interface that supports redis.Conn so we can stub it out in test
 type testConn interface {
@@ -15,25 +21,30 @@ type testConn interface {
 }
 
 func pingHandler(mqConn, storeConn testConn) func(http.ResponseWriter, *http.Request) {
-	mutex := sync.Mutex{}
 	return func(w http.ResponseWriter, r *http.Request) {
-		mutex.Lock()
-		defer mutex.Unlock()
 		_, mqErr := mqConn.Do("PING")
 		_, storeErr := storeConn.Do("PING")
-		logger.Debugln(mqErr, storeErr)
 		if mqErr != nil || storeErr != nil {
 			msg := fmt.Sprintf("mq: %v, store: %v", mqErr, storeErr)
 			http.Error(w, msg, http.StatusInternalServerError)
 			return
 		}
-		fmt.Fprint(w, "ok")
+		w.Write([]byte("ok"))
 	}
 }
 
 // This creates an embeded http server at <host>:<port> and expose "/"
 // endpoint, which return success when the redis connections are responsive
-func startPingServer(host, port string, mqConn, storeConn redis.Conn) error {
+func StartPingServer(config PingConfig) error {
+	fmt.Println("Start Ping server")
+	mqConn, err := redis.Dial("tcp", config.MQAddr)
+	if err != nil {
+		fmt.Println("Cannot connect to redis: " + config.MQAddr)
+	}
+	storeConn, err := redis.Dial("tcp", config.StoreAddr)
+	if err != nil {
+		fmt.Println("Cannot connect to redis: " + config.StoreAddr)
+	}
 	http.HandleFunc("/", pingHandler(mqConn, storeConn))
-	return http.ListenAndServe(host+":"+port, nil)
+	return http.ListenAndServe(config.Host+":"+config.Port, nil)
 }
