@@ -113,6 +113,31 @@ func StartBenchmark(boxer *Boxer, numBox int) {
 	printSummary()
 }
 
+// Create numbox and then benchmark Boxer.startAll methods
+func StartBenchmarkAll(boxer *Boxer, numBox int) {
+	// create numbox
+	fmt.Println("--> Prepare boxes")
+	for i := 2; i <= numBox+1; i++ {
+		istr := strconv.Itoa(i)
+		benchmarkCreate(boxer, istr)
+	}
+
+	// start all
+	start := time.Now()
+	boxer.Init()
+	duration := time.Since(start).Seconds()
+
+	// destroy numbox
+	fmt.Println("--> CLEANUP")
+	for i := 2; i <= numBox+1; i++ {
+		istr := strconv.Itoa(i)
+		benchmarkDestroy(boxer, istr)
+	}
+
+	fmt.Println("--> SUMMARY")
+	fmt.Println("StartAll", strconv.FormatFloat(duration, 'f', 3, 64))
+}
+
 func benchmarkCreate(boxer *Boxer, id string) error {
 	start := time.Now()
 	message := boxer.Receive(Message{
