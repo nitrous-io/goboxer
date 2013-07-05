@@ -53,9 +53,10 @@ cp $GOBIN/goboxer bin/goboxer
 BINRELEASE="goboxer_${TAG}.tgz"
 
 echo -e "${OK_COLOR}--> PACKAGE GOBOXER!............${NO_COLOR}"
-tar -f bin/${BINRELEASE} -zv -c bin/goboxer
-tar -f bin/goboxer_latest.tgz -zv -c bin/goboxer
+cd bin
+tar -f ${BINRELEASE} -zv -c goboxer
+tar -f goboxer_latest.tgz -zv -c goboxer
 
 echo -e "${OK_COLOR}--> PUSH TO S3!............${NO_COLOR}"
-s3cmd put bin/${BINRELEASE} s3://bombay-apse.action.io/${BINRELEASE}
-s3cmd put bin/goboxer_latest.tgz s3://bombay-apse.action.io/goboxer_latest.tgz
+s3cmd put ${BINRELEASE} s3://bombay-apse.action.io/${BINRELEASE}
+s3cmd put goboxer_latest.tgz s3://bombay-apse.action.io/goboxer_latest.tgz
