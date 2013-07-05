@@ -20,7 +20,9 @@ func (c *CoachListener) Listen() {
 		var messageJSON string
 		var err error
 		message := Message{}
+		logger.Println("Message: %s", string(msg.Data))
 		if err = json.Unmarshal(msg.Data, &message); err != nil {
+			logger.Println("ERROR: %v", err)
 			c.SendInvalidParam()
 			return
 		}
