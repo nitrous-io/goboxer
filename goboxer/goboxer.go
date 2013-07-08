@@ -39,6 +39,10 @@ func (c Config) RedisStoreAddr() string {
 	return c.RedisStoreHost + ":" + c.RedisStorePort
 }
 
+func (c Config) HasValidPingSettings() bool {
+	return len(c.PingHost) > 0 && len(c.PingPort) > 0
+}
+
 // reads a json config file and returns back `Config` instance
 // configPath - path to json config file
 func parseConfig(configPath string) (config Config, err error) {
@@ -140,7 +144,7 @@ func main() {
 	}
 
 	// span a go routine that listen and serve ping request
-	if len(config.PingHost) > 0 && len(config.PingPort) > 0 {
+	if config.HasValidPingSettings() {
 		pingConfig := goboxer.PingConfig{
 			Host:      config.PingHost,
 			Port:      config.PingPort,
