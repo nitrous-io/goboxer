@@ -39,11 +39,11 @@ func StartPingServer(config PingConfig) error {
 	fmt.Println("Start Ping server")
 	mqConn, err := redis.Dial("tcp", config.MQAddr)
 	if err != nil {
-		fmt.Println("Cannot connect to redis: " + config.MQAddr)
+		return fmt.Errorf("Cannot connect to redis: %s", config.MQAddr)
 	}
 	storeConn, err := redis.Dial("tcp", config.StoreAddr)
 	if err != nil {
-		fmt.Println("Cannot connect to redis: " + config.StoreAddr)
+		return fmt.Errorf("Cannot connect to redis: %s", config.StoreAddr)
 	}
 	http.HandleFunc("/", pingHandler(mqConn, storeConn))
 	return http.ListenAndServe(config.Host+":"+config.Port, nil)
