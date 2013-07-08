@@ -391,7 +391,7 @@ func (s *BoxerSuite) TestChangeBoxSpecs(c *C) {
 		Name:       "mclovins-container",
 		Runtime:    "test",
 		Memory:     "256M",
-		DiskSpace:  "1G",
+		DiskSpace:  "1024M",
 		PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
 	})
 	defer s.deleteBox("1", "mclovins-container")
@@ -405,7 +405,7 @@ func (s *BoxerSuite) TestChangeBoxSpecs(c *C) {
 		DataType: "aio:configure:change_specs",
 		Data: map[string]interface{}{
 			"memory":    "512M",
-			"diskSpace": "2G",
+			"diskSpace": "2048M",
 		},
 		Name: "mclovins-container-1",
 	})
@@ -414,6 +414,14 @@ func (s *BoxerSuite) TestChangeBoxSpecs(c *C) {
 	c.Assert(message.Id, Equals, "testboxer")
 	c.Assert(message.BoxId, Equals, "1")
 	c.Assert(message.Success, Equals, true)
+	c.Assert(message.DataType, Equals, "aio:configure:change_specs")
+	data := (message.Data).(map[string]interface{})
+	currentMemory, _ := (data["memory"]).(string)
+	currentDiskSpace, _ := (data["diskSpace"]).(string)
+	// memory is set successfully
+	c.Assert(currentMemory, Equals, "512M")
+	// disk space cant be set so we still use the old value
+	c.Assert(currentDiskSpace, Equals, "2048M")
 
 	root := "/lxc/disk1/mclovins-container-1"
 	var checkContent = map[string][]string{
@@ -678,6 +686,15 @@ func (s *BoxerSuite) TestChangeBoxSpecsFail(c *C) {
 
 	c.Assert(message.Type, Equals, "aio:configured")
 	c.Assert(message.Success, Equals, false)
+	c.Assert(message.DataType, Equals, "aio:configure:change_specs")
+	data := (message.Data).(map[string]interface{})
+	currentMemory, _ := (data["memory"]).(string)
+	currentDiskSpace, _ := (data["diskSpace"]).(string)
+	// memory is set successfully
+	c.Assert(currentMemory, Equals, "512M")
+	// disk space cant be set so we still use the old value
+	c.Assert(currentDiskSpace, Equals, "1024M")
+
 	// Swap back the original Quota so the next test that uses Quota will be
 	// normal
 	Quota = oldQuota

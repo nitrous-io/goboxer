@@ -122,8 +122,10 @@ func (b *Box) ChangeSpec(spec *BoxSpec, q quota.QuotaInterface) error {
 		}
 	}
 	if spec.DiskSpace != b.DiskSpace {
+		oldDiskSpace := b.DiskSpace
 		b.DiskSpace = spec.DiskSpace
 		if err := b.SetQuota(q); err != nil {
+			b.DiskSpace = oldDiskSpace
 			return err
 		}
 	}
