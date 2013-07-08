@@ -27,6 +27,8 @@ type Config struct {
 	SelectedDisk   string            `json:"selectedDisk"`
 	Disks          []string          `json:"disks"`
 	Runtimes       map[string]string `json:"runtimes"`
+	PingHost       string            `json:"pingHost"`
+	PingPort       string            `json:"pingPort"`
 }
 
 func (c Config) RedisMQAddr() string {
@@ -35,6 +37,10 @@ func (c Config) RedisMQAddr() string {
 
 func (c Config) RedisStoreAddr() string {
 	return c.RedisStoreHost + ":" + c.RedisStorePort
+}
+
+func (c Config) HasValidPingSettings() bool {
+	return len(c.PingHost) > 0 && len(c.PingPort) > 0
 }
 
 // reads a json config file and returns back `Config` instance
@@ -135,6 +141,17 @@ func main() {
 			os.Exit(0)
 		}
 		return
+	}
+
+	// span a go routine that listen and serve ping request
+	if config.HasValidPingSettings() {
+		pingConfig := goboxer.PingConfig{
+			Host:      config.PingHost,
+			Port:      config.PingPort,
+			MQAddr:    config.RedisMQAddr(),
+			StoreAddr: config.RedisStoreAddr(),
+		}
+		go goboxer.StartPingServer(pingConfig)
 	}
 
 	coachListener := &goboxer.CoachListener{
