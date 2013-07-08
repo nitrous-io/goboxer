@@ -394,7 +394,7 @@ func (s *BoxerSuite) TestChangeBoxSpecs(c *C) {
 		PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
 	})
 	defer s.deleteBox("1", "mclovins-container")
-	limit, _ := ViewQuotaLimit("1", "/lxc/disk1")
+	limit, _ := Quota.ViewLimit("1", "/lxc/disk1")
 	c.Assert(limit.Limit, Equals, 1024*1024)
 
 	message := s.Boxer.Receive(Message{
@@ -423,7 +423,7 @@ func (s *BoxerSuite) TestChangeBoxSpecs(c *C) {
 	}
 	DoesContain(c, checkContent)
 
-	newLimit, _ := ViewQuotaLimit("1", "/lxc/disk1")
+	newLimit, _ := Quota.ViewLimit("1", "/lxc/disk1")
 	c.Assert(newLimit.Limit, Equals, 2*1024*1024)
 
 	s.assertBoxState(c, "mclovins-container-1", "running")

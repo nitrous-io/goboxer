@@ -8,6 +8,7 @@ package goboxer
 import (
 	"fmt"
 	"github.com/action-io/goboxer/host"
+	"github.com/action-io/goboxer/quota"
 	"sync"
 )
 
@@ -17,6 +18,9 @@ var StartStates []State
 var StopStates []State
 var RestartStates []State
 var DestroyStates []State
+
+// set quota as a global variable here so we can replace it later in test
+var Quota quota.QuotaInterface = quota.Quota{}
 
 func init() {
 	handlers = map[string]MessageHandler{
@@ -372,7 +376,7 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 		if !ok {
 			return boxer.NewInvalidParamMessage()
 		}
-		if err := box.ChangeSpec(spec); err != nil {
+		if err := box.ChangeSpec(spec, Quota); err != nil {
 			return boxer.NewInvalidParamMessage()
 		}
 		if err := boxer.Restart(box); !err.Success() {
@@ -418,7 +422,7 @@ func InfoRequestBoxHandler(m Message, boxer *Boxer) Message {
 		BoxId:      box.Id,
 		ReturnVars: m.ReturnVars,
 	}
-	info, err := box.Info()
+	info, err := box.Info(Quota)
 	if err != nil {
 		message.Success = false
 		return message
@@ -462,8 +466,8 @@ func SetupContainer(c *BoxCommand) error {
 
 func MountContainer(c *BoxCommand) error      { return c.Box.Mount(c.Boxer.Root) }
 func UnmountContainer(c *BoxCommand) error    { return c.Box.Unmount(c.Boxer.Root) }
-func SetQuota(c *BoxCommand) error            { return c.Box.SetQuota() }
-func UnsetQuota(c *BoxCommand) error          { return c.Box.UnsetQuota() }
+func SetQuota(c *BoxCommand) error            { return c.Box.SetQuota(Quota) }
+func UnsetQuota(c *BoxCommand) error          { return c.Box.UnsetQuota(Quota) }
 func SetPortForwarding(c *BoxCommand) error   { return c.Box.SetPortForwarding() }
 func UnsetPortForwarding(c *BoxCommand) error { return c.Box.UnsetPortForwarding() }
 func StartContainer(c *BoxCommand) error      { return c.Box.StartContainer() }

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"github.com/action-io/goboxer/lxc"
+	"github.com/action-io/goboxer/quota"
 	"os"
 	"path"
 	"strconv"
@@ -82,7 +83,7 @@ func (b *Box) MacAddress() string {
 }
 
 func (b *Box) TotalMemory() string {
-	m := ParseValueUnit(b.Memory)
+	m := quota.ParseValueUnit(b.Memory)
 	return fmt.Sprintf("%d%s", int(m.Value)*3, m.Unit)
 }
 
@@ -98,22 +99,22 @@ func (b *Box) HomePath() string {
 	return path.Join(b.Disk, b.ContainerName()+"_delta", "rootfs", "home", "action")
 }
 
-func (b *Box) SetQuota() error {
+func (b *Box) SetQuota(q quota.QuotaInterface) error {
 	b.boxer.Lock()
 	defer b.boxer.Unlock()
 	defer logger.LogDuration(
 		fmt.Sprintf("%s:SetQuota", b.ContainerName()),
 	)(time.Now())
-	return SetQuotaLimit(b.Id, b.ContainerName(), b.HomePath(), b.Disk, b.DiskSpace)
+	return q.SetLimit(b.Id, b.ContainerName(), b.HomePath(), b.Disk, b.DiskSpace)
 }
 
-func (b *Box) UnsetQuota() error {
+func (b *Box) UnsetQuota(q quota.QuotaInterface) error {
 	b.boxer.Lock()
 	defer b.boxer.Unlock()
-	return RemoveQuotaLimit(b.Id, b.ContainerName(), b.HomePath(), b.Disk)
+	return q.RemoveLimit(b.Id, b.ContainerName(), b.HomePath(), b.Disk)
 }
 
-func (b *Box) ChangeSpec(spec *BoxSpec) error {
+func (b *Box) ChangeSpec(spec *BoxSpec, q quota.QuotaInterface) error {
 	if spec.Memory != b.Memory {
 		b.Memory = spec.Memory
 		if err := b.WriteConfig(); err != nil {
@@ -122,7 +123,7 @@ func (b *Box) ChangeSpec(spec *BoxSpec) error {
 	}
 	if spec.DiskSpace != b.DiskSpace {
 		b.DiskSpace = spec.DiskSpace
-		if err := b.SetQuota(); err != nil {
+		if err := b.SetQuota(q); err != nil {
 			return err
 		}
 	}
@@ -328,8 +329,8 @@ func (b *Box) LxcState() (string, error) {
 }
 
 // Return current storage usage in kb
-func (b *Box) StorageUsage() (int, error) {
-	quotaInfo, err := ViewQuotaLimit(b.Id, b.Disk)
+func (b *Box) StorageUsage(q quota.QuotaInterface) (int, error) {
+	quotaInfo, err := q.ViewLimit(b.Id, b.Disk)
 	if err != nil {
 		return 0, err
 	}
@@ -337,7 +338,7 @@ func (b *Box) StorageUsage() (int, error) {
 }
 
 // Return BoxInfo with `MB` units
-func (b *Box) Info() (BoxInfo, error) {
+func (b *Box) Info(q quota.QuotaInterface) (BoxInfo, error) {
 	var info BoxInfo
 	if memoryUsage, err := b.MemoryUsageInBytes(); err != nil {
 		return info, err
@@ -350,11 +351,11 @@ func (b *Box) Info() (BoxInfo, error) {
 	} else {
 		info.LxcStatus = state
 	}
-	if storageUsage, err := b.StorageUsage(); err != nil {
+	if storageUsage, err := b.StorageUsage(q); err != nil {
 		return info, err
 	} else {
 		info.StorageUsage = strconv.FormatFloat(
-			ScaleUnit(storageUsage, "M"), 'f', 3, 64)
+			quota.ScaleUnit(storageUsage, "M"), 'f', 3, 64)
 	}
 	return info, nil
 }
