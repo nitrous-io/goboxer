@@ -6,6 +6,7 @@ shopt -s nullglob
 
 spec=${1}
 
+go test -i ./...
 if [ -z "${spec}" ]; then
   sudo -E go test -gocheck.v github.com/action-io/goboxer/...
   sudo -E go test -test.v github.com/action-io/goboxer/host
