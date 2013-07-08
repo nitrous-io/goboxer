@@ -6,6 +6,7 @@
 package goboxer
 
 import (
+	"github.com/action-io/goboxer/quota/quotatest"
 	"github.com/garyburd/redigo/redis"
 	. "launchpad.net/gocheck"
 	"os/exec"
@@ -642,4 +643,56 @@ func (s *BoxerSuite) TestInvalidConfigureDataDoesNotPanic(c *C) {
 	})
 
 	c.Assert(message.Type, Equals, "aio:invalid:params")
+}
+
+func (s *BoxerSuite) TestChangeBoxSpecsFail(c *C) {
+	s.Boxer.Receive(Message{
+		Id:         "testboxer",
+		BoxId:      "1",
+		Type:       "aio:create",
+		Name:       "mclovins-container",
+		Runtime:    "test",
+		Memory:     "256M",
+		DiskSpace:  "1024M",
+		PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
+	})
+	defer s.deleteBox("1", "mclovins-container")
+	limit, _ := Quota.ViewLimit("1", "/lxc/disk1")
+	c.Assert(limit.Limit, Equals, 1024*1024)
+
+	// swap Quota with FailQuota so all quota calls will return errors
+	oldQuota := Quota
+	Quota = quotatest.FailQuota{}
+
+	message := s.Boxer.Receive(Message{
+		Id:       "testboxer",
+		BoxId:    "1",
+		Type:     "aio:configure",
+		DataType: "aio:configure:change_specs",
+		Data: map[string]interface{}{
+			"memory":    "512M",
+			"diskSpace": "2048M",
+		},
+		Name: "mclovins-container-1",
+	})
+
+	c.Assert(message.Type, Equals, "aio:configured")
+	c.Assert(message.Success, Equals, false)
+	// Swap back the original Quota so the next test that uses Quota will be
+	// normal
+	Quota = oldQuota
+
+	// it still sets the new memory
+	root := "/lxc/disk1/mclovins-container-1"
+	var checkContent = map[string][]string{
+		root + "/config": {
+			"lxc.cgroup.memory.limit_in_bytes = 512M",
+			"lxc.cgroup.memory.memsw.limit_in_bytes = 1536M",
+		},
+	}
+	DoesContain(c, checkContent)
+
+	// it cant set the new quota
+	newLimit, _ := Quota.ViewLimit("1", "/lxc/disk1")
+	c.Assert(newLimit.Limit, Equals, 1024*1024)
 }

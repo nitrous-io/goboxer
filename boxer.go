@@ -365,27 +365,34 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 	case "aio:configure:change_specs":
 		data, ok := (m.Data).(map[string]interface{})
 		if !ok {
-			return boxer.NewInvalidParamMessage()
+			message.Success = false
+			return message
 		}
 		spec := &BoxSpec{}
 		spec.Memory, ok = (data["memory"]).(string)
 		if !ok {
-			return boxer.NewInvalidParamMessage()
+			message.Success = false
+			return message
 		}
 		spec.DiskSpace, ok = (data["diskSpace"]).(string)
 		if !ok {
-			return boxer.NewInvalidParamMessage()
+			message.Success = false
+			return message
 		}
 		if err := box.ChangeSpec(spec, Quota); err != nil {
-			return boxer.NewInvalidParamMessage()
+			logger.Debugf("ChangeSpecs: %v\n", err)
+			message.Success = false
+			return message
 		}
 		if err := boxer.Restart(box); !err.Success() {
-			return boxer.NewInvalidParamMessage()
+			message.Success = false
+			return message
 		}
-		message.Success = true
 		if err := boxer.ResourcePool.UpdateState(box, "running"); err != nil {
 			message.Success = false
+			return message
 		}
+		message.Success = true
 		return message
 	case "aio:configure:set_env_variables":
 		data, ok := (m.Data).(map[string]interface{})
