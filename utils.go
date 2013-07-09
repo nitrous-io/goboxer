@@ -31,32 +31,6 @@ func Appendln(location, content string) error {
 	return err
 }
 
-// Append the content to location unless the location file already had the
-// content
-func AppendlnUnlessContain(location, content string) error {
-	isContain, err := FileContains(location, content)
-	if os.IsNotExist(err) {
-		if _, err = os.Create(location); err != nil {
-			return err
-		}
-		return Appendln(location, content)
-	} else if err != nil {
-		return err
-	} else if !isContain {
-		return Appendln(location, content)
-	}
-	return nil
-}
-
-// check if content of the file as the current content
-func FileContains(location, content string) (bool, error) {
-	fileContent, err := ioutil.ReadFile(location)
-	if err != nil {
-		return false, err
-	}
-	return strings.Contains(string(fileContent), content), nil
-}
-
 func DeleteLineContains(file, pattern string) error {
 	f, err := os.Open(file)
 	if err != nil {
@@ -84,47 +58,4 @@ func RunCommand(cmd string, args ...string) error {
 		return err
 	}
 	return nil
-}
-
-type ValueUnit struct {
-	Value float64
-	Unit  string
-}
-
-// Return a value unit from a string
-//
-//	ParseValueUnit("123M")
-//	>> ValueUnit{Value: 123, Unit: "M"}
-//	ParseValueUnit("0.5M")
-//	>> ValueUnit{Value: 0.5, Unit: "M"}
-func ParseValueUnit(s string) ValueUnit {
-	var i float64
-	var u string
-	fmt.Sscanf(s, "%f%s", &i, &u)
-	return ValueUnit{i, u}
-}
-
-// Scale value unit to a number
-//
-// ConvertValueUnitToByte(ValueUnit(1, "M"))
-// >> 1024
-func ConvertValueUnitToByte(v ValueUnit) int {
-	return int(v.Value * VALUE_UNIT_SCALE[v.Unit])
-}
-
-// Scale a value to a given unit
-//
-// ScaleUnit(512 * 1024, "M")
-// >> "512"
-func ScaleUnit(v int, u string) float64 {
-	return float64(v) / VALUE_UNIT_SCALE[u]
-}
-
-var VALUE_UNIT_SCALE map[string]float64
-
-func init() {
-	VALUE_UNIT_SCALE = map[string]float64{
-		"M": 1024.0,
-		"G": 1024.0 * 1024.0,
-	}
 }
