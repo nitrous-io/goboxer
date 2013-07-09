@@ -12,7 +12,7 @@ import (
 const NUM_BOX = 10
 
 type BenchmarkSuite struct {
-	Redis        redis.Conn
+	Redis        *redis.Pool
 	Boxer        *Boxer
 	ResourcePool *ResourcePool
 	Resources    []*Resource
@@ -21,10 +21,12 @@ type BenchmarkSuite struct {
 var _ = Suite(&BenchmarkSuite{})
 
 func (s *BenchmarkSuite) insertResource(ip, gateway, networkInterface, port string) {
+	conn := s.Redis.Get()
+	defer conn.Close()
 	r := &Resource{Ip: ip, Gateway: gateway, NetworkInterface: networkInterface, Port: port}
 	s.Resources = append(s.Resources, r)
-	s.Redis.Do("RPUSH", "aio:available_resources", r.Ip)
-	s.Redis.Do("HMSET", redis.Args{}.Add("aio:nwr:"+r.Ip).AddFlat(r)...)
+	conn.Do("RPUSH", "aio:available_resources", r.Ip)
+	conn.Do("HMSET", redis.Args{}.Add("aio:nwr:"+r.Ip).AddFlat(r)...)
 }
 
 func (s *BenchmarkSuite) assertBoxState(c *C, containerName, state string) {
@@ -43,9 +45,10 @@ func (s *BenchmarkSuite) deleteBox(id, name string) Message {
 }
 
 func (s *BenchmarkSuite) SetUpTest(c *C) {
-	s.Redis, _ = redis.Dial("tcp", ":65000")
-	s.Redis.Do("Select", 13)
-	s.Redis.Do("FLUSHDB")
+	s.Redis = NewRedisPool(":65000")
+	conn := s.Redis.Get()
+	defer conn.Close()
+	conn.Do("FLUSHDB")
 
 	for i := 2; i <= NUM_BOX; i++ {
 		is := strconv.Itoa(i)
@@ -53,7 +56,7 @@ func (s *BenchmarkSuite) SetUpTest(c *C) {
 			strconv.Itoa(10000+i))
 	}
 
-	s.ResourcePool = &ResourcePool{Conn: s.Redis}
+	s.ResourcePool = &ResourcePool{Pool: s.Redis}
 	s.Boxer = NewBoxer(
 		"testboxer",
 		"/var/lib/lxc",
@@ -67,8 +70,10 @@ func (s *BenchmarkSuite) SetUpTest(c *C) {
 }
 
 func (s *BenchmarkSuite) TearDownTest(c *C) {
-	s.Redis.Do("FLUSHDB")
-	s.Redis.Close()
+	conn := s.Redis.Get()
+	defer conn.Close()
+	defer s.Redis.Close()
+	conn.Do("FLUSHDB")
 }
 
 func (s *BenchmarkSuite) BenchmarkCreate(c *C) {

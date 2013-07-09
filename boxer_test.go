@@ -14,7 +14,7 @@ import (
 )
 
 type BoxerSuite struct {
-	Redis        redis.Conn
+	Redis        *redis.Pool
 	Boxer        *Boxer
 	ResourcePool *ResourcePool
 }
@@ -22,9 +22,11 @@ type BoxerSuite struct {
 var _ = Suite(&BoxerSuite{})
 
 func (s *BoxerSuite) insertResource(ip, gateway, networkInterface, port string) {
+	conn := s.Redis.Get()
+	defer conn.Close()
 	r := &Resource{Gateway: gateway, NetworkInterface: networkInterface, Port: port}
-	s.Redis.Do("RPUSH", "aio:available_resources", ip)
-	s.Redis.Do("HMSET", redis.Args{}.Add("aio:nwr:"+ip).AddFlat(r)...)
+	conn.Do("RPUSH", "aio:available_resources", ip)
+	conn.Do("HMSET", redis.Args{}.Add("aio:nwr:"+ip).AddFlat(r)...)
 }
 
 func (s *BoxerSuite) assertBoxState(c *C, containerName, state string) {
@@ -43,12 +45,13 @@ func (s *BoxerSuite) deleteBox(id, name string) Message {
 }
 
 func (s *BoxerSuite) SetUpTest(c *C) {
-	s.Redis, _ = redis.Dial("tcp", ":65000")
-	s.Redis.Do("Select", 13)
-	s.Redis.Do("FLUSHDB")
+	s.Redis = NewRedisPool(":65000")
+	conn := s.Redis.Get()
+	defer conn.Close()
+	conn.Do("FLUSHDB")
 	s.insertResource("192.168.254.2", "192.168.254.1", "br-lxc-254", "10002")
 
-	s.ResourcePool = &ResourcePool{Conn: s.Redis}
+	s.ResourcePool = &ResourcePool{Pool: s.Redis}
 
 	s.Boxer = NewBoxer(
 		"testboxer",
@@ -63,8 +66,10 @@ func (s *BoxerSuite) SetUpTest(c *C) {
 }
 
 func (s *BoxerSuite) TearDownTest(c *C) {
-	s.Redis.Do("FLUSHDB")
-	s.Redis.Close()
+	conn := s.Redis.Get()
+	defer conn.Close()
+	defer s.Redis.Close()
+	conn.Do("FLUSHDB")
 }
 
 // TODO: check if the quota is set correctly
@@ -137,7 +142,9 @@ func (s *BoxerSuite) TestCreateBox(c *C) {
 	DoesHavePermissions(c, checkPermissions)
 
 	// check redis
-	usedIp, _ := redis.String(s.Redis.Do("LPOP", "aio:used_resources"))
+	conn := s.Redis.Get()
+	defer conn.Close()
+	usedIp, _ := redis.String(conn.Do("LPOP", "aio:used_resources"))
 	c.Assert(usedIp, Equals, "192.168.254.2")
 }
 
@@ -242,10 +249,12 @@ func (s *BoxerSuite) TestDestroy(c *C) {
 	c.Assert(strings.Contains(string(output), "192.168.254.2:22"), Equals, false)
 
 	// check redis
-	availableIp, _ := redis.String(s.Redis.Do("RPOP", "aio:available_resources"))
+	conn := s.Redis.Get()
+	defer conn.Close()
+	availableIp, _ := redis.String(conn.Do("RPOP", "aio:available_resources"))
 	c.Assert(availableIp, Equals, "192.168.254.2")
 	// box should be deleted from the collection
-	res, _ := s.Redis.Do("HGET", "aio:boxes", "mclovins-container-1")
+	res, _ := conn.Do("HGET", "aio:boxes", "mclovins-container-1")
 	c.Assert(res, IsNil)
 }
 

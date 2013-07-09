@@ -89,18 +89,9 @@ func main() {
 		panic("Cannot connect to redis: " + config.RedisMQAddr())
 		os.Exit(1)
 	}
-	coachConn, err := redis.Dial("tcp", config.RedisMQAddr())
-	if err != nil {
-		panic("Cannot connect to redis: " + config.RedisMQAddr())
-		os.Exit(1)
-	}
-	storeConn, err := redis.Dial("tcp", config.RedisStoreAddr())
-	if err != nil {
-		panic("Cannot connect to redis: " + config.RedisMQAddr())
-		os.Exit(1)
-	}
+	redisPool := goboxer.NewRedisPool(config.RedisStoreAddr())
 
-	resourcePool := &goboxer.ResourcePool{Conn: storeConn}
+	resourcePool := &goboxer.ResourcePool{Pool: redisPool}
 
 	boxer := goboxer.NewBoxer(
 		config.Id,
@@ -156,8 +147,7 @@ func main() {
 
 	coachListener := &goboxer.CoachListener{
 		Boxer:        boxer,
-		BoxerConn:    boxerConn,
-		CoachConn:    coachConn,
+		Pool:         redisPool,
 		BoxerPubSub:  redis.PubSubConn{boxerConn},
 		BoxerChannel: config.BoxerChannel,
 		CoachChannel: config.CoachChannel,
