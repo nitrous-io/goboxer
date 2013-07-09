@@ -20,14 +20,15 @@ func (c *CoachListener) Listen() {
 		var messageJSON string
 		var err error
 		message := Message{}
-		logger.Println("Message: %s", string(msg.Data))
+		logger.Println("Message: ", string(msg.Data))
 		if err = json.Unmarshal(msg.Data, &message); err != nil {
-			logger.Println("ERROR: %v", err)
+			logger.Println("ERROR: Unmarshal ", err)
 			c.SendInvalidParam()
 			return
 		}
 		returnedMessage := c.Boxer.Receive(message)
 		if messageJSON, err = ToJSON(returnedMessage); err != nil {
+			logger.Println("ERROR: ToJSON ", err)
 			c.SendInvalidParam()
 			return
 		}

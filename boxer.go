@@ -196,6 +196,7 @@ func CreateBoxHandler(m Message, boxer *Boxer) Message {
 	}
 	resource, err := boxer.ResourcePool.Acquire()
 	if err != nil {
+		logger.Println("ERROR: Cant acquire resource", err)
 		msg.Success = false
 		return msg
 	}
