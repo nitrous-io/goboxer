@@ -2,7 +2,6 @@
 package goboxer
 
 import (
-	"fmt"
 	"github.com/garyburd/redigo/redis"
 	. "launchpad.net/gocheck"
 	"strconv"
@@ -107,14 +106,8 @@ func (s *BenchmarkSuite) BenchmarkCreate(c *C) {
 				root + "_delta",
 			}
 
-			var checkContainsContent = map[string][]string{
-				"/etc/projid":   {fmt.Sprintf("mclovins-container-%s:%s", istr, istr)},
-				"/etc/projects": {fmt.Sprintf("%s:/lxc/disk1/mclovins-container-%s", istr, istr)},
-			}
-
 			// check the container contents at /lxc/disk1
 			DoesExist(c, checkExists)
-			DoesContain(c, checkContainsContent)
 			Debug("CREATED BOX " + istr)
 
 			s.deleteBox(istr, "mclovins-container")
