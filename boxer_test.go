@@ -100,8 +100,6 @@ func (s *BoxerSuite) TestCreateBox(c *C) {
 	}
 
 	var checkContainsContent = map[string][]string{
-		"/etc/projid":                      {"mclovins-container-1:1"},
-		"/etc/projects":                    {"1:/lxc/disk1/mclovins-container-1"},
 		root + "/rootfs/etc/passwd":        {"action:x:15001:15001"},
 		root + "/rootfs/etc/action/box_id": {"1"},
 		root + "/rootfs/etc/hostname":      {"mclovins-container-1"},
@@ -173,12 +171,6 @@ func (s *BoxerSuite) TestStop(c *C) {
 		"/var/lib/lxc/mclovins-container-1",
 	})
 
-	// TODO: do we really need to remove the quota info here
-	DoesNotContain(c, map[string][]string{
-		"/etc/projid":   []string{"mclovins-container-1:1"},
-		"/etc/projects": []string{"1:/lxc/disk1/mclovins-container-1_delta/rootfs/home/action"},
-	})
-
 	s.assertBoxState(c, "mclovins-container-1", "stopped")
 }
 
@@ -210,11 +202,6 @@ func (s *BoxerSuite) TestStart(c *C) {
 
 	DoesExist(c, []string{
 		"/var/lib/lxc/mclovins-container-1/rootfs",
-	})
-
-	DoesContain(c, map[string][]string{
-		"/etc/projid":   []string{"mclovins-container-1:1"},
-		"/etc/projects": []string{"1:/lxc/disk1/mclovins-container-1_delta/rootfs/home/action"},
 	})
 
 	s.assertBoxState(c, "mclovins-container-1", "running")
@@ -249,11 +236,6 @@ func (s *BoxerSuite) TestDestroy(c *C) {
 		"/var/lib/lxc/mclovins-container-1",
 		"/lxc/disk1/mclovins-container-1",
 		"/lxc/disk1/mclovins-container-1_delta",
-	})
-
-	DoesNotContain(c, map[string][]string{
-		"/etc/projid":   []string{"mclovins-container-1:1"},
-		"/etc/projects": []string{"1:/var/lib/lxc/mclovins-container-1_delta/rootfs/home/action"},
 	})
 
 	output, _ := exec.Command("iptables", "-L", "-t", "nat").Output()
@@ -297,11 +279,6 @@ func (s *BoxerSuite) TestRestart(c *C) {
 		"/var/lib/lxc/mclovins-container-1",
 		"/lxc/disk1/mclovins-container-1",
 		"/lxc/disk1/mclovins-container-1_delta",
-	})
-
-	DoesContain(c, map[string][]string{
-		"/etc/projid":   []string{"mclovins-container-1:1"},
-		"/etc/projects": []string{"1:/lxc/disk1/mclovins-container-1_delta/rootfs/home/action"},
 	})
 
 	s.assertBoxState(c, "mclovins-container-1", "running")
@@ -480,17 +457,6 @@ func (s *BoxerSuite) TestStartAll(c *C) {
 	DoesExist(c, []string{
 		"/var/lib/lxc/mclovins-container-1/rootfs",
 		"/var/lib/lxc/mclovins-container-2/rootfs",
-	})
-
-	DoesContain(c, map[string][]string{
-		"/etc/projid": []string{
-			"mclovins-container-1:1",
-			"mclovins-container-2:2",
-		},
-		"/etc/projects": []string{
-			"1:/lxc/disk1/mclovins-container-1_delta/rootfs/home/action",
-			"2:/lxc/disk1/mclovins-container-2_delta/rootfs/home/action",
-		},
 	})
 
 	s.assertBoxState(c, "mclovins-container-1", "running")
