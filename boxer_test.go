@@ -6,6 +6,7 @@
 package goboxer
 
 import (
+	"github.com/action-io/goboxer/quota/quotatest"
 	"github.com/garyburd/redigo/redis"
 	. "launchpad.net/gocheck"
 	"os/exec"
@@ -390,11 +391,11 @@ func (s *BoxerSuite) TestChangeBoxSpecs(c *C) {
 		Name:       "mclovins-container",
 		Runtime:    "test",
 		Memory:     "256M",
-		DiskSpace:  "1G",
+		DiskSpace:  "1024M",
 		PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
 	})
 	defer s.deleteBox("1", "mclovins-container")
-	limit, _ := ViewQuotaLimit("1", "/lxc/disk1")
+	limit, _ := Quota.ViewLimit("1", "/lxc/disk1")
 	c.Assert(limit.Limit, Equals, 1024*1024)
 
 	message := s.Boxer.Receive(Message{
@@ -404,7 +405,7 @@ func (s *BoxerSuite) TestChangeBoxSpecs(c *C) {
 		DataType: "aio:configure:change_specs",
 		Data: map[string]interface{}{
 			"memory":    "512M",
-			"diskSpace": "2G",
+			"diskSpace": "2048M",
 		},
 		Name: "mclovins-container-1",
 	})
@@ -413,6 +414,14 @@ func (s *BoxerSuite) TestChangeBoxSpecs(c *C) {
 	c.Assert(message.Id, Equals, "testboxer")
 	c.Assert(message.BoxId, Equals, "1")
 	c.Assert(message.Success, Equals, true)
+	c.Assert(message.DataType, Equals, "aio:configured:change_specs")
+	data := (message.Data).(map[string]interface{})
+	currentMemory, _ := (data["memory"]).(string)
+	currentDiskSpace, _ := (data["diskSpace"]).(string)
+	// memory is set successfully
+	c.Assert(currentMemory, Equals, "512M")
+	// disk space cant be set so we still use the old value
+	c.Assert(currentDiskSpace, Equals, "2048M")
 
 	root := "/lxc/disk1/mclovins-container-1"
 	var checkContent = map[string][]string{
@@ -423,7 +432,7 @@ func (s *BoxerSuite) TestChangeBoxSpecs(c *C) {
 	}
 	DoesContain(c, checkContent)
 
-	newLimit, _ := ViewQuotaLimit("1", "/lxc/disk1")
+	newLimit, _ := Quota.ViewLimit("1", "/lxc/disk1")
 	c.Assert(newLimit.Limit, Equals, 2*1024*1024)
 
 	s.assertBoxState(c, "mclovins-container-1", "running")
@@ -642,4 +651,98 @@ func (s *BoxerSuite) TestInvalidConfigureDataDoesNotPanic(c *C) {
 	})
 
 	c.Assert(message.Type, Equals, "aio:invalid:params")
+}
+
+func (s *BoxerSuite) TestChangeBoxSpecsFail(c *C) {
+	s.Boxer.Receive(Message{
+		Id:         "testboxer",
+		BoxId:      "1",
+		Type:       "aio:create",
+		Name:       "mclovins-container",
+		Runtime:    "test",
+		Memory:     "256M",
+		DiskSpace:  "1024M",
+		PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
+	})
+	defer s.deleteBox("1", "mclovins-container")
+	limit, _ := Quota.ViewLimit("1", "/lxc/disk1")
+	c.Assert(limit.Limit, Equals, 1024*1024)
+
+	// swap Quota with FailQuota so all quota calls will return errors
+	oldQuota := Quota
+	Quota = quotatest.FailQuota{}
+
+	message := s.Boxer.Receive(Message{
+		Id:       "testboxer",
+		BoxId:    "1",
+		Type:     "aio:configure",
+		DataType: "aio:configure:change_specs",
+		Data: map[string]interface{}{
+			"memory":    "512M",
+			"diskSpace": "2048M",
+		},
+		Name: "mclovins-container-1",
+	})
+
+	c.Assert(message.Type, Equals, "aio:configured")
+	c.Assert(message.Success, Equals, false)
+	c.Assert(message.DataType, Equals, "aio:configured:change_specs")
+	data := (message.Data).(map[string]interface{})
+	currentMemory, _ := (data["memory"]).(string)
+	currentDiskSpace, _ := (data["diskSpace"]).(string)
+	// memory is set successfully
+	c.Assert(currentMemory, Equals, "512M")
+	// disk space cant be set so we still use the old value
+	c.Assert(currentDiskSpace, Equals, "1024M")
+
+	// Swap back the original Quota so the next test that uses Quota will be
+	// normal
+	Quota = oldQuota
+
+	// it still sets the new memory
+	root := "/lxc/disk1/mclovins-container-1"
+	var checkContent = map[string][]string{
+		root + "/config": {
+			"lxc.cgroup.memory.limit_in_bytes = 512M",
+			"lxc.cgroup.memory.memsw.limit_in_bytes = 1536M",
+		},
+	}
+	DoesContain(c, checkContent)
+
+	// it cant set the new quota
+	newLimit, _ := Quota.ViewLimit("1", "/lxc/disk1")
+	c.Assert(newLimit.Limit, Equals, 1024*1024)
+}
+
+func (s *BoxerSuite) TestChangeBoxSpecsInvalidParams(c *C) {
+	s.Boxer.Receive(Message{
+		Id:         "testboxer",
+		BoxId:      "1",
+		Type:       "aio:create",
+		Name:       "mclovins-container",
+		Runtime:    "test",
+		Memory:     "256M",
+		DiskSpace:  "1024M",
+		PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
+	})
+	defer s.deleteBox("1", "mclovins-container")
+
+	message := s.Boxer.Receive(Message{
+		Id:       "testboxer",
+		BoxId:    "1",
+		Type:     "aio:configure",
+		DataType: "aio:configure:change_specs",
+		Data: map[string]interface{}{
+			"memory":    512,
+			"diskSpace": 2048,
+		},
+		Name: "mclovins-container-1",
+	})
+
+	c.Assert(message.Success, Equals, false)
+	data := (message.Data).(map[string]interface{})
+	currentMemory, _ := (data["memory"]).(string)
+	currentDiskSpace, _ := (data["diskSpace"]).(string)
+	c.Assert(currentMemory, Equals, "256M")
+	c.Assert(currentDiskSpace, Equals, "1024M")
 }

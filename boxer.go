@@ -8,6 +8,7 @@ package goboxer
 import (
 	"fmt"
 	"github.com/action-io/goboxer/host"
+	"github.com/action-io/goboxer/quota"
 	"sync"
 )
 
@@ -17,6 +18,9 @@ var StartStates []State
 var StopStates []State
 var RestartStates []State
 var DestroyStates []State
+
+// set quota as a global variable here so we can replace it later in test
+var Quota quota.QuotaInterface = quota.Quota{}
 
 func init() {
 	handlers = map[string]MessageHandler{
@@ -360,29 +364,46 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 		message.Success = true
 		return message
 	case "aio:configure:change_specs":
+		message.DataType = "aio:configured:change_specs"
+		message.Data = map[string]interface{}{
+			"memory":    box.Memory,
+			"diskSpace": box.DiskSpace,
+		}
 		data, ok := (m.Data).(map[string]interface{})
 		if !ok {
-			return boxer.NewInvalidParamMessage()
+			message.Success = false
+			return message
 		}
 		spec := &BoxSpec{}
 		spec.Memory, ok = (data["memory"]).(string)
 		if !ok {
-			return boxer.NewInvalidParamMessage()
+			message.Success = false
+			return message
 		}
 		spec.DiskSpace, ok = (data["diskSpace"]).(string)
 		if !ok {
-			return boxer.NewInvalidParamMessage()
+			message.Success = false
+			return message
 		}
-		if err := box.ChangeSpec(spec); err != nil {
-			return boxer.NewInvalidParamMessage()
+		err := box.ChangeSpec(spec, Quota)
+		message.Data = map[string]interface{}{
+			"memory":    box.Memory,
+			"diskSpace": box.DiskSpace,
+		}
+		if err != nil {
+			logger.Debugf("ChangeSpecs: %v\n", err)
+			message.Success = false
+			return message
 		}
 		if err := boxer.Restart(box); !err.Success() {
-			return boxer.NewInvalidParamMessage()
+			message.Success = false
+			return message
 		}
-		message.Success = true
 		if err := boxer.ResourcePool.UpdateState(box, "running"); err != nil {
 			message.Success = false
+			return message
 		}
+		message.Success = true
 		return message
 	case "aio:configure:set_env_variables":
 		data, ok := (m.Data).(map[string]interface{})
@@ -419,7 +440,7 @@ func InfoRequestBoxHandler(m Message, boxer *Boxer) Message {
 		BoxId:      box.Id,
 		ReturnVars: m.ReturnVars,
 	}
-	info, err := box.Info()
+	info, err := box.Info(Quota)
 	if err != nil {
 		message.Success = false
 		return message
@@ -463,8 +484,8 @@ func SetupContainer(c *BoxCommand) error {
 
 func MountContainer(c *BoxCommand) error      { return c.Box.Mount(c.Boxer.Root) }
 func UnmountContainer(c *BoxCommand) error    { return c.Box.Unmount(c.Boxer.Root) }
-func SetQuota(c *BoxCommand) error            { return c.Box.SetQuota() }
-func UnsetQuota(c *BoxCommand) error          { return c.Box.UnsetQuota() }
+func SetQuota(c *BoxCommand) error            { return c.Box.SetQuota(Quota) }
+func UnsetQuota(c *BoxCommand) error          { return c.Box.UnsetQuota(Quota) }
 func SetPortForwarding(c *BoxCommand) error   { return c.Box.SetPortForwarding() }
 func UnsetPortForwarding(c *BoxCommand) error { return c.Box.UnsetPortForwarding() }
 func StartContainer(c *BoxCommand) error      { return c.Box.StartContainer() }

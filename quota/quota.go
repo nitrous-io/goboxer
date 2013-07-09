@@ -1,4 +1,4 @@
-package goboxer
+package quota
 
 import (
 	"fmt"
@@ -12,8 +12,16 @@ type QuotaInfo struct {
 	Limit int
 }
 
-func SetQuotaLimit(id, name, path, projectContainer, limit string) error {
-	quotaInfo, err := ViewQuotaLimit(id, projectContainer)
+type QuotaInterface interface {
+	SetLimit(id, name, path, projectContainer, limit string) error
+	RemoveLimit(id, name, path, projectContainer string) error
+	ViewLimit(id, projectContainer string) (QuotaInfo, error)
+}
+
+type Quota struct{}
+
+func (q Quota) SetLimit(id, name, path, projectContainer, limit string) error {
+	quotaInfo, err := q.ViewLimit(id, projectContainer)
 	if err != nil {
 		return err
 	}
@@ -35,7 +43,7 @@ func SetQuotaLimit(id, name, path, projectContainer, limit string) error {
 	return nil
 }
 
-func RemoveQuotaLimit(id, name, path, projectContainer string) error {
+func (q Quota) RemoveLimit(id, name, path, projectContainer string) error {
 	if err := DeleteLineContains("/etc/projid", name+":"+id); err != nil {
 		return err
 	}
@@ -46,7 +54,7 @@ func RemoveQuotaLimit(id, name, path, projectContainer string) error {
 	return nil
 }
 
-func ViewQuotaLimit(id, projectContainer string) (QuotaInfo, error) {
+func (q Quota) ViewLimit(id, projectContainer string) (QuotaInfo, error) {
 	stdout, err := xfsquota("quota -pvN "+id, projectContainer)
 	if err != nil {
 		return QuotaInfo{}, err
