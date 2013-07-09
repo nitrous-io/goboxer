@@ -84,7 +84,7 @@ func (s *BoxerSuite) TestCreateBox(c *C) {
 	c.Assert(message.Type, Equals, "aio:created")
 	c.Assert(message.Id, Equals, "testboxer")
 	c.Assert(message.BoxId, Equals, "1")
-	c.Assert(message.Port, Equals, "10002")
+	c.Assert(message.Port, Equals, 10002)
 	c.Assert(message.Success, Equals, true)
 
 	root := "/lxc/disk1/mclovins-container-1"

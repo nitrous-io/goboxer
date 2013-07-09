@@ -7,6 +7,7 @@ package goboxer
 import (
 	"encoding/json"
 	"github.com/garyburd/redigo/redis"
+	"strconv"
 	"sync"
 )
 
@@ -15,6 +16,14 @@ type Resource struct {
 	Gateway          string `json:"gateway" redis:"gateway"`
 	NetworkInterface string `json:"interface" redis:"interface"`
 	Port             string `json:"port" redis:"port"`
+}
+
+func (r *Resource) GetPort() (port int) {
+	port, err := strconv.Atoi(r.Port)
+	if err != nil {
+		logger.Debugln("Invalid port", r)
+	}
+	return
 }
 
 type ResourcePool struct {
