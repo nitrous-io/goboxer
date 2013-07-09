@@ -363,8 +363,11 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 		message.Success = true
 		return message
 	case "aio:configure:change_specs":
-		message.DataType = "aio:configure:change_specs"
-		message.Data = m.Data
+		message.DataType = "aio:configured:change_specs"
+		message.Data = map[string]interface{}{
+			"memory":    box.Memory,
+			"diskSpace": box.DiskSpace,
+		}
 		data, ok := (m.Data).(map[string]interface{})
 		if !ok {
 			message.Success = false

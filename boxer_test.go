@@ -391,7 +391,7 @@ func (s *BoxerSuite) TestChangeBoxSpecs(c *C) {
 	c.Assert(message.Id, Equals, "testboxer")
 	c.Assert(message.BoxId, Equals, "1")
 	c.Assert(message.Success, Equals, true)
-	c.Assert(message.DataType, Equals, "aio:configure:change_specs")
+	c.Assert(message.DataType, Equals, "aio:configured:change_specs")
 	data := (message.Data).(map[string]interface{})
 	currentMemory, _ := (data["memory"]).(string)
 	currentDiskSpace, _ := (data["diskSpace"]).(string)
@@ -652,7 +652,7 @@ func (s *BoxerSuite) TestChangeBoxSpecsFail(c *C) {
 
 	c.Assert(message.Type, Equals, "aio:configured")
 	c.Assert(message.Success, Equals, false)
-	c.Assert(message.DataType, Equals, "aio:configure:change_specs")
+	c.Assert(message.DataType, Equals, "aio:configured:change_specs")
 	data := (message.Data).(map[string]interface{})
 	currentMemory, _ := (data["memory"]).(string)
 	currentDiskSpace, _ := (data["diskSpace"]).(string)
@@ -678,4 +678,37 @@ func (s *BoxerSuite) TestChangeBoxSpecsFail(c *C) {
 	// it cant set the new quota
 	newLimit, _ := Quota.ViewLimit("1", "/lxc/disk1")
 	c.Assert(newLimit.Limit, Equals, 1024*1024)
+}
+
+func (s *BoxerSuite) TestChangeBoxSpecsInvalidParams(c *C) {
+	s.Boxer.Receive(Message{
+		Id:         "testboxer",
+		BoxId:      "1",
+		Type:       "aio:create",
+		Name:       "mclovins-container",
+		Runtime:    "test",
+		Memory:     "256M",
+		DiskSpace:  "1024M",
+		PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
+	})
+	defer s.deleteBox("1", "mclovins-container")
+
+	message := s.Boxer.Receive(Message{
+		Id:       "testboxer",
+		BoxId:    "1",
+		Type:     "aio:configure",
+		DataType: "aio:configure:change_specs",
+		Data: map[string]interface{}{
+			"memory":    512,
+			"diskSpace": 2048,
+		},
+		Name: "mclovins-container-1",
+	})
+
+	c.Assert(message.Success, Equals, false)
+	data := (message.Data).(map[string]interface{})
+	currentMemory, _ := (data["memory"]).(string)
+	currentDiskSpace, _ := (data["diskSpace"]).(string)
+	c.Assert(currentMemory, Equals, "256M")
+	c.Assert(currentDiskSpace, Equals, "1024M")
 }
