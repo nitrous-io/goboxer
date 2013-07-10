@@ -20,7 +20,7 @@ var RestartStates []State
 var DestroyStates []State
 
 // set quota as a global variable here so we can replace it later in test
-var Quota quota.QuotaInterface = quota.UserQuota{}
+var Quota quota.QuotaInterface = quota.Quota{}
 
 func init() {
 	handlers = map[string]MessageHandler{
