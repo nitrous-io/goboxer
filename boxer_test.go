@@ -503,8 +503,6 @@ func (s *BoxerSuite) TestInfo(c *C) {
 	c.Assert(message.BoxId, Equals, "1")
 	c.Assert(message.Success, Equals, true)
 
-	c.Assert(message.Info.StorageUsage, Matches, "([0-9]+.*)?")
-	c.Assert(message.Info.MemoryUsage, Matches, "([0-9]+.*)?")
 	c.Assert(message.Info.LxcStatus, Equals, "RUNNING")
 }
 

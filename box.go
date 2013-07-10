@@ -20,9 +20,9 @@ type BoxSpec struct {
 }
 
 type BoxInfo struct {
-	StorageUsage string `json:"storageUsage"`
-	MemoryUsage  string `json:"memoryUsage"`
-	LxcStatus    string `json:"lxcStatus"`
+	StorageUsage float64 `json:"storageUsage"`
+	MemoryUsage  float64 `json:"memoryUsage"`
+	LxcStatus    string  `json:"lxcStatus"`
 }
 
 type Box struct {
@@ -347,8 +347,7 @@ func (b *Box) Info(q quota.QuotaInterface) (BoxInfo, error) {
 	if memoryUsage, err := b.MemoryUsageInBytes(); err != nil {
 		return info, err
 	} else {
-		info.MemoryUsage = strconv.FormatFloat(
-			float64(memoryUsage)/(1024*1024), 'f', 3, 64)
+		info.MemoryUsage = float64(memoryUsage) / (1024 * 1024)
 	}
 	if state, err := b.LxcState(); err != nil {
 		return info, err
@@ -358,8 +357,7 @@ func (b *Box) Info(q quota.QuotaInterface) (BoxInfo, error) {
 	if storageUsage, err := b.StorageUsage(q); err != nil {
 		return info, err
 	} else {
-		info.StorageUsage = strconv.FormatFloat(
-			quota.ScaleUnit(storageUsage, "M"), 'f', 3, 64)
+		info.StorageUsage = quota.ScaleUnit(storageUsage, "M")
 	}
 	return info, nil
 }
