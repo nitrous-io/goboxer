@@ -15,14 +15,14 @@ import (
 const UidStart = 15000
 
 type BoxSpec struct {
-	Memory    string `json:"memory"`
-	DiskSpace string `json:"diskSpace"`
+	Memory    string `json:"memory,omitempty"`
+	DiskSpace string `json:"diskSpace,omitempty"`
 }
 
 type BoxInfo struct {
-	StorageUsage float64 `json:"storageUsage"`
-	MemoryUsage  float64 `json:"memoryUsage"`
-	LxcStatus    string  `json:"lxcStatus"`
+	StorageUsage float64 `json:"storageUsage,omitempty"`
+	MemoryUsage  float64 `json:"memoryUsage,omitempty"`
+	LxcStatus    string  `json:"lxcStatus,omitempty"`
 }
 
 type Box struct {

@@ -69,40 +69,6 @@ func init() {
 	}
 }
 
-// we concat all messages type here and use `Receive` to distribute correct
-// type to correct function for now
-type Message struct {
-	// all messages can have these
-	Id         string            `json:"id"`
-	BoxId      string            `json:"boxId"`
-	Type       string            `json:"type"`
-	ReturnVars map[string]string `json:"returnVars"`
-
-	// for advertise message
-	FreeMemory int      `json:"freeMemory"`
-	Runtimes   []string `json:"runtimes"`
-
-	// for create message
-	// Name is used subsequently in coach message to describe containerName
-	// i.e. 123-testbox
-	Name        string   `json:"name"`
-	Port        int      `json:"port"`
-	Runtime     string   `json:"runtime"`
-	SnapshotURL string   `json:"snapshotURL"`
-	Memory      string   `json:"memory"`
-	DiskSpace   string   `json:"diskSpace"`
-	PublicKeys  []string `json:"publicKeys"`
-	SshKeyPair  []string `json:"sshKeyPair"`
-
-	// for normal message
-	DataType string      `json:"dataType"`
-	Data     interface{} `json:"data"`
-	Success  bool        `json:"success"`
-
-	// For info message
-	Info BoxInfo `json:"info"`
-}
-
 // a handler will receive message and runtime, do some work with it and return
 // a new message
 type MessageHandler func(m Message, boxer *Boxer) Message
