@@ -7,8 +7,7 @@ import (
 
 type CoachListener struct {
 	Boxer        *Boxer
-	BoxerConn    redis.Conn
-	CoachConn    redis.Conn
+	Pool         *redis.Pool
 	BoxerPubSub  redis.PubSubConn
 	BoxerChannel string
 	CoachChannel string
@@ -49,7 +48,7 @@ func (c *CoachListener) Advertise() {
 		c.SendInvalidParam()
 		return
 	}
-	c.CoachConn.Do("PUBLISH", c.CoachChannel, messageJSON)
+	c.replyCoach(messageJSON)
 }
 
 func (c *CoachListener) SendInvalidParam() {
@@ -63,5 +62,7 @@ func (c *CoachListener) SendInvalidParam() {
 }
 
 func (c *CoachListener) replyCoach(msg string) {
-	c.CoachConn.Do("PUBLISH", c.CoachChannel, msg)
+	conn := c.Pool.Get()
+	defer conn.Close()
+	conn.Do("PUBLISH", c.CoachChannel, msg)
 }

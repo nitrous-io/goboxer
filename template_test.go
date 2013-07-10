@@ -21,7 +21,7 @@ func (s *TemplateSuite) TestNetworkTemplate(c *C) {
 		Ip:               "192.168.254.2",
 		Gateway:          "192.168.254.1",
 		NetworkInterface: "br-lxc-254",
-		Port:             "10000",
+		Port:             10000,
 	}
 	tmpFile, _ := ioutil.TempFile("/tmp", "network-template")
 	defer os.Remove(tmpFile.Name())
