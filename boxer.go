@@ -86,7 +86,7 @@ type Message struct {
 	// Name is used subsequently in coach message to describe containerName
 	// i.e. 123-testbox
 	Name        string   `json:"name"`
-	Port        string   `json:"port"`
+	Port        int      `json:"port"`
 	Runtime     string   `json:"runtime"`
 	SnapshotURL string   `json:"snapshotURL"`
 	Memory      string   `json:"memory"`
@@ -218,7 +218,7 @@ func CreateBoxHandler(m Message, boxer *Boxer) Message {
 		Ip:               resource.Ip,
 		Gateway:          resource.Gateway,
 		NetworkInterface: resource.NetworkInterface,
-		Port:             resource.Port,
+		Port:             resource.GetPort(),
 	}
 	box.boxer = boxer
 	if err := boxer.Create(box); !err.Success() {

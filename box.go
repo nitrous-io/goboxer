@@ -20,27 +20,27 @@ type BoxSpec struct {
 }
 
 type BoxInfo struct {
-	StorageUsage string `json:"storageUsage"`
-	MemoryUsage  string `json:"memoryUsage"`
-	LxcStatus    string `json:"lxcStatus"`
+	StorageUsage float64 `json:"storageUsage"`
+	MemoryUsage  float64 `json:"memoryUsage"`
+	LxcStatus    string  `json:"lxcStatus"`
 }
 
 type Box struct {
-	Id               string `json:"id"`
-	Name             string `json:"name"`
-	Template         string `json:"containerTemplate"`
-	Memory           string `json:"memory"`
-	DiskSpace        string `json:"diskSpace"`
-	Ip               string `json:"ip"`
-	Gateway          string `json:"gateway"`
-	NetworkInterface string `json:"interface"`
-	Port             string `json:"port"`
-	BoxerId          string `json:"boxerId"`
-	State            string `json:"containerState"`
-	Disk             string `json:"disk"`
-	Runtime          string
-	SnapshotURL      string
-	PublicKeys       []string
+	Id               string   `json:"id"`
+	Name             string   `json:"name"`
+	Template         string   `json:"containerTemplate"`
+	Memory           string   `json:"memory"`
+	DiskSpace        string   `json:"diskSpace"`
+	Ip               string   `json:"ip"`
+	Gateway          string   `json:"gateway"`
+	NetworkInterface string   `json:"interface"`
+	Port             int      `json:"port"`
+	BoxerId          string   `json:"boxerId"`
+	State            string   `json:"containerState"`
+	Disk             string   `json:"disk"`
+	Runtime          string   `json:"-"`
+	SnapshotURL      string   `json:"-"`
+	PublicKeys       []string `json:"-"`
 	// hold a reference to boxer so that we can access mutex capabilities
 	boxer *Boxer
 }
@@ -212,16 +212,18 @@ func (b *Box) ExtractTemplate() error {
 func (b *Box) SetPortForwarding() error {
 	b.boxer.Lock()
 	defer b.boxer.Unlock()
+	strPort := strconv.Itoa(b.Port)
 	return RunCommand("iptables", "-t", "nat", "-A", "PREROUTING", "-p", "tcp",
-		"--dport", b.Port, "-j", "DNAT", "--to",
+		"--dport", strPort, "-j", "DNAT", "--to",
 		b.Ip+":22")
 }
 
 func (b *Box) UnsetPortForwarding() error {
 	b.boxer.Lock()
 	defer b.boxer.Unlock()
+	strPort := strconv.Itoa(b.Port)
 	return RunCommand("iptables", "-t", "nat", "-D", "PREROUTING", "-p", "tcp",
-		"--dport", b.Port, "-j", "DNAT", "--to", b.Ip+":22")
+		"--dport", strPort, "-j", "DNAT", "--to", b.Ip+":22")
 }
 
 func (b *Box) SetDefaultKeypair() error {
@@ -345,8 +347,7 @@ func (b *Box) Info(q quota.QuotaInterface) (BoxInfo, error) {
 	if memoryUsage, err := b.MemoryUsageInBytes(); err != nil {
 		return info, err
 	} else {
-		info.MemoryUsage = strconv.FormatFloat(
-			float64(memoryUsage)/(1024*1024), 'f', 3, 64)
+		info.MemoryUsage = float64(memoryUsage) / (1024 * 1024)
 	}
 	if state, err := b.LxcState(); err != nil {
 		return info, err
@@ -356,8 +357,7 @@ func (b *Box) Info(q quota.QuotaInterface) (BoxInfo, error) {
 	if storageUsage, err := b.StorageUsage(q); err != nil {
 		return info, err
 	} else {
-		info.StorageUsage = strconv.FormatFloat(
-			quota.ScaleUnit(storageUsage, "M"), 'f', 3, 64)
+		info.StorageUsage = quota.ScaleUnit(storageUsage, "M")
 	}
 	return info, nil
 }

@@ -7,7 +7,8 @@ package goboxer
 import (
 	"encoding/json"
 	"github.com/garyburd/redigo/redis"
-	"sync"
+	"strconv"
+	"time"
 )
 
 type Resource struct {
@@ -17,22 +18,29 @@ type Resource struct {
 	Port             string `json:"port" redis:"port"`
 }
 
+func (r *Resource) GetPort() (port int) {
+	port, err := strconv.Atoi(r.Port)
+	if err != nil {
+		logger.Debugln("Invalid port", r)
+	}
+	return
+}
+
 type ResourcePool struct {
-	Conn redis.Conn
-	sync.Mutex
+	Pool *redis.Pool
 }
 
 func (rp *ResourcePool) Acquire() (resource *Resource, err error) {
-	rp.Lock()
-	defer rp.Unlock()
 	var ip string
 	var resourceValues []interface{}
+	conn := rp.Pool.Get()
+	defer conn.Close()
 
-	if ip, err = redis.String(rp.Conn.Do("BRPOPLPUSH", "aio:available_resources",
+	if ip, err = redis.String(conn.Do("BRPOPLPUSH", "aio:available_resources",
 		"aio:used_resources", 1)); err != nil {
 		return nil, err
 	}
-	if resourceValues, err = redis.Values(rp.Conn.Do("HGETALL",
+	if resourceValues, err = redis.Values(conn.Do("HGETALL",
 		"aio:nwr:"+ip)); err != nil {
 		return nil, err
 	}
@@ -45,10 +53,12 @@ func (rp *ResourcePool) Acquire() (resource *Resource, err error) {
 }
 
 func (rp *ResourcePool) Release(ip string) (err error) {
-	rp.Conn.Send("MULTI")
-	rp.Conn.Send("LREM", "aio:used_resources", 0, ip)
-	rp.Conn.Send("RPUSH", "aio:available_resources", ip)
-	_, err = rp.Conn.Do("EXEC")
+	conn := rp.Pool.Get()
+	defer conn.Close()
+	conn.Send("MULTI")
+	conn.Send("LREM", "aio:used_resources", 0, ip)
+	conn.Send("RPUSH", "aio:available_resources", ip)
+	_, err = conn.Do("EXEC")
 	return err
 }
 
@@ -59,50 +69,44 @@ func (rp *ResourcePool) UpdateState(box *Box, state string) error {
 }
 
 func (rp *ResourcePool) SaveBox(box *Box) error {
-	rp.Lock()
-	defer rp.Unlock()
+	conn := rp.Pool.Get()
+	defer conn.Close()
 	json, err := ToJSON(box)
 	if err != nil {
 		return err
 	}
-	_, err = rp.Conn.Do("HSET", "aio:boxes", box.ContainerName(), json)
+	_, err = conn.Do("HSET", "aio:boxes", box.ContainerName(), json)
 	return err
 }
 
 func (rp *ResourcePool) FindBox(containerName string) (*Box, error) {
-	rp.Lock()
-	defer rp.Unlock()
-	box := &Box{}
-	boxjson, err := redis.Bytes(rp.Conn.Do("HGET", "aio:boxes", containerName))
-	if err != nil {
-		return nil, err
-	}
-	if err := json.Unmarshal([]byte(boxjson), box); err != nil {
-		return nil, err
-	}
-	return box, nil
+	conn := rp.Pool.Get()
+	defer conn.Close()
+	return findBox(containerName, conn)
 }
 
 func (rp *ResourcePool) DeleteBox(box *Box) (err error) {
-	rp.Lock()
-	defer rp.Unlock()
+	conn := rp.Pool.Get()
+	defer conn.Close()
 	if err = rp.Release(box.Ip); err != nil {
 		return
 	}
-	_, err = rp.Conn.Do("HDEL", "aio:boxes", box.ContainerName())
+	_, err = conn.Do("HDEL", "aio:boxes", box.ContainerName())
 	return
 }
 
 // Find all instance of `Box` that has `containerState` equals to `running` in
 // the redis database
 func (rp *ResourcePool) FindRunningBoxes() ([]*Box, error) {
+	conn := rp.Pool.Get()
+	defer conn.Close()
 	var boxes []*Box
-	boxNames, err := rp.getBoxNames()
+	boxNames, err := getBoxNames(conn)
 	if err != nil {
 		return []*Box{}, err
 	}
 	for _, name := range boxNames {
-		box, err := rp.FindBox(name)
+		box, err := findBox(name, conn)
 		if err != nil {
 			return []*Box{}, err
 		}
@@ -113,8 +117,32 @@ func (rp *ResourcePool) FindRunningBoxes() ([]*Box, error) {
 	return boxes, nil
 }
 
-func (rp *ResourcePool) getBoxNames() ([]string, error) {
-	rp.Lock()
-	defer rp.Unlock()
-	return redis.Strings(rp.Conn.Do("HKEYS", "aio:boxes"))
+func NewRedisPool(serverAddr string) *redis.Pool {
+	return &redis.Pool{
+		MaxIdle:     3,
+		IdleTimeout: 240 * time.Second,
+		Dial: func() (redis.Conn, error) {
+			return redis.Dial("tcp", serverAddr)
+		},
+		TestOnBorrow: func(c redis.Conn, t time.Time) error {
+			_, err := c.Do("PING")
+			return err
+		},
+	}
+}
+
+func getBoxNames(conn redis.Conn) ([]string, error) {
+	return redis.Strings(conn.Do("HKEYS", "aio:boxes"))
+}
+
+func findBox(containerName string, conn redis.Conn) (*Box, error) {
+	box := &Box{}
+	boxjson, err := redis.Bytes(conn.Do("HGET", "aio:boxes", containerName))
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal([]byte(boxjson), box); err != nil {
+		return nil, err
+	}
+	return box, nil
 }
