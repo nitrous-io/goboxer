@@ -8,12 +8,18 @@ import (
 	"os"
 )
 
-type Client struct {
-	Auth   aws.Auth
-	Region aws.Region
+type ClientInterface interface {
+	Upload(name, filePath string) (string, error)
 }
 
-func (c *Client) Upload(name, filePath, bucketName string) (err error) {
+type Client struct {
+	Auth       aws.Auth
+	Region     aws.Region
+	BucketName string
+}
+
+// TODO: might make the upload async by using a channel and goroutine here
+func (c *Client) Upload(name, filePath string) (remotePath string, err error) {
 	var file *os.File
 	var info os.FileInfo
 	if file, err = os.Open(filePath); err != nil {
@@ -24,12 +30,17 @@ func (c *Client) Upload(name, filePath, bucketName string) (err error) {
 	}
 
 	s := aws3.New(c.Auth, c.Region)
-	bucket := s.Bucket(bucketName)
-	return bucket.PutReader(name, file, info.Size(), "binary/octet-stream",
+	bucket := s.Bucket(c.BucketName)
+	err = bucket.PutReader(name, file, info.Size(), "binary/octet-stream",
 		aws3.BucketOwnerFull)
+	if err != nil {
+		return
+	}
+	remotePath = fmt.Sprintf("s3://%s/%s", c.BucketName, name)
+	return
 }
 
-func NewClient(accessKey, secretKey, region string) (client *Client, err error) {
+func NewClient(accessKey, secretKey, region, bucketName string) (client *Client, err error) {
 	if accessKey == "" || secretKey == "" || region == "" {
 		err = fmt.Errorf("Empty params detected %s, %s, %s", accessKey,
 			secretKey, region)
@@ -42,5 +53,6 @@ func NewClient(accessKey, secretKey, region string) (client *Client, err error) 
 	}
 	client.Auth = aws.Auth{accessKey, secretKey}
 	client.Region = awsRegion
+	client.BucketName = bucketName
 	return
 }

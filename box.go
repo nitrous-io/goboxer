@@ -53,8 +53,13 @@ func (b *Box) BoxIdFile() string      { return path.Join(b.RootFS(), "etc", "act
 func (b *Box) PublicKeysPath() string { return path.Join(b.RootFS(), "etc", "ssh", "univ_public_keys") }
 func (b *Box) PrivateKeyPath() string { return path.Join("home", "action", ".ssh", "id_rsa") }
 func (b *Box) RootFS() string         { return path.Join(b.Disk, b.ContainerName(), "rootfs") }
+func (b *Box) Home() string           { return path.Join(b.RootFS(), "home", "action") }
 func (b *Box) ContainerFS() string    { return path.Join(b.Disk, b.ContainerName()) }
 func (b *Box) EnvPath() string        { return path.Join(b.RootFS(), "etc", "environment") }
+
+func (b *Box) TarName() string {
+	return fmt.Sprintf("%s-%v.tar.gz", b.ContainerName(), time.Now().Unix())
+}
 
 func (b *Box) ContainerDeltaPath() string {
 	return path.Join(b.Disk, b.ContainerName()+"_delta")
@@ -381,4 +386,11 @@ func (b *Box) RemoveEnv(data []string) (err error) {
 		}
 	}
 	return
+}
+
+// tar the box delta content.
+// This returns the path that we get the compress content, and any errors that
+// we had during the compression
+func (b Box) Tar() (compressedPath string, err error) {
+	return Tar(b.TarName(), b.Home())
 }

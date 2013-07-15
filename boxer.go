@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"github.com/action-io/goboxer/host"
 	"github.com/action-io/goboxer/quota"
+	"github.com/action-io/goboxer/s3"
+	"os"
 	"sync"
 )
 
@@ -18,6 +20,7 @@ var StartStates []State
 var StopStates []State
 var RestartStates []State
 var DestroyStates []State
+var ArchiveStates []State
 
 func init() {
 	handlers = map[string]MessageHandler{
@@ -65,6 +68,11 @@ func init() {
 		State{Name: "RestartMountContainer", Advance: MountContainer, Rollback: Pass},
 		State{Name: "RestartStartContainer", Advance: StartContainer, Rollback: Pass},
 	}
+
+	ArchiveStates = []State{
+		State{Name: "ArchiveStopContainer", Advance: StopContainer, Rollback: Pass},
+		State{Name: "ArchiveUploadArchive", Advance: UploadArchive, Rollback: Pass},
+	}
 }
 
 // a handler will receive message and runtime, do some work with it and return
@@ -81,11 +89,12 @@ type Boxer struct {
 	Runtimes     map[string]string
 	Handles      map[string]MessageHandler
 	Quota        quota.QuotaInterface
+	S3Client     s3.ClientInterface
 }
 
 func NewBoxer(id, root, selectedDisk string, disks []string,
 	runtimes map[string]string, resourcePool *ResourcePool,
-	useProjQuota bool) *Boxer {
+	useProjQuota bool, s3client s3.ClientInterface) *Boxer {
 	boxer := &Boxer{
 		Id:           id,
 		Root:         root,
@@ -94,6 +103,7 @@ func NewBoxer(id, root, selectedDisk string, disks []string,
 		Disks:        disks,
 		Handles:      handlers,
 		ResourcePool: resourcePool,
+		S3Client:     s3client,
 	}
 	if useProjQuota {
 		boxer.Quota = quota.Quota{}
@@ -424,7 +434,44 @@ func InfoRequestBoxHandler(m Message, boxer *Boxer) Message {
 
 // archive a box by compressing its content and then upload to s3
 func ArchiveBoxHandler(m Message, boxer *Boxer) Message {
-	return Message{}
+	box, err := boxer.findBox(m.Name)
+	if err != nil {
+		return boxer.NewInvalidParamMessage()
+	}
+	msg := Message{
+		Type:       "aio:archived",
+		Id:         boxer.Id,
+		BoxId:      box.Id,
+		ReturnVars: m.ReturnVars,
+		Success:    true,
+	}
+	if err := boxer.Archive(box); !err.Success() {
+		logger.Printf("ERROR: Fail to archive box %v, err: %v\n", box, err)
+		msg.Success = false
+	} else {
+		msg.SnapshotURL = box.SnapshotURL
+	}
+	if err := boxer.ResourcePool.UpdateState(box, "stopped"); err != nil {
+		logger.Printf("ERROR: Fail to update box state %v, err: %v\n", box, err)
+		msg.Success = false
+	}
+	return msg
+}
+
+func UploadArchive(c *BoxCommand) (err error) {
+	box := c.Box
+	tarPath, err := box.Tar()
+	if err != nil {
+		return
+	}
+	snapshotURL, err := c.Boxer.S3Client.Upload(box.TarName(), tarPath)
+	// delete the tar path after finishing the upload process success or not
+	os.RemoveAll(tarPath)
+	if err != nil {
+		return
+	}
+	c.Box.SnapshotURL = snapshotURL
+	return
 }
 
 func SetupContainer(c *BoxCommand) error {
@@ -512,6 +559,15 @@ func (boxer *Boxer) Destroy(box *Box) *CommandError {
 		Boxer:  boxer,
 		Box:    box,
 		States: DestroyStates,
+	})
+}
+
+func (boxer *Boxer) Archive(box *Box) *CommandError {
+	return Advance(&BoxCommand{
+		Name:   "Archive",
+		Boxer:  boxer,
+		Box:    box,
+		States: ArchiveStates,
 	})
 }
 

@@ -7,6 +7,7 @@ package goboxer
 
 import (
 	"github.com/action-io/goboxer/quota/quotatest"
+	"github.com/action-io/goboxer/s3"
 	"github.com/garyburd/redigo/redis"
 	. "launchpad.net/gocheck"
 	"os/exec"
@@ -63,6 +64,7 @@ func (s *BoxerSuite) SetUpTest(c *C) {
 		},
 		s.ResourcePool,
 		false,
+		&s3.ClientTest{BucketName: "ap-southeast-1"},
 	)
 }
 
@@ -719,4 +721,33 @@ func (s *BoxerSuite) TestChangeBoxSpecsInvalidParams(c *C) {
 	currentDiskSpace, _ := (data["diskSpace"]).(string)
 	c.Assert(currentMemory, Equals, "256M")
 	c.Assert(currentDiskSpace, Equals, "1024M")
+}
+
+func (s *BoxerSuite) TestArchive(c *C) {
+	s.Boxer.Receive(Message{
+		Id:         "testboxer",
+		BoxId:      "1",
+		Type:       "aio:create",
+		Name:       "mclovins-container",
+		Runtime:    "test",
+		Memory:     "256M",
+		DiskSpace:  "1024M",
+		PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
+	})
+	defer s.deleteBox("1", "mclovins-container")
+
+	message := s.Boxer.Receive(Message{
+		Id:    "testboxer",
+		BoxId: "1",
+		Type:  "aio:archive",
+		Name:  "mclovins-container-1",
+	})
+
+	c.Assert(message.Success, Equals, true)
+	c.Assert(message.Type, Equals, "aio:archived")
+	// should contain the current timestamp
+	c.Assert(message.SnapshotURL, Not(Equals),
+		"s3://ap-southeast-1/mclovins-container-1.tar.gz")
+	c.Assert(strings.Contains(message.SnapshotURL,
+		"s3://ap-southeast-1/mclovins-container-1"), Equals, true)
 }

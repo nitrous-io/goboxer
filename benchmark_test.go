@@ -2,6 +2,7 @@
 package goboxer
 
 import (
+	"github.com/action-io/goboxer/s3"
 	"github.com/garyburd/redigo/redis"
 	. "launchpad.net/gocheck"
 	"strconv"
@@ -66,6 +67,7 @@ func (s *BenchmarkSuite) SetUpTest(c *C) {
 		},
 		s.ResourcePool,
 		false,
+		&s3.ClientTest{BucketName: "ap-southeast-1"},
 	)
 }
 
