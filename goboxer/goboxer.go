@@ -68,6 +68,7 @@ func main() {
 	flBenchmark := flag.Bool("benchmark", false, "Start benchmark mode")
 	flBenchmarkStartAll := flag.Bool("benchmark-start-all", false, "Start benchmark mode for start all")
 	flNumBox := flag.Int("num", 10, "Number of box that will be created in benchmark mode")
+	flUseProjQuota := flag.Bool("use-projquota", false, "Use project quota instead of user quota")
 	flag.Parse()
 	if *flVersion {
 		fmt.Println(version)
@@ -101,6 +102,7 @@ func main() {
 		config.Disks,
 		config.Runtimes,
 		resourcePool,
+		*flUseProjQuota,
 	)
 
 	if *flStartAll {

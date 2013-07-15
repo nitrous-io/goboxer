@@ -65,6 +65,7 @@ func (s *BenchmarkSuite) SetUpTest(c *C) {
 			"test": "test_container_template",
 		},
 		s.ResourcePool,
+		false,
 	)
 }
 

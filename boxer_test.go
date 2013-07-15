@@ -62,6 +62,7 @@ func (s *BoxerSuite) SetUpTest(c *C) {
 			"test": "test_container_template",
 		},
 		s.ResourcePool,
+		false,
 	)
 }
 
@@ -381,7 +382,7 @@ func (s *BoxerSuite) TestChangeBoxSpecs(c *C) {
 		PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
 	})
 	defer s.deleteBox("1", "mclovins-container")
-	limit, _ := Quota.ViewLimit("1", "/lxc/disk1")
+	limit, _ := s.Boxer.Quota.ViewLimit("1", "/lxc/disk1")
 	c.Assert(limit.Limit, Equals, 1024*1024)
 
 	message := s.Boxer.Receive(Message{
@@ -418,7 +419,7 @@ func (s *BoxerSuite) TestChangeBoxSpecs(c *C) {
 	}
 	DoesContain(c, checkContent)
 
-	newLimit, _ := Quota.ViewLimit("1", "/lxc/disk1")
+	newLimit, _ := s.Boxer.Quota.ViewLimit("1", "/lxc/disk1")
 	c.Assert(newLimit.Limit, Equals, 2*1024*1024)
 
 	s.assertBoxState(c, "mclovins-container-1", "running")
@@ -638,12 +639,12 @@ func (s *BoxerSuite) TestChangeBoxSpecsFail(c *C) {
 		PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
 	})
 	defer s.deleteBox("1", "mclovins-container")
-	limit, _ := Quota.ViewLimit("1", "/lxc/disk1")
+	limit, _ := s.Boxer.Quota.ViewLimit("1", "/lxc/disk1")
 	c.Assert(limit.Limit, Equals, 1024*1024)
 
 	// swap Quota with FailQuota so all quota calls will return errors
-	oldQuota := Quota
-	Quota = quotatest.FailQuota{}
+	oldQuota := s.Boxer.Quota
+	s.Boxer.Quota = quotatest.FailQuota{}
 
 	message := s.Boxer.Receive(Message{
 		Id:       "testboxer",
@@ -670,7 +671,7 @@ func (s *BoxerSuite) TestChangeBoxSpecsFail(c *C) {
 
 	// Swap back the original Quota so the next test that uses Quota will be
 	// normal
-	Quota = oldQuota
+	s.Boxer.Quota = oldQuota
 
 	// it still sets the new memory
 	root := "/lxc/disk1/mclovins-container-1"
@@ -683,7 +684,7 @@ func (s *BoxerSuite) TestChangeBoxSpecsFail(c *C) {
 	DoesContain(c, checkContent)
 
 	// it cant set the new quota
-	newLimit, _ := Quota.ViewLimit("1", "/lxc/disk1")
+	newLimit, _ := s.Boxer.Quota.ViewLimit("1", "/lxc/disk1")
 	c.Assert(newLimit.Limit, Equals, 1024*1024)
 }
 
