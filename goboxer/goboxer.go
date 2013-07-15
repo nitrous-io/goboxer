@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/action-io/goboxer"
+	"github.com/action-io/goboxer/s3"
 	"github.com/garyburd/redigo/redis"
 	"io/ioutil"
 	"os"
@@ -30,9 +31,9 @@ type Config struct {
 	PingHost       string            `json:"pingHost"`
 	PingPort       string            `json:"pingPort"`
 	AWSAccessKey   string            `json:"awsAccessKey"`
-	AWSSecretKey   string            `json:awsSecretKey`
-	AWSRegion      string            `json:awsRegion`
-	AWSBucket      string            `json:awsBucket`
+	AWSSecretKey   string            `json:"awsSecretKey"`
+	AWSRegion      string            `json:"awsRegion"`
+	AWSBucket      string            `json:"awsBucket"`
 }
 
 func (c Config) RedisMQAddr() string {
@@ -99,6 +100,13 @@ func main() {
 		Pool: goboxer.NewRedisPool(config.RedisStoreAddr()),
 	}
 
+	s3Client, err := s3.NewClient(config.AWSAccessKey, config.AWSSecretKey,
+		config.AWSRegion, config.AWSBucket)
+	if err != nil {
+		panic(err)
+		os.Exit(1)
+	}
+
 	boxer := goboxer.NewBoxer(
 		config.Id,
 		"/var/lib/lxc",
@@ -107,6 +115,7 @@ func main() {
 		config.Runtimes,
 		resourcePool,
 		*flUseProjQuota,
+		s3Client,
 	)
 
 	if *flStartAll {
