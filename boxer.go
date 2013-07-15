@@ -19,9 +19,6 @@ var StopStates []State
 var RestartStates []State
 var DestroyStates []State
 
-// set quota as a global variable here so we can replace it later in test
-var Quota quota.QuotaInterface = quota.UserQuota{}
-
 func init() {
 	handlers = map[string]MessageHandler{
 		"aio:locate":       logger.LogHandler("aio:locate", LocateBoxHandler),
@@ -82,11 +79,13 @@ type Boxer struct {
 	ResourcePool *ResourcePool
 	Runtimes     map[string]string
 	Handles      map[string]MessageHandler
+	Quota        quota.QuotaInterface
 }
 
 func NewBoxer(id, root, selectedDisk string, disks []string,
-	runtimes map[string]string, resourcePool *ResourcePool) *Boxer {
-	return &Boxer{
+	runtimes map[string]string, resourcePool *ResourcePool,
+	useProjQuota bool) *Boxer {
+	boxer := &Boxer{
 		Id:           id,
 		Root:         root,
 		Runtimes:     runtimes,
@@ -95,6 +94,12 @@ func NewBoxer(id, root, selectedDisk string, disks []string,
 		Handles:      handlers,
 		ResourcePool: resourcePool,
 	}
+	if useProjQuota {
+		boxer.Quota = quota.Quota{}
+	} else {
+		boxer.Quota = quota.UserQuota{}
+	}
+	return boxer
 }
 
 // return back a slice of keys for the runtimes
@@ -351,7 +356,7 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 			message.Success = false
 			return message
 		}
-		err := box.ChangeSpec(spec, Quota)
+		err := box.ChangeSpec(spec, boxer.Quota)
 		message.Data = map[string]interface{}{
 			"memory":    box.Memory,
 			"diskSpace": box.DiskSpace,
@@ -406,7 +411,7 @@ func InfoRequestBoxHandler(m Message, boxer *Boxer) Message {
 		BoxId:      box.Id,
 		ReturnVars: m.ReturnVars,
 	}
-	info, err := box.Info(Quota)
+	info, err := box.Info(boxer.Quota)
 	if err != nil {
 		message.Success = false
 		return message
@@ -450,8 +455,8 @@ func SetupContainer(c *BoxCommand) error {
 
 func MountContainer(c *BoxCommand) error      { return c.Box.Mount(c.Boxer.Root) }
 func UnmountContainer(c *BoxCommand) error    { return c.Box.Unmount(c.Boxer.Root) }
-func SetQuota(c *BoxCommand) error            { return c.Box.SetQuota(Quota) }
-func UnsetQuota(c *BoxCommand) error          { return c.Box.UnsetQuota(Quota) }
+func SetQuota(c *BoxCommand) error            { return c.Box.SetQuota(c.Boxer.Quota) }
+func UnsetQuota(c *BoxCommand) error          { return c.Box.UnsetQuota(c.Boxer.Quota) }
 func SetPortForwarding(c *BoxCommand) error   { return c.Box.SetPortForwarding() }
 func UnsetPortForwarding(c *BoxCommand) error { return c.Box.UnsetPortForwarding() }
 func StartContainer(c *BoxCommand) error      { return c.Box.StartContainer() }
