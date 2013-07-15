@@ -10,6 +10,10 @@
   "redisStorePort": "6379",
   "pingHost": "127.0.0.1",
   "pingPort": "1339",
+  "awsAccessKey": "sample_access_key",
+  "awsSecretKey": "sample_secret_key",
+  "awsRegion": "sample_region",
+  "awsBucket": "sample_bucket",
   "runtimes": {
     "rails": "ruby_template",
     "nodejs": "nodejs_template",

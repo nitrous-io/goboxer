@@ -24,4 +24,3 @@
 - lxc
 - redigo
 - gocheck
-- s3cmd

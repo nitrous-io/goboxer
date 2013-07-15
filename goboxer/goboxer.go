@@ -29,6 +29,10 @@ type Config struct {
 	Runtimes       map[string]string `json:"runtimes"`
 	PingHost       string            `json:"pingHost"`
 	PingPort       string            `json:"pingPort"`
+	AWSAccessKey   string            `json:"awsAccessKey"`
+	AWSSecretKey   string            `json:awsSecretKey`
+	AWSRegion      string            `json:awsRegion`
+	AWSBucket      string            `json:awsBucket`
 }
 
 func (c Config) RedisMQAddr() string {
