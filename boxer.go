@@ -29,6 +29,7 @@ func init() {
 		"aio:destroy":      logger.LogHandler("aio:destroy", DestroyBoxHandler),
 		"aio:configure":    logger.LogHandler("aio:configure", ConfigureBoxHandler),
 		"aio:info_request": logger.LogHandler("aio:info_request", InfoRequestBoxHandler),
+		"aio:archive":      logger.LogHandler("aio:archive", ArchiveBoxHandler),
 	}
 
 	CreateStates = []State{
@@ -419,6 +420,11 @@ func InfoRequestBoxHandler(m Message, boxer *Boxer) Message {
 	message.Info = info
 	message.Success = true
 	return message
+}
+
+// archive a box by compressing its content and then upload to s3
+func ArchiveBoxHandler(m Message, boxer *Boxer) Message {
+	return Message{}
 }
 
 func SetupContainer(c *BoxCommand) error {
