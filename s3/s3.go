@@ -51,8 +51,10 @@ func NewClient(accessKey, secretKey, region, bucketName string) (client *Client,
 		err = fmt.Errorf("Invalid region: %s", region)
 		return
 	}
-	client.Auth = aws.Auth{accessKey, secretKey}
-	client.Region = awsRegion
-	client.BucketName = bucketName
+	client = &Client{
+		Auth:       aws.Auth{AccessKey: accessKey, SecretKey: secretKey},
+		Region:     awsRegion,
+		BucketName: bucketName,
+	}
 	return
 }
