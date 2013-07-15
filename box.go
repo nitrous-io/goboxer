@@ -105,13 +105,13 @@ func (b *Box) SetQuota(q quota.QuotaInterface) error {
 	defer logger.LogDuration(
 		fmt.Sprintf("%s:SetQuota", b.ContainerName()),
 	)(time.Now())
-	return q.SetLimit(b.Id, b.Disk, b.DiskSpace)
+	return q.SetLimit(b.Id, b.ContainerName(), b.HomePath(), b.Disk, b.DiskSpace)
 }
 
 func (b *Box) UnsetQuota(q quota.QuotaInterface) error {
 	b.boxer.Lock()
 	defer b.boxer.Unlock()
-	return q.RemoveLimit(b.Id, b.Disk)
+	return q.RemoveLimit(b.Id, b.ContainerName(), b.HomePath(), b.Disk)
 }
 
 func (b *Box) ChangeSpec(spec *BoxSpec, q quota.QuotaInterface) error {
