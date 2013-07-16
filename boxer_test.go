@@ -723,7 +723,7 @@ func (s *BoxerSuite) TestChangeBoxSpecsInvalidParams(c *C) {
 	c.Assert(currentDiskSpace, Equals, "1024M")
 }
 
-func (s *BoxerSuite) TestArchive(c *C) {
+func (s *BoxerSuite) TestSnapshot(c *C) {
 	s.Boxer.Receive(Message{
 		Id:         "testboxer",
 		BoxId:      "1",
@@ -739,12 +739,12 @@ func (s *BoxerSuite) TestArchive(c *C) {
 	message := s.Boxer.Receive(Message{
 		Id:    "testboxer",
 		BoxId: "1",
-		Type:  "aio:archive",
+		Type:  "aio:snapshot",
 		Name:  "mclovins-container-1",
 	})
 
 	c.Assert(message.Success, Equals, true)
-	c.Assert(message.Type, Equals, "aio:archived")
+	c.Assert(message.Type, Equals, "aio:snapshotted")
 	// should contain the current timestamp
 	c.Assert(message.SnapshotURL, Not(Equals),
 		"s3://ap-southeast-1/mclovins-container-1.tar.gz")
