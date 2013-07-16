@@ -20,7 +20,7 @@ var StartStates []State
 var StopStates []State
 var RestartStates []State
 var DestroyStates []State
-var ArchiveStates []State
+var SnapshotStates []State
 
 func init() {
 	handlers = map[string]MessageHandler{
@@ -32,7 +32,7 @@ func init() {
 		"aio:destroy":      logger.LogHandler("aio:destroy", DestroyBoxHandler),
 		"aio:configure":    logger.LogHandler("aio:configure", ConfigureBoxHandler),
 		"aio:info_request": logger.LogHandler("aio:info_request", InfoRequestBoxHandler),
-		"aio:archive":      logger.LogHandler("aio:archive", ArchiveBoxHandler),
+		"aio:snapshot":     logger.LogHandler("aio:snapshot", SnapshotBoxHandler),
 	}
 
 	CreateStates = []State{
@@ -69,9 +69,9 @@ func init() {
 		State{Name: "RestartStartContainer", Advance: StartContainer, Rollback: Pass},
 	}
 
-	ArchiveStates = []State{
-		State{Name: "ArchiveStopContainer", Advance: StopContainer, Rollback: Pass},
-		State{Name: "ArchiveUploadArchive", Advance: UploadArchive, Rollback: Pass},
+	SnapshotStates = []State{
+		State{Name: "SnapshotStopContainer", Advance: StopContainer, Rollback: Pass},
+		State{Name: "SnapshotUploadSnapshot", Advance: UploadSnapshot, Rollback: Pass},
 	}
 }
 
@@ -453,21 +453,21 @@ func InfoRequestBoxHandler(m Message, boxer *Boxer) Message {
 	return message
 }
 
-// archive a box by compressing its content and then upload to s3
-func ArchiveBoxHandler(m Message, boxer *Boxer) Message {
+// snapshot a box by compressing its content and then upload to s3
+func SnapshotBoxHandler(m Message, boxer *Boxer) Message {
 	box, err := boxer.findBox(m.Name)
 	if err != nil {
 		return boxer.NewInvalidParamMessage()
 	}
 	msg := Message{
-		Type:       "aio:archived",
+		Type:       "aio:snapshotted",
 		Id:         boxer.Id,
 		BoxId:      box.Id,
 		ReturnVars: m.ReturnVars,
 		Success:    true,
 	}
-	if err := boxer.Archive(box); !err.Success() {
-		logger.Printf("ERROR: Fail to archive box %v, err: %v\n", box, err)
+	if err := boxer.Snapshot(box); !err.Success() {
+		logger.Printf("ERROR: Fail to snapshot box %v, err: %v\n", box, err)
 		msg.Success = false
 	} else {
 		msg.SnapshotURL = box.SnapshotURL
@@ -479,7 +479,7 @@ func ArchiveBoxHandler(m Message, boxer *Boxer) Message {
 	return msg
 }
 
-func UploadArchive(c *BoxCommand) (err error) {
+func UploadSnapshot(c *BoxCommand) (err error) {
 	box := c.Box
 	tarPath, err := box.Tar()
 	if err != nil {
@@ -583,12 +583,12 @@ func (boxer *Boxer) Destroy(box *Box) *CommandError {
 	})
 }
 
-func (boxer *Boxer) Archive(box *Box) *CommandError {
+func (boxer *Boxer) Snapshot(box *Box) *CommandError {
 	return Advance(&BoxCommand{
-		Name:   "Archive",
+		Name:   "Snapshot",
 		Boxer:  boxer,
 		Box:    box,
-		States: ArchiveStates,
+		States: SnapshotStates,
 	})
 }
 
