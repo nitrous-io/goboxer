@@ -35,7 +35,6 @@ func UntarStream(archive io.ReadCloser, path string) error {
 	if archive == nil {
 		return fmt.Errorf("Empty archive")
 	}
-	logger.Println(archive)
 	cmd := exec.Command("tar", "--numeric-owner", "-xzSpf", "-", "-C", path)
 	cmd.Stdin = archive
 	// Hardcode locale environment for predictable outcome regardless of host configuration.
