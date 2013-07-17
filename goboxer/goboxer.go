@@ -108,7 +108,7 @@ func main() {
 	if *flStartAll {
 		fmt.Println("Starting all containers ...")
 		if err := boxer.Init(); err != nil {
-			fmt.Println("Failed to start all boxes: %v", err)
+			fmt.Println("Failed to start all boxes", err)
 			os.Exit(-1)
 			return
 		}
