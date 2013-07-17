@@ -10,10 +10,7 @@ import (
 	"github.com/action-io/goboxer/host"
 	"github.com/action-io/goboxer/quota"
 	"github.com/action-io/goboxer/s3"
-	"net/url"
 	"os"
-	"path"
-	"path/filepath"
 	"sync"
 )
 
@@ -597,24 +594,7 @@ func SetupContainer(c *BoxCommand) error {
 func MigrateContainer(c *BoxCommand) error {
 	box := c.Box
 	boxer := c.Boxer
-	// parse snapshot url which should be an s3 path
-	url, err := url.Parse(box.SnapshotURL)
-	if err != nil {
-		return err
-	}
-	regionStr := url.Host
-	bucketStr := filepath.Dir(url.Path)
-	bucketStr = bucketStr[1:len(bucketStr)] // remove / from bucketname
-	fileName := filepath.Base(url.Path)
-
-	client, err := boxer.S3Auth.NewClient(regionStr, bucketStr)
-	stream, err := client.Download(fileName)
-	if err != nil {
-		return err
-	}
-	boxDeltaPath := path.Join(box.Disk, box.ContainerName()+"_delta")
-	boxDeltaHomePath := path.Join(boxDeltaPath, "rootfs", "home", "action")
-	if err := UntarStream(stream, boxDeltaHomePath); err != nil {
+	if err := box.CloneSnapshot(boxer.S3Auth); err != nil {
 		return err
 	}
 	if err := box.WriteConfig(); err != nil {
