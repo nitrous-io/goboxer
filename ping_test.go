@@ -46,5 +46,5 @@ func (s *PingSuite) TestPingFail(c *C) {
 	defer storeConn.Close()
 	defer ts.Close()
 	res, _ := http.Get(ts.URL)
-	logger.Debugln(res.StatusCode, Equals, 500)
+	c.Assert(res.StatusCode, Equals, 500)
 }
