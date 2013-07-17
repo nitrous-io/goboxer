@@ -100,13 +100,6 @@ func main() {
 		Pool: goboxer.NewRedisPool(config.RedisStoreAddr()),
 	}
 
-	s3Client, err := s3.NewClient(config.AWSAccessKey, config.AWSSecretKey,
-		config.AWSRegion, config.AWSBucket)
-	if err != nil {
-		panic(err)
-		os.Exit(1)
-	}
-
 	boxer := goboxer.NewBoxer(
 		config.Id,
 		"/var/lib/lxc",
@@ -115,7 +108,9 @@ func main() {
 		config.Runtimes,
 		resourcePool,
 		*flUseProjQuota,
-		s3Client,
+		s3.Auth{config.AWSAccessKey, config.AWSSecretKey},
+		config.AWSRegion,
+		config.AWSBucket,
 	)
 
 	if *flStartAll {

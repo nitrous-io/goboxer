@@ -67,7 +67,9 @@ func (s *BenchmarkSuite) SetUpTest(c *C) {
 		},
 		s.ResourcePool,
 		false,
-		&s3.ClientTest{BucketName: "ap-southeast-1"},
+		s3.AuthTest{},
+		"region",
+		"bucket",
 	)
 }
 
