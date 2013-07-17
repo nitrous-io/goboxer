@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/action-io/goboxer/lxc"
 	"github.com/action-io/goboxer/quota"
+	"github.com/action-io/goboxer/s3"
 	"os"
 	"path"
 	"strconv"
@@ -393,4 +394,28 @@ func (b *Box) RemoveEnv(data []string) (err error) {
 // we had during the compression
 func (b Box) Tar() (compressedPath string, err error) {
 	return Tar(b.TarName(), b.Home())
+}
+
+// given a stream of compressed content (usually being download from s3 ),
+// we extract the content to home directory of the user
+func (b Box) CloneSnapshot(auth s3.AuthInterface) (err error) {
+	if !(len(b.SnapshotURL) > 0) {
+		return fmt.Errorf("Invalid snapshot URL: %s", b.SnapshotURL)
+	}
+	// parse snapshot url which should be an s3 path
+	url, err := s3.ParseUrl(b.SnapshotURL)
+	if err != nil {
+		return
+	}
+
+	client, err := auth.NewClient(url.Region, url.Bucket)
+	if err != nil {
+		return
+	}
+	stream, err := client.Download(url.File)
+	if err != nil {
+		return err
+	}
+	boxDeltaHomePath := path.Join(b.ContainerDeltaPath(), "rootfs", "home", "action")
+	return UntarStream(stream, boxDeltaHomePath)
 }
