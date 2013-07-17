@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"github.com/garyburd/redigo/redis"
 	"strconv"
-	"time"
 )
 
 type Resource struct {
@@ -115,20 +114,6 @@ func (rp *ResourcePool) FindRunningBoxes() ([]*Box, error) {
 		}
 	}
 	return boxes, nil
-}
-
-func NewRedisPool(serverAddr string) *redis.Pool {
-	return &redis.Pool{
-		MaxIdle:     3,
-		IdleTimeout: 240 * time.Second,
-		Dial: func() (redis.Conn, error) {
-			return redis.Dial("tcp", serverAddr)
-		},
-		TestOnBorrow: func(c redis.Conn, t time.Time) error {
-			_, err := c.Do("PING")
-			return err
-		},
-	}
 }
 
 func getBoxNames(conn redis.Conn) ([]string, error) {
