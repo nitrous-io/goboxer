@@ -21,7 +21,6 @@ var StopStates []State
 var RestartStates []State
 var DestroyStates []State
 var SnapshotStates []State
-var MigrateStates []State
 
 func init() {
 	handlers = map[string]MessageHandler{
@@ -74,13 +73,6 @@ func init() {
 	SnapshotStates = []State{
 		State{Name: "SnapshotStopContainer", Advance: StopContainer, Rollback: Pass},
 		State{Name: "SnapshotUploadSnapshot", Advance: UploadSnapshot, Rollback: Pass},
-	}
-
-	MigrateStates = []State{
-		State{Name: "MigrateMountContainer", Advance: MountContainer, Rollback: UnmountContainer},
-		State{Name: "MigrateSetupContainer", Advance: MigrateContainer, Rollback: Pass},
-		State{Name: "MigrateSetQuota", Advance: SetQuota, Rollback: UnsetQuota},
-		State{Name: "MigrateSetPortForwarding", Advance: SetPortForwarding, Rollback: UnsetPortForwarding},
 	}
 }
 
@@ -502,7 +494,7 @@ func MigrateBoxHandler(m Message, boxer *Boxer) Message {
 	}
 	box.boxer = boxer
 	if err := boxer.Migrate(box); !err.Success() {
-		logger.Printf("ERROR: Fail to create %v, err: %v\n", box, err)
+		logger.Printf("ERROR: Fail to migrate %v, err: %v\n", box, err)
 		boxer.ResourcePool.Release(resource.Ip)
 		msg.Success = false
 		return msg
@@ -540,9 +532,6 @@ func UploadSnapshot(c *BoxCommand) (err error) {
 
 func SetupContainer(c *BoxCommand) error {
 	box := c.Box
-	if err := box.ExtractTemplate(); err != nil {
-		return err
-	}
 	if err := box.WriteConfig(); err != nil {
 		return err
 	}
@@ -552,40 +541,7 @@ func SetupContainer(c *BoxCommand) error {
 	if err := box.SetNetworkConfig(); err != nil {
 		return err
 	}
-	if err := box.SetWorkspace(); err != nil {
-		return err
-	}
-	if err := box.SetDefaultKeypair(); err != nil {
-		return err
-	}
-	if err := box.SetPermission(); err != nil {
-		return err
-	}
-	if err := box.SetBoxId(); err != nil {
-		return err
-	}
-	if err := box.SetPublicKeys(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func MigrateContainer(c *BoxCommand) error {
-	box := c.Box
-	boxer := c.Boxer
-	if err := box.CloneSnapshot(boxer.S3Auth); err != nil {
-		return err
-	}
-	if err := box.WriteConfig(); err != nil {
-		return err
-	}
-	if err := box.SetHostname(); err != nil {
-		return err
-	}
-	if err := box.SetNetworkConfig(); err != nil {
-		return err
-	}
-	if err := box.SetPermission(); err != nil {
+	if err := box.SetupHome(c.Boxer.S3Auth); err != nil {
 		return err
 	}
 	if err := box.SetBoxId(); err != nil {
@@ -667,7 +623,7 @@ func (boxer *Boxer) Migrate(box *Box) *CommandError {
 		Name:   "Migrate",
 		Boxer:  boxer,
 		Box:    box,
-		States: MigrateStates,
+		States: CreateStates,
 	})
 }
 
