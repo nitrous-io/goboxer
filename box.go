@@ -47,7 +47,6 @@ type Box struct {
 }
 
 func (b *Box) ContainerName() string { return fmt.Sprintf("%s-%s", b.Name, b.Id) }
-func (b *Box) TemplatePath() string  { return b.Template + ".tar.gz" }
 func (b *Box) SetPublicKeys() error  { return b.AddPublicKey(b.PublicKeys...) }
 
 func (b *Box) BoxIdFile() string      { return path.Join(b.RootFS(), "etc", "action", "box_id") }
@@ -148,32 +147,6 @@ func (b *Box) WriteConfig() error {
 	return LxcTemplateCompiled.Execute(lxcConfig, b)
 }
 
-func (b *Box) SetPermission() error {
-	defer logger.LogDuration(
-		fmt.Sprintf("%s:SetPermission", b.ContainerName()),
-	)(time.Now())
-	uid := b.Uid()
-	gid := b.Gid()
-	permission := fmt.Sprintf("%s:%s", b.Uid(), b.Gid())
-	if err := RunCommand("chroot", b.RootFS(), "usermod", "-u", uid, "action"); err != nil {
-		return err
-	}
-	if err := RunCommand("chroot", b.RootFS(), "groupmod", "-g", gid, "action"); err != nil {
-		return err
-	}
-	return RunCommand("chroot", b.RootFS(), "chown", "-R", permission, "/home/action")
-}
-
-func (b *Box) SetWorkspace() error {
-	workspacePath := path.Join(b.RootFS(), "home", "action", "workspace")
-	if err := os.MkdirAll(workspacePath, 0755); err != nil {
-		return err
-	}
-	permission := fmt.Sprintf("%s:%s", b.Uid(), b.Gid())
-	return RunCommand("chroot", b.RootFS(), "chown", "-R", permission,
-		"/home/action/workspace")
-}
-
 func (b *Box) SetBoxId() error {
 	boxIdFile, err := os.Create(b.BoxIdFile())
 	if err != nil {
@@ -205,16 +178,6 @@ func (b *Box) SetHostname() error {
 	return err
 }
 
-func (b *Box) ExtractTemplate() error {
-	defer logger.LogDuration(
-		fmt.Sprintf("%s:ExtractTemplate", b.ContainerName()),
-	)(time.Now())
-	boxDeltaPath := path.Join(b.Disk, b.ContainerName()+"_delta")
-	boxDeltaHomePath := path.Join(boxDeltaPath, "rootfs", "home", "action")
-	homeDataPath := path.Join(b.Disk, b.TemplatePath())
-	return Untar(homeDataPath, boxDeltaHomePath)
-}
-
 func (b *Box) SetPortForwarding() error {
 	b.boxer.Lock()
 	defer b.boxer.Unlock()
@@ -230,27 +193,6 @@ func (b *Box) UnsetPortForwarding() error {
 	strPort := strconv.Itoa(b.Port)
 	return RunCommand("iptables", "-t", "nat", "-D", "PREROUTING", "-p", "tcp",
 		"--dport", strPort, "-j", "DNAT", "--to", b.Ip+":22")
-}
-
-func (b *Box) SetDefaultKeypair() error {
-	sshPath := path.Join(b.RootFS(), "home", "action", ".ssh")
-	sshKeyFile := path.Join(b.RootFS(), b.PrivateKeyPath())
-	if err := os.MkdirAll(sshPath, 0755); err != nil {
-		return err
-	}
-	if _, err := os.Stat(sshKeyFile); os.IsNotExist(err) {
-		sshKeygen := fmt.Sprintf("ssh-keygen -N '' -f %s -b 1024 -t rsa -q",
-			sshKeyFile)
-		if err := RunCommand("/bin/sh", "-c", sshKeygen); err != nil {
-			return err
-		}
-	} else {
-		return err
-	}
-
-	permission := fmt.Sprintf("%s:%s", b.Uid(), b.Gid())
-	return RunCommand("chroot", b.RootFS(), "chown", "-R", permission,
-		"/home/action/.ssh")
 }
 
 func (b *Box) StopContainer() error {
@@ -400,26 +342,87 @@ func (b Box) Tar() (compressedPath string, err error) {
 	return Tar(b.TarName(), b.Home())
 }
 
-// given a stream of compressed content (usually being download from s3 ),
-// we extract the content to home directory of the user
-func (b Box) CloneSnapshot(auth s3.AuthInterface) (err error) {
-	if !(len(b.SnapshotURL) > 0) {
-		return fmt.Errorf("Invalid snapshot URL: %s", b.SnapshotURL)
-	}
-	// parse snapshot url which should be an s3 path
-	url, err := s3.ParseUrl(b.SnapshotURL)
-	if err != nil {
-		return
-	}
+// if the box has SnapshotURL, then we use that to populate the home directory,
+// otherwise, we use Runtime to get a base on which we do more interesting
+// things such as setting up keys, workspace etc
+func (b Box) SetupHome(auth s3.AuthInterface) error {
+	defer logger.LogDuration(
+		fmt.Sprintf("%s:SetupHome", b.ContainerName()),
+	)(time.Now())
 
-	client, err := auth.NewClient(url.Region, url.Bucket)
-	if err != nil {
-		return
+	if len(b.SnapshotURL) > 0 {
+		// parse snapshot url which should be an s3 path
+		url, err := s3.ParseUrl(b.SnapshotURL)
+		if err != nil {
+			return err
+		}
+		client, err := auth.NewClient(url.Region, url.Bucket)
+		if err != nil {
+			return err
+		}
+		stream, err := client.Download(url.File)
+		if err != nil {
+			return err
+		}
+		boxDeltaHomePath := path.Join(b.ContainerDeltaPath(), "rootfs", "home", "action")
+		if err := UntarStream(stream, boxDeltaHomePath); err != nil {
+			return nil
+		}
+	} else {
+		templatePath := b.Template + ".tar.gz"
+		boxDeltaHomePath := path.Join(b.ContainerDeltaPath(), "rootfs", "home", "action")
+		homeDataPath := path.Join(b.Disk, templatePath)
+		if err := Untar(homeDataPath, boxDeltaHomePath); err != nil {
+			return err
+		}
+		if err := b.setWorkspace(); err != nil {
+			return err
+		}
+		if err := b.setDefaultKeypair(); err != nil {
+			return err
+		}
 	}
-	stream, err := client.Download(url.File)
-	if err != nil {
+	return b.setPermission()
+}
+
+// set correct permission to user home folder.
+// This is necessary because the permission comes with overlay folders are
+// incorrect
+func (b *Box) setPermission() error {
+	defer logger.LogDuration(
+		fmt.Sprintf("%s:SetPermission", b.ContainerName()),
+	)(time.Now())
+	uid := b.Uid()
+	gid := b.Gid()
+	permission := fmt.Sprintf("%s:%s", b.Uid(), b.Gid())
+	if err := RunCommand("chroot", b.RootFS(), "usermod", "-u", uid, "action"); err != nil {
 		return err
 	}
-	boxDeltaHomePath := path.Join(b.ContainerDeltaPath(), "rootfs", "home", "action")
-	return UntarStream(stream, boxDeltaHomePath)
+	if err := RunCommand("chroot", b.RootFS(), "groupmod", "-g", gid, "action"); err != nil {
+		return err
+	}
+	return RunCommand("chroot", b.RootFS(), "chown", "-R", permission, "/home/action")
+}
+
+// create a workspace folder for home directory
+func (b *Box) setWorkspace() error {
+	workspacePath := path.Join(b.RootFS(), "home", "action", "workspace")
+	return os.MkdirAll(workspacePath, 0755)
+}
+
+// set default keypair for a new box. This generally should only be called when
+// the box is newly setup from a preconfigured runtime
+func (b *Box) setDefaultKeypair() error {
+	sshPath := path.Join(b.RootFS(), "home", "action", ".ssh")
+	sshKeyFile := path.Join(b.RootFS(), b.PrivateKeyPath())
+	if err := os.MkdirAll(sshPath, 0755); err != nil {
+		return err
+	}
+	if _, err := os.Stat(sshKeyFile); os.IsNotExist(err) {
+		sshKeygen := fmt.Sprintf("ssh-keygen -N '' -f %s -b 1024 -t rsa -q",
+			sshKeyFile)
+		return RunCommand("/bin/sh", "-c", sshKeygen)
+	} else {
+		return err
+	}
 }
