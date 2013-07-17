@@ -10,7 +10,10 @@ import (
 	"github.com/action-io/goboxer/host"
 	"github.com/action-io/goboxer/quota"
 	"github.com/action-io/goboxer/s3"
+	"net/url"
 	"os"
+	"path"
+	"path/filepath"
 	"sync"
 )
 
@@ -21,6 +24,7 @@ var StopStates []State
 var RestartStates []State
 var DestroyStates []State
 var SnapshotStates []State
+var MigrateStates []State
 
 func init() {
 	handlers = map[string]MessageHandler{
@@ -33,6 +37,7 @@ func init() {
 		"aio:configure":    logger.LogHandler("aio:configure", ConfigureBoxHandler),
 		"aio:info_request": logger.LogHandler("aio:info_request", InfoRequestBoxHandler),
 		"aio:snapshot":     logger.LogHandler("aio:snapshot", SnapshotBoxHandler),
+		"aio:migrate":      logger.LogHandler("aio:migrate", MigrateBoxHandler),
 	}
 
 	CreateStates = []State{
@@ -73,6 +78,13 @@ func init() {
 		State{Name: "SnapshotStopContainer", Advance: StopContainer, Rollback: Pass},
 		State{Name: "SnapshotUploadSnapshot", Advance: UploadSnapshot, Rollback: Pass},
 	}
+
+	MigrateStates = []State{
+		State{Name: "MigrateMountContainer", Advance: MountContainer, Rollback: UnmountContainer},
+		State{Name: "MigrateSetupContainer", Advance: MigrateContainer, Rollback: Pass},
+		State{Name: "MigrateSetQuota", Advance: SetQuota, Rollback: UnsetQuota},
+		State{Name: "MigrateSetPortForwarding", Advance: SetPortForwarding, Rollback: UnsetPortForwarding},
+	}
 }
 
 // a handler will receive message and runtime, do some work with it and return
@@ -89,12 +101,15 @@ type Boxer struct {
 	Runtimes     map[string]string
 	Handles      map[string]MessageHandler
 	Quota        quota.QuotaInterface
-	S3Client     s3.ClientInterface
+	S3Auth       s3.AuthInterface
+	S3Region     string
+	S3Bucket     string
 }
 
 func NewBoxer(id, root, selectedDisk string, disks []string,
 	runtimes map[string]string, resourcePool *ResourcePool,
-	useProjQuota bool, s3client s3.ClientInterface) *Boxer {
+	useProjQuota bool, s3auth s3.AuthInterface, region string,
+	bucket string) *Boxer {
 	boxer := &Boxer{
 		Id:           id,
 		Root:         root,
@@ -103,7 +118,9 @@ func NewBoxer(id, root, selectedDisk string, disks []string,
 		Disks:        disks,
 		Handles:      handlers,
 		ResourcePool: resourcePool,
-		S3Client:     s3client,
+		S3Auth:       s3auth,
+		S3Region:     region,
+		S3Bucket:     bucket,
 	}
 	if useProjQuota {
 		boxer.Quota = quota.Quota{}
@@ -458,13 +475,63 @@ func SnapshotBoxHandler(m Message, boxer *Boxer) Message {
 	return msg
 }
 
+func MigrateBoxHandler(m Message, boxer *Boxer) Message {
+	msg := Message{
+		Type:  "aio:migrated",
+		Id:    boxer.Id,
+		BoxId: m.BoxId,
+	}
+	resource, err := boxer.ResourcePool.Acquire()
+	if err != nil {
+		logger.Println("ERROR: Cant acquire resource", err)
+		msg.Success = false
+		return msg
+	}
+	box := &Box{
+		Id:               m.BoxId,
+		BoxerId:          m.Id,
+		Name:             m.Name,
+		Runtime:          m.Runtime,
+		Memory:           m.Memory,
+		DiskSpace:        m.DiskSpace,
+		PublicKeys:       m.PublicKeys,
+		SnapshotURL:      m.SnapshotURL,
+		Disk:             boxer.SelectedDisk,
+		Template:         boxer.Runtimes[m.Runtime],
+		Ip:               resource.Ip,
+		Gateway:          resource.Gateway,
+		NetworkInterface: resource.NetworkInterface,
+		Port:             resource.GetPort(),
+	}
+	box.boxer = boxer
+	if err := boxer.Migrate(box); !err.Success() {
+		logger.Printf("ERROR: Fail to create %v, err: %v\n", box, err)
+		boxer.ResourcePool.Release(resource.Ip)
+		msg.Success = false
+		return msg
+	}
+	if err := boxer.ResourcePool.SaveBox(box); err != nil {
+		logger.Printf("ERROR: Fail to save %v, err: %v\n", box, err)
+		msg.Success = false
+		return msg
+	}
+	msg.Port = box.Port
+	msg.Success = true
+	return msg
+}
+
 func UploadSnapshot(c *BoxCommand) (err error) {
 	box := c.Box
+	boxer := c.Boxer
 	tarPath, err := box.Tar()
 	if err != nil {
 		return
 	}
-	snapshotURL, err := c.Boxer.S3Client.Upload(box.TarName(), tarPath)
+	client, err := boxer.S3Auth.NewClient(c.Boxer.S3Region, c.Boxer.S3Bucket)
+	if err != nil {
+		return
+	}
+	snapshotURL, err := client.Upload(box.TarName(), tarPath)
 	// delete the tar path after finishing the upload process success or not
 	os.RemoveAll(tarPath)
 	if err != nil {
@@ -492,6 +559,50 @@ func SetupContainer(c *BoxCommand) error {
 		return err
 	}
 	if err := box.SetDefaultKeypair(); err != nil {
+		return err
+	}
+	if err := box.SetPermission(); err != nil {
+		return err
+	}
+	if err := box.SetBoxId(); err != nil {
+		return err
+	}
+	if err := box.SetPublicKeys(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func MigrateContainer(c *BoxCommand) error {
+	box := c.Box
+	boxer := c.Boxer
+	// parse snapshot url which should be an s3 path
+	url, err := url.Parse(box.SnapshotURL)
+	if err != nil {
+		return err
+	}
+	regionStr := url.Host
+	bucketStr := filepath.Dir(url.Path)
+	bucketStr = bucketStr[1:len(bucketStr)] // remove / from bucketname
+	fileName := filepath.Base(url.Path)
+
+	client, err := boxer.S3Auth.NewClient(regionStr, bucketStr)
+	stream, err := client.Download(fileName)
+	if err != nil {
+		return err
+	}
+	boxDeltaPath := path.Join(box.Disk, box.ContainerName()+"_delta")
+	boxDeltaHomePath := path.Join(boxDeltaPath, "rootfs", "home", "action")
+	if err := UntarStream(stream, boxDeltaHomePath); err != nil {
+		return err
+	}
+	if err := box.WriteConfig(); err != nil {
+		return err
+	}
+	if err := box.SetHostname(); err != nil {
+		return err
+	}
+	if err := box.SetNetworkConfig(); err != nil {
 		return err
 	}
 	if err := box.SetPermission(); err != nil {
@@ -568,6 +679,15 @@ func (boxer *Boxer) Snapshot(box *Box) *CommandError {
 		Boxer:  boxer,
 		Box:    box,
 		States: SnapshotStates,
+	})
+}
+
+func (boxer *Boxer) Migrate(box *Box) *CommandError {
+	return Advance(&BoxCommand{
+		Name:   "Migrate",
+		Boxer:  boxer,
+		Box:    box,
+		States: MigrateStates,
 	})
 }
 

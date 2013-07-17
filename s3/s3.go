@@ -3,13 +3,21 @@ package s3
 
 import (
 	"fmt"
+	"io"
 	"launchpad.net/goamz/aws"
 	aws3 "launchpad.net/goamz/s3"
 	"os"
 )
 
+type AuthInterface interface {
+	NewClient(region, bucketName string) (ClientInterface, error)
+}
+
+type Auth aws.Auth
+
 type ClientInterface interface {
 	Upload(name, filePath string) (string, error)
+	Download(name string) (io.ReadCloser, error)
 }
 
 type Client struct {
@@ -40,19 +48,22 @@ func (c *Client) Upload(name, filePath string) (remotePath string, err error) {
 	return
 }
 
-func NewClient(accessKey, secretKey, region, bucketName string) (client *Client, err error) {
-	if accessKey == "" || secretKey == "" || region == "" {
-		err = fmt.Errorf("Empty params detected %s, %s, %s", accessKey,
-			secretKey, region)
-		return
-	}
+// given a filename inside a bucket, return `io.ReadCloser` which we can use to
+// read content of that file
+func (c *Client) Download(filename string) (rc io.ReadCloser, err error) {
+	s := aws3.New(c.Auth, c.Region)
+	bucket := s.Bucket(c.BucketName)
+	return bucket.GetReader(filename)
+}
+
+func (a Auth) NewClient(region, bucketName string) (client ClientInterface, err error) {
 	awsRegion, ok := aws.Regions[region]
 	if !ok {
 		err = fmt.Errorf("Invalid region: %s", region)
 		return
 	}
 	client = &Client{
-		Auth:       aws.Auth{AccessKey: accessKey, SecretKey: secretKey},
+		Auth:       aws.Auth(a),
 		Region:     awsRegion,
 		BucketName: bucketName,
 	}
