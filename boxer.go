@@ -32,7 +32,6 @@ func init() {
 		"aio:destroy":      logger.LogHandler("aio:destroy", DestroyBoxHandler),
 		"aio:configure":    logger.LogHandler("aio:configure", ConfigureBoxHandler),
 		"aio:info_request": logger.LogHandler("aio:info_request", InfoRequestBoxHandler),
-		"aio:snapshot":     logger.LogHandler("aio:snapshot", SnapshotBoxHandler),
 		"aio:migrate":      logger.LogHandler("aio:migrate", MigrateBoxHandler),
 	}
 
@@ -486,48 +485,65 @@ func SnapshotBoxHandler(m Message, boxer *Boxer) Message {
 }
 
 func MigrateBoxHandler(m Message, boxer *Boxer) Message {
-	msg := Message{
-		Type:  "aio:migrated",
-		Id:    boxer.Id,
-		BoxId: m.BoxId,
+	// use the same sent message structure
+	message := m
+	message.Success = false
+
+	switch m.DataType {
+	case "aio:migrate:snapshot":
+		box, err := boxer.findBox(m.Name)
+		if err != nil {
+			return boxer.NewInvalidParamMessage()
+		}
+		message.DataType = "aio:migrate:snapshotted"
+		message.BoxId = box.Id
+		if err := boxer.Snapshot(box); !err.Success() {
+			logger.Printf("ERROR: Fail to snapshot box %v, err: %v\n", box, err)
+			return message
+		}
+		if err := boxer.ResourcePool.UpdateState(box, "stopped"); err != nil {
+			logger.Printf("ERROR: Fail to update box state %v, err: %v\n", box, err)
+			return message
+		}
+		message.SnapshotURL = box.SnapshotURL
+		message.Success = true
+	case "aio:migrate:create":
+		message.DataType = "aio:migrate:created"
+		resource, err := boxer.ResourcePool.Acquire()
+		if err != nil {
+			logger.Println("ERROR: Cant acquire resource", err)
+			return message
+		}
+		box := &Box{
+			Id:               m.BoxId,
+			BoxerId:          m.Id,
+			Name:             m.Name,
+			Runtime:          m.Runtime,
+			Memory:           m.Memory,
+			DiskSpace:        m.DiskSpace,
+			PublicKeys:       m.PublicKeys,
+			SnapshotURL:      m.SnapshotURL,
+			Disk:             boxer.SelectedDisk,
+			Template:         boxer.Runtimes[m.Runtime],
+			Ip:               resource.Ip,
+			Gateway:          resource.Gateway,
+			NetworkInterface: resource.NetworkInterface,
+			Port:             resource.GetPort(),
+		}
+		box.boxer = boxer
+		if err := boxer.Migrate(box); !err.Success() {
+			logger.Printf("ERROR: Fail to migrate %v, err: %v\n", box, err)
+			boxer.ResourcePool.Release(resource.Ip)
+			return message
+		}
+		if err := boxer.ResourcePool.SaveBox(box); err != nil {
+			logger.Printf("ERROR: Fail to save %v, err: %v\n", box, err)
+			return message
+		}
+		message.Port = box.Port
+		message.Success = true
 	}
-	resource, err := boxer.ResourcePool.Acquire()
-	if err != nil {
-		logger.Println("ERROR: Cant acquire resource", err)
-		msg.Success = false
-		return msg
-	}
-	box := &Box{
-		Id:               m.BoxId,
-		BoxerId:          m.Id,
-		Name:             m.Name,
-		Runtime:          m.Runtime,
-		Memory:           m.Memory,
-		DiskSpace:        m.DiskSpace,
-		PublicKeys:       m.PublicKeys,
-		SnapshotURL:      m.SnapshotURL,
-		Disk:             boxer.SelectedDisk,
-		Template:         boxer.Runtimes[m.Runtime],
-		Ip:               resource.Ip,
-		Gateway:          resource.Gateway,
-		NetworkInterface: resource.NetworkInterface,
-		Port:             resource.GetPort(),
-	}
-	box.boxer = boxer
-	if err := boxer.Migrate(box); !err.Success() {
-		logger.Printf("ERROR: Fail to migrate %v, err: %v\n", box, err)
-		boxer.ResourcePool.Release(resource.Ip)
-		msg.Success = false
-		return msg
-	}
-	if err := boxer.ResourcePool.SaveBox(box); err != nil {
-		logger.Printf("ERROR: Fail to save %v, err: %v\n", box, err)
-		msg.Success = false
-		return msg
-	}
-	msg.Port = box.Port
-	msg.Success = true
-	return msg
+	return message
 }
 
 func UploadSnapshot(c *BoxCommand) (err error) {

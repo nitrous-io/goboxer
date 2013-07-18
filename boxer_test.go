@@ -794,14 +794,20 @@ func (s *BoxerSuite) TestSnapshot(c *C) {
 	defer s.deleteBox("1", "mclovins-container")
 
 	message := s.Boxer.Receive(Message{
-		Id:    "testboxer",
-		BoxId: "1",
-		Type:  "aio:snapshot",
-		Name:  "mclovins-container-1",
+		Id:         "testboxer",
+		BoxId:      "1",
+		Type:       "aio:migrate",
+		DataType:   "aio:migrate:snapshot",
+		Runtime:    "test",
+		Memory:     "256M",
+		DiskSpace:  "1024M",
+		Name:       "mclovins-container-1",
+		PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
 	})
 
 	c.Assert(message.Success, Equals, true)
-	c.Assert(message.Type, Equals, "aio:snapshotted")
+	c.Assert(message.Type, Equals, "aio:migrate")
+	c.Assert(message.DataType, Equals, "aio:migrate:snapshotted")
 	c.Assert(strings.Contains(message.SnapshotURL,
 		"s3://staging-bucket/mclovins-container-1"), Equals, true)
 }
@@ -811,6 +817,7 @@ func (s *BoxerSuite) TestMigrate(c *C) {
 		Id:          "testboxer",
 		BoxId:       "1",
 		Type:        "aio:migrate",
+		DataType:    "aio:migrate:create",
 		Name:        "mclovins-container",
 		Runtime:     "test",
 		SnapshotURL: "s3://ap-southeast-1/staging-apse1.action.io/testboxer-1234.tar.gz",
@@ -821,7 +828,8 @@ func (s *BoxerSuite) TestMigrate(c *C) {
 	defer s.deleteBox("1", "mclovins-container")
 
 	c.Assert(message.Success, Equals, true)
-	c.Assert(message.Type, Equals, "aio:migrated")
+	c.Assert(message.Type, Equals, "aio:migrate")
+	c.Assert(message.DataType, Equals, "aio:migrate:created")
 
 	// it contains the content of the snapshot
 	root := "/lxc/disk1/mclovins-container-1"
