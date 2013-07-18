@@ -470,7 +470,7 @@ func MigrateBoxHandler(m Message, boxer *Boxer) Message {
 
 	switch m.DataType {
 	case "aio:migrate:snapshot":
-		box, err := boxer.findBox(m.Name)
+		box, err := boxer.findBox(m.Name + "-" + m.BoxId)
 		if err != nil {
 			return boxer.NewInvalidParamMessage()
 		}
