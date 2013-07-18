@@ -5,6 +5,10 @@ import (
 	"github.com/garyburd/redigo/redis"
 )
 
+type NotHandleError struct{}
+
+func (e NotHandleError) Error() string { return "NotHandle" }
+
 type CoachListener struct {
 	Boxer        *Boxer
 	Pool         *redis.Pool
@@ -18,14 +22,16 @@ func (c *CoachListener) Listen() {
 	case redis.Message:
 		var messageJSON string
 		var err error
-		message := Message{}
-		logger.Println("Message: ", string(msg.Data))
-		if err = json.Unmarshal(msg.Data, &message); err != nil {
-			logger.Println("ERROR: Unmarshal ", err)
-			c.SendInvalidParam()
-			return
+		returnedMessage, err := c.Dispatch(msg.Data)
+		if err != nil {
+			switch err.(type) {
+			case NotHandleError:
+				return
+			default:
+				c.SendInvalidParam()
+				return
+			}
 		}
-		returnedMessage := c.Boxer.Receive(message)
 		if messageJSON, err = ToJSON(returnedMessage); err != nil {
 			logger.Println("ERROR: ToJSON ", err)
 			c.SendInvalidParam()
@@ -38,6 +44,20 @@ func (c *CoachListener) Listen() {
 			return
 		}
 	}
+}
+
+func (c *CoachListener) Dispatch(data []byte) (message Message, err error) {
+	logger.Println("Message: ", string(data))
+	if err = json.Unmarshal(data, &message); err != nil {
+		logger.Println("ERROR: Unmarshal ", err)
+		return
+	}
+	if message.Id != c.Boxer.Id {
+		err = NotHandleError{}
+		return
+	}
+	message = c.Boxer.Receive(message)
+	return
 }
 
 // Advertise itself to Coach
