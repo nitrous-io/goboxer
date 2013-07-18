@@ -801,7 +801,7 @@ func (s *BoxerSuite) TestSnapshot(c *C) {
 		Runtime:    "test",
 		Memory:     "256M",
 		DiskSpace:  "1024M",
-		Name:       "mclovins-container-1",
+		Name:       "mclovins-container", // the actual name, not typical container-id name
 		PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
 	})
 
