@@ -458,32 +458,6 @@ func InfoRequestBoxHandler(m Message, boxer *Boxer) Message {
 	return message
 }
 
-// snapshot a box by compressing its content and then upload to s3
-func SnapshotBoxHandler(m Message, boxer *Boxer) Message {
-	box, err := boxer.findBox(m.Name)
-	if err != nil {
-		return boxer.NewInvalidParamMessage()
-	}
-	msg := Message{
-		Type:       "aio:snapshotted",
-		Id:         boxer.Id,
-		BoxId:      box.Id,
-		ReturnVars: m.ReturnVars,
-		Success:    true,
-	}
-	if err := boxer.Snapshot(box); !err.Success() {
-		logger.Printf("ERROR: Fail to snapshot box %v, err: %v\n", box, err)
-		msg.Success = false
-	} else {
-		msg.SnapshotURL = box.SnapshotURL
-	}
-	if err := boxer.ResourcePool.UpdateState(box, "stopped"); err != nil {
-		logger.Printf("ERROR: Fail to update box state %v, err: %v\n", box, err)
-		msg.Success = false
-	}
-	return msg
-}
-
 func MigrateBoxHandler(m Message, boxer *Boxer) Message {
 	// use the same sent message structure
 	message := m
