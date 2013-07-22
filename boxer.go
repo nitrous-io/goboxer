@@ -218,9 +218,26 @@ func CreateBoxHandler(m Message, boxer *Boxer) Message {
 		Port:             resource.GetPort(),
 	}
 	box.boxer = boxer
-	if err := boxer.Create(box); !err.Success() {
-		logger.Printf("ERROR: Fail to create %v, err: %v\n", box, err)
+	// create the base image for the box. Base image will be named as
+	// nitrous/<box_id>
+	if err := box.CreateImage(); err != nil {
+		logger.Printf("ERROR: Fail to create image %v, err: %v\n", box, err)
 		boxer.ResourcePool.Release(resource.Ip)
+		msg.Success = false
+		return msg
+	}
+	// from the base image, we run a new container. This is where all user
+	// changes happens
+	if err := box.CreateContainer(); err != nil {
+		logger.Printf("ERROR: Fail to create container %v, err: %v\n", box, err)
+		msg.Success = false
+		return msg
+	}
+	// set quota for the box. This should only works with usrquota for now
+	box.SetQuota(boxer.Quota)
+	// start the new container
+	if err := box.StartContainer(); err != nil {
+		logger.Printf("ERROR: Fail to start %v, err: %v\n", box, err)
 		msg.Success = false
 		return msg
 	}
@@ -229,6 +246,7 @@ func CreateBoxHandler(m Message, boxer *Boxer) Message {
 		msg.Success = false
 		return msg
 	}
+	msg.box = box
 	msg.Port = box.Port
 	msg.Success = true
 	return msg
@@ -239,7 +257,7 @@ func StartBoxHandler(m Message, boxer *Boxer) Message {
 	if err != nil {
 		return boxer.NewInvalidParamMessage()
 	}
-	if err := boxer.Start(box); !err.Success() {
+	if err := box.StartContainer(); err != nil {
 		logger.Printf("ERROR: Fail to start %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
 	}
@@ -249,6 +267,7 @@ func StartBoxHandler(m Message, boxer *Boxer) Message {
 		BoxId:      box.Id,
 		ReturnVars: m.ReturnVars,
 		Success:    true,
+		box:        box,
 	}
 	if err := boxer.ResourcePool.UpdateState(box, "running"); err != nil {
 		logger.Printf("ERROR: Fail to update box state %v, err: %v\n", box, err)
@@ -263,7 +282,7 @@ func StopBoxHandler(m Message, boxer *Boxer) Message {
 		logger.Printf("ERROR: Fail to find box %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
 	}
-	if err := boxer.Stop(box); !err.Success() {
+	if err := box.StopContainer(); err != nil {
 		logger.Printf("ERROR: Fail to stop box %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
 	}
@@ -273,6 +292,7 @@ func StopBoxHandler(m Message, boxer *Boxer) Message {
 		BoxId:      box.Id,
 		ReturnVars: m.ReturnVars,
 		Success:    true,
+		box:        box,
 	}
 	if err := boxer.ResourcePool.UpdateState(box, "stopped"); err != nil {
 		logger.Printf("ERROR: Fail to update box state %v, err: %v\n", box, err)
@@ -287,7 +307,7 @@ func RestartBoxHandler(m Message, boxer *Boxer) Message {
 		logger.Printf("ERROR: Fail to find box %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
 	}
-	if err := boxer.Restart(box); !err.Success() {
+	if err := box.RestartContainer(); err != nil {
 		logger.Printf("ERROR: Fail to restart box %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
 	}
@@ -297,6 +317,7 @@ func RestartBoxHandler(m Message, boxer *Boxer) Message {
 		BoxId:      box.Id,
 		ReturnVars: m.ReturnVars,
 		Success:    true,
+		box:        box,
 	}
 	if err := boxer.ResourcePool.UpdateState(box, "running"); err != nil {
 		logger.Printf("ERROR: Fail to update box state %v, err: %v\n", box, err)
@@ -311,7 +332,7 @@ func DestroyBoxHandler(m Message, boxer *Boxer) Message {
 		logger.Printf("ERROR: Fail to find box %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
 	}
-	if err := boxer.Destroy(box); !err.Success() {
+	if err := box.DestroyContainer(); err != nil {
 		logger.Printf("ERROR: Fail to destroy box %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
 	}
@@ -325,6 +346,7 @@ func DestroyBoxHandler(m Message, boxer *Boxer) Message {
 		BoxId:      box.Id,
 		ReturnVars: m.ReturnVars,
 		Success:    true,
+		box:        box,
 	}
 }
 
@@ -338,6 +360,7 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 		Id:         boxer.Id,
 		BoxId:      box.Id,
 		ReturnVars: m.ReturnVars,
+		box:        box,
 	}
 	switch m.DataType {
 	case "aio:configure:add_public_key":
@@ -347,6 +370,7 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 			return boxer.NewInvalidParamMessage()
 		}
 		if err := box.AddPublicKey(data); err != nil {
+			logger.Println("failed to add public key", err)
 			return boxer.NewInvalidParamMessage()
 		}
 		message.Success = true
@@ -384,17 +408,12 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 			message.Success = false
 			return message
 		}
-		err := box.ChangeSpec(spec, boxer.Quota)
+		err = box.ChangeSpec(spec, boxer.Quota)
 		message.Data = map[string]interface{}{
 			"memory":    box.Memory,
 			"diskSpace": box.DiskSpace,
 		}
 		if err != nil {
-			logger.Debugf("ChangeSpecs: %v\n", err)
-			message.Success = false
-			return message
-		}
-		if err := boxer.Restart(box); !err.Success() {
 			message.Success = false
 			return message
 		}
@@ -447,6 +466,7 @@ func InfoRequestBoxHandler(m Message, boxer *Boxer) Message {
 		Id:         boxer.Id,
 		BoxId:      box.Id,
 		ReturnVars: m.ReturnVars,
+		box:        box,
 	}
 	info, err := box.Info(boxer.Quota)
 	if err != nil {

@@ -37,4 +37,6 @@ type Message struct {
 
 	// For migrate message
 	ExcludedHosts []string `json:"excludedHosts,omitempty"`
+
+	box *Box
 }
