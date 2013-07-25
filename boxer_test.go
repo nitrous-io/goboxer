@@ -509,7 +509,7 @@ func (s *BoxerSuite) TestInfo(c *C) {
 	c.Assert(message.Info.LxcStatus, Equals, "RUNNING")
 }
 
-func (s *BoxerSuite) TestAddEnvVariables(c *C) {
+func (s *BoxerSuite) TestSetEnvVariables(c *C) {
 	s.Boxer.Receive(Message{
 		Id:         "testboxer",
 		BoxId:      "1",
@@ -545,6 +545,57 @@ func (s *BoxerSuite) TestAddEnvVariables(c *C) {
 		root + "/rootfs/etc/environment": []string{
 			"RDS_HOST=mysql://insecure",
 			"RDS_PASSWORD=mysql-insecure",
+		},
+	})
+}
+
+func (s *BoxerSuite) TestDoubleSetEnvVariables(c *C) {
+	s.Boxer.Receive(Message{
+		Id:         "testboxer",
+		BoxId:      "1",
+		Type:       "aio:create",
+		Name:       "mclovins-container",
+		Runtime:    "test",
+		Memory:     "256M",
+		DiskSpace:  "1G",
+		PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
+	})
+	defer s.deleteBox("1", "mclovins-container")
+
+	s.Boxer.Receive(Message{
+		Id:       "testboxer",
+		BoxId:    "1",
+		Type:     "aio:configure",
+		Name:     "mclovins-container-1",
+		DataType: "aio:configure:set_env_variables",
+		Data: map[string]interface{}{
+			"RDS_HOST":     "mysql://insecure",
+			"RDS_PASSWORD": "mysql-insecure",
+		},
+	})
+
+	s.Boxer.Receive(Message{
+		Id:       "testboxer",
+		BoxId:    "1",
+		Type:     "aio:configure",
+		Name:     "mclovins-container-1",
+		DataType: "aio:configure:set_env_variables",
+		Data: map[string]interface{}{
+			"RDS_HOST":     "mysql://secure",
+			"RDS_PASSWORD": "mysql-insecure",
+		},
+	})
+
+	root := "/lxc/disk1/mclovins-container-1"
+	DoesContain(c, map[string][]string{
+		root + "/rootfs/etc/environment": []string{
+			"RDS_HOST=mysql://secure",
+			"RDS_PASSWORD=mysql-insecure",
+		},
+	})
+	DoesNotContain(c, map[string][]string{
+		root + "/rootfs/etc/environment": []string{
+			"RDS_HOST=mysql://insecure",
 		},
 	})
 }

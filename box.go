@@ -368,6 +368,10 @@ func (b *Box) Info(q quota.QuotaInterface) (BoxInfo, error) {
 func (b *Box) SetEnv(data map[string]interface{}) error {
 	newEnv := []string{}
 	for key, value := range data {
+		// FIXME: probably going through the file once and remove all is faster
+		if err := DeleteLineContains(b.EnvPath(), key+"="); err != nil {
+			return err
+		}
 		newEnv = append(newEnv, fmt.Sprintf("%s=%s", key, value.(string)))
 	}
 	return Appendln(b.EnvPath(), strings.Join(newEnv, "\n"))
