@@ -317,6 +317,7 @@ func (s *BoxerSuite) TestAddPublicKey(c *C) {
 	})
 
 	c.Assert(message.Type, Equals, "aio:configured")
+	c.Assert(message.DataType, Equals, "aio:configured:add_public_key")
 	c.Assert(message.Id, Equals, "testboxer")
 	c.Assert(message.BoxId, Equals, "1")
 	c.Assert(message.Success, Equals, true)
@@ -357,6 +358,7 @@ func (s *BoxerSuite) TestRemovePublicKey(c *C) {
 	})
 
 	c.Assert(message.Type, Equals, "aio:configured")
+	c.Assert(message.DataType, Equals, "aio:configured:remove_public_key")
 	c.Assert(message.Id, Equals, "testboxer")
 	c.Assert(message.BoxId, Equals, "1")
 	c.Assert(message.Success, Equals, true)
@@ -533,6 +535,7 @@ func (s *BoxerSuite) TestAddEnvVariables(c *C) {
 	})
 
 	c.Assert(message.Type, Equals, "aio:configured")
+	c.Assert(message.DataType, Equals, "aio:configured:set_env_variables")
 	c.Assert(message.Id, Equals, "testboxer")
 	c.Assert(message.BoxId, Equals, "1")
 	c.Assert(message.Success, Equals, true)
@@ -581,6 +584,7 @@ func (s *BoxerSuite) TestRemoveEnvVariables(c *C) {
 	})
 
 	c.Assert(message.Type, Equals, "aio:configured")
+	c.Assert(message.DataType, Equals, "aio:configured:remove_env_variables")
 	c.Assert(message.Id, Equals, "testboxer")
 	c.Assert(message.BoxId, Equals, "1")
 	c.Assert(message.Success, Equals, true)

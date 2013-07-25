@@ -315,6 +315,7 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 	}
 	switch m.DataType {
 	case "aio:configure:add_public_key":
+		message.DataType = "aio:configured:add_public_key"
 		data, ok := (m.Data).(string)
 		if !ok {
 			return boxer.NewInvalidParamMessage()
@@ -325,6 +326,7 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 		message.Success = true
 		return message
 	case "aio:configure:remove_public_key":
+		message.DataType = "aio:configured:remove_public_key"
 		data, ok := (m.Data).(string)
 		if !ok {
 			return boxer.NewInvalidParamMessage()
@@ -377,6 +379,7 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 		message.Success = true
 		return message
 	case "aio:configure:set_env_variables":
+		message.DataType = "aio:configured:set_env_variables"
 		data, ok := (m.Data).(map[string]interface{})
 		if !ok {
 			return boxer.NewInvalidParamMessage()
@@ -387,6 +390,7 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 		}
 		return message
 	case "aio:configure:remove_env_variables":
+		message.DataType = "aio:configured:remove_env_variables"
 		data, ok := (m.Data).([]string)
 		if !ok {
 			return boxer.NewInvalidParamMessage()
