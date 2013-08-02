@@ -13,6 +13,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"text/template"
 	"time"
 )
 
@@ -60,7 +61,10 @@ func (b *Box) SetPublicKeys() error  { return b.AddPublicKey(b.PublicKeys...) }
 func (b *Box) BoxIdFile() string      { return path.Join(b.RootFS(), "etc", "action", "box_id") }
 func (b *Box) PrivateKeyPath() string { return path.Join("home", "action", ".ssh", "id_rsa") }
 
-func (b *Box) Home() string { return path.Join(b.RootFS(), "home", "action") }
+func (b *Box) Home() string {
+	containerPath, _ := b.DockerContainerPath()
+	return path.Join(containerPath, "rootfs", "home", "action")
+}
 
 func (b *Box) TarName() string {
 	return fmt.Sprintf("%s-%v.tar.gz", b.ContainerName(), time.Now().Unix())
@@ -509,6 +513,114 @@ func (b *Box) CreateImage() (err error) {
 	return
 }
 
+// download the content from s3 and perform the migrate. The end result should
+// be a running box
+func (b *Box) Migrate(auth s3.AuthInterface) (err error) {
+	defer logger.LogDuration(
+		fmt.Sprintf("%s:Migrate", b.Image()),
+	)(time.Now())
+	if b.SnapshotURL == "" {
+		return fmt.Errorf("Missing Snapshot: %v", b)
+	}
+	// parse snapshot url which should be an s3 path
+	url, err := s3.ParseUrl(b.SnapshotURL)
+	if err != nil {
+		return err
+	}
+	client, err := auth.NewClient(url.Region, url.Bucket)
+	if err != nil {
+		return err
+	}
+	stream, err := client.Download(url.File)
+	if err != nil {
+		return
+	}
+	return b.CreateFromSnapshot(stream)
+}
+
+// instead of usual image creation routing, we are going to create the image
+// given a snapshot tar file.
+// How we are going to do it
+// - run a container off the base image
+// - untar the content into the container layer
+// - commit the container changes into a new image
+// - run all necessary stuff to make the image usable (i.e. permission etc)
+// - use that image
+// - ...
+// - profit
+func (b *Box) CreateFromSnapshot(stream io.ReadCloser) (err error) {
+	defer logger.LogDuration(
+		fmt.Sprintf("%s:CreateFromSnapshot", b.Image()),
+	)(time.Now())
+
+	// create a container from the base image, and not from
+	// docker_template
+	id, err := createContainer(b, "nitrous/base")
+	if err != nil {
+		logger.Println("fail to retrieve id", id, err)
+		return
+	}
+	b.DockerId = id
+	// untar the stream to home directory of user
+	if err = UntarStream(stream, b.Home()); err != nil {
+		return
+	}
+	// commit the content and remove the current container
+	if err = b.CommitContainer(); err != nil {
+		return
+	}
+	if err = b.DestroyContainer(); err != nil {
+		return
+	}
+	// create a new image from the current image. this is where we make sure
+	// that everything post-untar is correct
+	createImage(b, MigrateDockerfileCompiled)
+	// create a new container from the new image
+	if err = b.CreateContainer(); err != nil {
+		return
+	}
+	// set quota for the box. This should only works with usrquota for now
+	b.SetQuota(b.boxer.Quota)
+	// start the new container
+	if err = b.StartContainer(); err != nil {
+		return
+	}
+	return
+}
+
+func createImage(b *Box, dockerFile *template.Template) (err error) {
+	var stdinPipe io.WriteCloser
+	cmd := exec.Command(DOCKER_BIN, "build", "-t", b.Image(), "-")
+	var b2 bytes.Buffer
+	cmd.Stdout = &b2
+	if stdinPipe, err = cmd.StdinPipe(); err != nil {
+		return
+	}
+	if err = cmd.Start(); err != nil {
+		return
+	}
+	if err = dockerFile.Execute(stdinPipe, b); err != nil {
+		logger.Println(err)
+		return
+	}
+	stdinPipe.Close()
+	err = cmd.Wait()
+	io.Copy(os.Stdout, &b2)
+	return
+}
+
+func createContainer(b *Box, base string) (dockerId string, err error) {
+	port := fmt.Sprintf("%d:22", b.Port)
+	// because of legacy reeason, we pass memory as 256M,this value has to be
+	// converted to byte value here before so that we can passed it to docker
+	cmd := exec.Command(DOCKER_BIN, "run", "-d",
+		"-p", port,
+		"-m", b.MemoryAsByte(),
+		"-h", b.ContainerName(),
+		base, "/usr/sbin/sshd", "-D")
+	return ToString(cmd.CombinedOutput())
+}
+
 func (b *Box) MemoryAsByte() string {
 	memory := quota.ConvertValueUnitToByte(quota.ParseValueUnit(b.Memory)) * 1024
 	return strconv.Itoa(memory)
@@ -592,7 +704,7 @@ func (b *Box) CommitContainer() (err error) {
 	)(time.Now())
 	return exec.Command(DOCKER_BIN, "commit",
 		"-m", fmt.Sprintf("version: %v", time.Now()),
-		b.DockerId).Run()
+		b.DockerId, b.Image()).Run()
 }
 
 type dockerContainer struct {

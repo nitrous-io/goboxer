@@ -6,6 +6,7 @@ import (
 	"io"
 	"os/exec"
 	"path/filepath"
+	"time"
 )
 
 func Untar(archive, path string) error {
@@ -32,6 +33,9 @@ func Tar(name, path string) (tarFile string, err error) {
 // and unpacks it into the directory at `path`.
 // The archive should be gzip
 func UntarStream(archive io.ReadCloser, path string) error {
+	defer logger.LogDuration(
+		fmt.Sprintf("%s:UntarStream", path),
+	)(time.Now())
 	if archive == nil {
 		return fmt.Errorf("Empty archive")
 	}

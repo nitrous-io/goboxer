@@ -12,6 +12,7 @@ import (
 	"github.com/action-io/goboxer/s3"
 	"github.com/garyburd/redigo/redis"
 	. "launchpad.net/gocheck"
+	"os/exec"
 )
 
 type BoxerSuite struct {
@@ -75,6 +76,7 @@ func (s *BoxerSuite) TearDownTest(c *C) {
 	defer conn.Close()
 	defer s.Redis.Close()
 	conn.Do("FLUSHDB")
+	exec.Command(DOCKER_BIN, "rmi", "nitrous/1").Run()
 }
 
 // TODO: check if the quota is set correctly
@@ -180,7 +182,7 @@ func (s *BoxerSuite) TestMigrate(c *C) {
 		Name:        "mclovins-container",
 		Runtime:     "test",
 		SnapshotURL: "s3://ap-southeast-1/staging-apse1.action.io/testboxer-1234.tar.gz",
-		Memory:      "256M",
+		Memory:      "1M",
 		DiskSpace:   "1024M",
 		PublicKeys:  []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
 	})
@@ -191,7 +193,7 @@ func (s *BoxerSuite) TestMigrate(c *C) {
 	c.Assert(message.DataType, Equals, "aio:migrate:created")
 
 	// it contains the content of the snapshot
-	root := "/lxc/disk1/mclovins-container-1"
+	root, _ := message.box.DockerContainerPath()
 	DoesExist(c, []string{
 		root + "/rootfs/home/action/test.txt",
 	})
@@ -199,19 +201,14 @@ func (s *BoxerSuite) TestMigrate(c *C) {
 	var checkContainsContent = map[string][]string{
 		root + "/rootfs/etc/passwd":        {"action:x:15001:15001"},
 		root + "/rootfs/etc/action/box_id": {"1"},
-		root + "/rootfs/etc/hostname":      {"mclovins-container-1"},
 		root + "/rootfs/etc/ssh/univ_public_keys": {
 			"ssh-rsa QWER",
 			"ssh-rsa ASDF",
 		},
-		root + "/rootfs/etc/network/interfaces": {
-			"address 192.168.254.2",
-			"gateway 192.168.254.1",
-		},
-		root + "/config": {
-			"lxc.cgroup.memory.limit_in_bytes = 256M",
-			"lxc.cgroup.memory.memsw.limit_in_bytes = 768M",
-			"lxc.network.hwaddr = 02:00",
+		root + "/config.lxc": {
+			"lxc.utsname = mclovins-container-1",
+			fmt.Sprintf("lxc.cgroup.memory.limit_in_bytes = %d", 1024*1024),
+			fmt.Sprintf("lxc.cgroup.memory.memsw.limit_in_bytes = %d", 2*1024*1024),
 		},
 	}
 
@@ -219,15 +216,18 @@ func (s *BoxerSuite) TestMigrate(c *C) {
 		root + "/rootfs/home/action": {15001, 15001},
 	}
 
-	// check the container contents at /lxc/disk1
 	DoesContain(c, checkContainsContent)
 	DoesHavePermissions(c, checkPermissions)
 
 	// check redis
 	conn := s.Redis.Get()
 	defer conn.Close()
-	usedIp, _ := redis.String(conn.Do("LPOP", "aio:used_resources"))
-	c.Assert(usedIp, Equals, "192.168.254.2")
+	box, _ := s.ResourcePool.FindBox("mclovins-container-1")
+	c.Assert(box.DockerId, Equals, message.box.DockerId)
+
+	// Quota
+	limit, _ := s.Boxer.Quota.ViewLimit("1", "/var/lib/docker")
+	c.Assert(limit.Limit, Equals, 1024*1024)
 }
 
 func (s *BoxerSuite) TestStart(c *C) {

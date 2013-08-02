@@ -14,16 +14,35 @@ RUN` +
 	` && chown -R {{.Uid}}:{{.Uid}} /home/action/.[^.]*` +
 	` && echo {{.Id}} >> /etc/action/box_id` +
 	` && echo {{.Id}} >> /etc/action/box_id` +
-	` {{ range $i, $key := .PublicKeys }} echo "{{$key}}" >> /etc/ssh/univ_public_keys {{end}}` +
+	` {{ range $i, $key := .PublicKeys }} && echo "{{$key}}" >> /etc/ssh/univ_public_keys {{end}}` +
+	`
+	# THE END
+	`
+
+const MigrateDockerfileTemplate = `
+FROM {{.Image}}
+RUN` +
+	` usermod -u {{.Uid}} action` +
+	` && groupmod -g {{.Gid}} action` +
+	` && chown -R {{.Uid}}:{{.Gid}} /home/action` +
+	` && echo {{.Id}} >> /etc/action/box_id` +
+	` && echo {{.Id}} >> /etc/action/box_id` +
+	` {{ range $i, $key := .PublicKeys }} && echo "{{$key}}" >> /etc/ssh/univ_public_keys {{end}}` +
 	`
 	# THE END
 	`
 
 var DockerfileCompiled *template.Template
+var MigrateDockerfileCompiled *template.Template
 
 func init() {
 	var err error
 	DockerfileCompiled, err = template.New("dockerfile").Parse(DockerfileTemplate)
+	if err != nil {
+		panic(err)
+	}
+	MigrateDockerfileCompiled, err =
+		template.New("migrate_dockerfile").Parse(MigrateDockerfileTemplate)
 	if err != nil {
 		panic(err)
 	}

@@ -10,7 +10,6 @@ import (
 	"github.com/action-io/goboxer/host"
 	"github.com/action-io/goboxer/quota"
 	"github.com/action-io/goboxer/s3"
-	"os"
 	"sync"
 )
 
@@ -502,7 +501,7 @@ func MigrateBoxHandler(m Message, boxer *Boxer) Message {
 			Port:             resource.GetPort(),
 		}
 		box.boxer = boxer
-		if err := boxer.Migrate(box); !err.Success() {
+		if err := box.Migrate(boxer.S3Auth); err != nil {
 			logger.Printf("ERROR: Fail to migrate %v, err: %v\n", box, err)
 			boxer.ResourcePool.Release(resource.Ip)
 			return message
@@ -511,6 +510,7 @@ func MigrateBoxHandler(m Message, boxer *Boxer) Message {
 			logger.Printf("ERROR: Fail to save %v, err: %v\n", box, err)
 			return message
 		}
+		message.box = box
 		message.Port = box.Port
 		message.Success = true
 	}
