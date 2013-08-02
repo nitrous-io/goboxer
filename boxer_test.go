@@ -12,7 +12,6 @@ import (
 	"github.com/action-io/goboxer/s3"
 	"github.com/garyburd/redigo/redis"
 	. "launchpad.net/gocheck"
-	"strings"
 )
 
 type BoxerSuite struct {
@@ -229,38 +228,6 @@ func (s *BoxerSuite) TestMigrate(c *C) {
 	defer conn.Close()
 	usedIp, _ := redis.String(conn.Do("LPOP", "aio:used_resources"))
 	c.Assert(usedIp, Equals, "192.168.254.2")
-}
-
-func (s *BoxerSuite) TestSnapshot(c *C) {
-	s.Boxer.Receive(Message{
-		Id:         "testboxer",
-		BoxId:      "1",
-		Type:       "aio:create",
-		Name:       "mclovins-container",
-		Runtime:    "test",
-		Memory:     "256M",
-		DiskSpace:  "1024M",
-		PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
-	})
-	defer s.deleteBox("1", "mclovins-container")
-
-	message := s.Boxer.Receive(Message{
-		Id:         "testboxer",
-		BoxId:      "1",
-		Type:       "aio:migrate",
-		DataType:   "aio:migrate:snapshot",
-		Runtime:    "test",
-		Memory:     "256M",
-		DiskSpace:  "1024M",
-		Name:       "mclovins-container", // the actual name, not typical container-id name
-		PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
-	})
-
-	c.Assert(message.Success, Equals, true)
-	c.Assert(message.Type, Equals, "aio:migrate")
-	c.Assert(message.DataType, Equals, "aio:migrate:snapshotted")
-	c.Assert(strings.Contains(message.SnapshotURL,
-		"s3://staging-bucket/mclovins-container-1"), Equals, true)
 }
 
 func (s *BoxerSuite) TestStart(c *C) {

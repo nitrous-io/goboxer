@@ -20,7 +20,6 @@ var StartStates []State
 var StopStates []State
 var RestartStates []State
 var DestroyStates []State
-var SnapshotStates []State
 
 func init() {
 	handlers = map[string]MessageHandler{
@@ -67,11 +66,6 @@ func init() {
 		State{Name: "RestartUnmountContainer", Advance: UnmountContainer, Rollback: Pass},
 		State{Name: "RestartMountContainer", Advance: MountContainer, Rollback: Pass},
 		State{Name: "RestartStartContainer", Advance: StartContainer, Rollback: Pass},
-	}
-
-	SnapshotStates = []State{
-		State{Name: "SnapshotStopContainer", Advance: StopContainer, Rollback: Pass},
-		State{Name: "SnapshotUploadSnapshot", Advance: UploadSnapshot, Rollback: Pass},
 	}
 }
 
@@ -484,23 +478,6 @@ func MigrateBoxHandler(m Message, boxer *Boxer) Message {
 	message.Success = false
 
 	switch m.DataType {
-	case "aio:migrate:snapshot":
-		box, err := boxer.findBox(m.Name + "-" + m.BoxId)
-		if err != nil {
-			return boxer.NewInvalidParamMessage()
-		}
-		message.DataType = "aio:migrate:snapshotted"
-		message.BoxId = box.Id
-		if err := boxer.Snapshot(box); !err.Success() {
-			logger.Printf("ERROR: Fail to snapshot box %v, err: %v\n", box, err)
-			return message
-		}
-		if err := boxer.ResourcePool.UpdateState(box, "stopped"); err != nil {
-			logger.Printf("ERROR: Fail to update box state %v, err: %v\n", box, err)
-			return message
-		}
-		message.SnapshotURL = box.SnapshotURL
-		message.Success = true
 	case "aio:migrate:create":
 		message.DataType = "aio:migrate:created"
 		resource, err := boxer.ResourcePool.Acquire()
@@ -538,27 +515,6 @@ func MigrateBoxHandler(m Message, boxer *Boxer) Message {
 		message.Success = true
 	}
 	return message
-}
-
-func UploadSnapshot(c *BoxCommand) (err error) {
-	box := c.Box
-	boxer := c.Boxer
-	tarPath, err := box.Tar()
-	if err != nil {
-		return
-	}
-	client, err := boxer.S3Auth.NewClient(c.Boxer.S3Region, c.Boxer.S3Bucket)
-	if err != nil {
-		return
-	}
-	snapshotURL, err := client.Upload(box.TarName(), tarPath)
-	// delete the tar path after finishing the upload process success or not
-	os.RemoveAll(tarPath)
-	if err != nil {
-		return
-	}
-	c.Box.SnapshotURL = snapshotURL
-	return
 }
 
 func SetupContainer(c *BoxCommand) error {
@@ -637,15 +593,6 @@ func (boxer *Boxer) Destroy(box *Box) *CommandError {
 		Boxer:  boxer,
 		Box:    box,
 		States: DestroyStates,
-	})
-}
-
-func (boxer *Boxer) Snapshot(box *Box) *CommandError {
-	return Advance(&BoxCommand{
-		Name:   "Snapshot",
-		Boxer:  boxer,
-		Box:    box,
-		States: SnapshotStates,
 	})
 }
 
