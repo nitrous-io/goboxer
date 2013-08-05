@@ -14,11 +14,6 @@ import (
 )
 
 var handlers map[string]MessageHandler
-var CreateStates []State
-var StartStates []State
-var StopStates []State
-var RestartStates []State
-var DestroyStates []State
 
 func init() {
 	handlers = map[string]MessageHandler{
@@ -31,40 +26,6 @@ func init() {
 		"aio:configure":    logger.LogHandler("aio:configure", ConfigureBoxHandler),
 		"aio:info_request": logger.LogHandler("aio:info_request", InfoRequestBoxHandler),
 		"aio:migrate":      logger.LogHandler("aio:migrate", MigrateBoxHandler),
-	}
-
-	CreateStates = []State{
-		State{Name: "CreateMountContainer", Advance: MountContainer, Rollback: UnmountContainer},
-		State{Name: "CreateSetupContainer", Advance: SetupContainer, Rollback: Pass},
-		State{Name: "CreateSetQuota", Advance: SetQuota, Rollback: UnsetQuota},
-		State{Name: "CreateSetPortForwarding", Advance: SetPortForwarding, Rollback: UnsetPortForwarding},
-	}
-
-	StartStates = []State{
-		State{Name: "StartMountContainer", Advance: MountContainer, Rollback: UnmountContainer},
-		State{Name: "StartSetQuota", Advance: SetQuota, Rollback: UnsetQuota},
-		State{Name: "StartStartContainer", Advance: StartContainer, Rollback: StopContainer},
-	}
-
-	StopStates = []State{
-		State{Name: "StopStopContainer", Advance: StopContainer, Rollback: Pass},
-		State{Name: "StopUnmountContainer", Advance: UnmountContainer, Rollback: MountContainer},
-		State{Name: "StopUnsetQuota", Advance: UnsetQuota, Rollback: SetQuota},
-	}
-
-	DestroyStates = []State{
-		State{Name: "DestroyStopContainer", Advance: StopContainer, Rollback: Pass},
-		State{Name: "DestroyUnsetPortForwarding", Advance: UnsetPortForwarding, Rollback: SetPortForwarding},
-		State{Name: "DestroyUnmountCcontainer", Advance: UnmountContainer, Rollback: MountContainer},
-		State{Name: "DestroyUnsetQuota", Advance: UnsetQuota, Rollback: SetQuota},
-		State{Name: "DestroyDeleteContainerData", Advance: DeleteContainerData, Rollback: Pass},
-	}
-
-	RestartStates = []State{
-		State{Name: "RestartStopContainer", Advance: StopContainer, Rollback: Pass},
-		State{Name: "RestartUnmountContainer", Advance: UnmountContainer, Rollback: Pass},
-		State{Name: "RestartMountContainer", Advance: MountContainer, Rollback: Pass},
-		State{Name: "RestartStartContainer", Advance: StartContainer, Rollback: Pass},
 	}
 }
 
@@ -517,114 +478,23 @@ func MigrateBoxHandler(m Message, boxer *Boxer) Message {
 	return message
 }
 
-func SetupContainer(c *BoxCommand) error {
-	box := c.Box
-	if err := box.WriteConfig(); err != nil {
-		return err
-	}
-	if err := box.SetHostname(); err != nil {
-		return err
-	}
-	if err := box.SetNetworkConfig(); err != nil {
-		return err
-	}
-	if err := box.SetupHome(c.Boxer.S3Auth); err != nil {
-		return err
-	}
-	if err := box.SetBoxId(); err != nil {
-		return err
-	}
-	if err := box.SetPublicKeys(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func MountContainer(c *BoxCommand) error      { return c.Box.Mount(c.Boxer.Root) }
-func UnmountContainer(c *BoxCommand) error    { return c.Box.Unmount(c.Boxer.Root) }
-func SetQuota(c *BoxCommand) error            { return c.Box.SetQuota(c.Boxer.Quota) }
-func UnsetQuota(c *BoxCommand) error          { return c.Box.UnsetQuota(c.Boxer.Quota) }
-func SetPortForwarding(c *BoxCommand) error   { return c.Box.SetPortForwarding() }
-func UnsetPortForwarding(c *BoxCommand) error { return c.Box.UnsetPortForwarding() }
-func StartContainer(c *BoxCommand) error      { return c.Box.StartContainer() }
-func StopContainer(c *BoxCommand) error       { return c.Box.StopContainer() }
-func DeleteContainerData(c *BoxCommand) error { return c.Box.DeleteContainerData() }
-func Pass(c *BoxCommand) error                { return nil }
-
-func (boxer *Boxer) Create(box *Box) *CommandError {
-	return Advance(&BoxCommand{
-		Name:   "Create",
-		Boxer:  boxer,
-		Box:    box,
-		States: CreateStates,
-	})
-}
-
-func (boxer *Boxer) Start(box *Box) *CommandError {
-	return Advance(&BoxCommand{
-		Name:   "Start",
-		Boxer:  boxer,
-		Box:    box,
-		States: StartStates,
-	})
-}
-
-func (boxer *Boxer) Restart(box *Box) *CommandError {
-	return Advance(&BoxCommand{
-		Name:   "Restart",
-		Boxer:  boxer,
-		Box:    box,
-		States: RestartStates,
-	})
-}
-
-func (boxer *Boxer) Stop(box *Box) *CommandError {
-	return Advance(&BoxCommand{
-		Name:   "Stop",
-		Boxer:  boxer,
-		Box:    box,
-		States: StopStates,
-	})
-}
-
-func (boxer *Boxer) Destroy(box *Box) *CommandError {
-	return Advance(&BoxCommand{
-		Name:   "Destroy",
-		Boxer:  boxer,
-		Box:    box,
-		States: DestroyStates,
-	})
-}
-
-func (boxer *Boxer) Migrate(box *Box) *CommandError {
-	return Advance(&BoxCommand{
-		Name:   "Migrate",
-		Boxer:  boxer,
-		Box:    box,
-		States: CreateStates,
-	})
-}
-
 // Given a list of boxes, try to start all of them.
 // This should process all the boxes even when some cant be started
 func (boxer *Boxer) StartAll(boxes []*Box) error {
 	var errors []error
 	for _, box := range boxes {
 		box.boxer = boxer
-		err := Advance(&BoxCommand{
-			Name:   "Start",
-			Boxer:  boxer,
-			Box:    box,
-			States: StartStates,
-		})
-		if err.Success() {
+		// make sure that the quota for box is set
+		box.SetQuota(boxer.Quota)
+		err := box.StartContainer()
+		if err != nil {
 			// make sure that the box are in running state
 			if err := boxer.ResourcePool.UpdateState(box, "running"); err != nil {
 				errors = append(errors, err)
 			}
 		} else {
 			errors = append(errors, fmt.Errorf("Failed to start box: %s",
-				box.ContainerName()))
+				box.Image()))
 		}
 	}
 	if len(errors) > 0 {

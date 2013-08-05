@@ -480,18 +480,26 @@ func (s *BoxerSuite) TestStartAll(c *C) {
 			PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
 		})
 		defer s.deleteBox(id, "mclovins-container")
+		s.Boxer.Receive(Message{
+			Id:    "testboxer",
+			BoxId: id,
+			Type:  "aio:stop",
+			Name:  "mclovins-container-1",
+		})
 	}
-
-	AssertLxcState(c, "mclovins-container-1", "STOPPED")
-	AssertLxcState(c, "mclovins-container-2", "STOPPED")
 
 	box1, _ := s.ResourcePool.FindBox("mclovins-container-1")
 	box2, _ := s.ResourcePool.FindBox("mclovins-container-2")
+	info1, _ := box1.dockerInfo()
+	c.Assert(info1.State.Running, Equals, false)
+	info2, _ := box1.dockerInfo()
+	c.Assert(info2.State.Running, Equals, false)
+
 	s.Boxer.StartAll([]*Box{box1, box2})
 
-	info1, _ := box1.dockerInfo()
+	info1, _ = box1.dockerInfo()
 	c.Assert(info1.State.Running, Equals, true)
-	info2, _ := box1.dockerInfo()
+	info2, _ = box1.dockerInfo()
 	c.Assert(info2.State.Running, Equals, true)
 }
 

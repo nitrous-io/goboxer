@@ -13,7 +13,6 @@ RUN` +
 	` && groupmod -g {{.Gid}} action` +
 	` && chown -R {{.Uid}}:{{.Uid}} /home/action/.[^.]*` +
 	` && echo {{.Id}} >> /etc/action/box_id` +
-	` && echo {{.Id}} >> /etc/action/box_id` +
 	` {{ range $i, $key := .PublicKeys }} && echo "{{$key}}" >> /etc/ssh/univ_public_keys {{end}}` +
 	`
 	# THE END
@@ -25,7 +24,6 @@ RUN` +
 	` usermod -u {{.Uid}} action` +
 	` && groupmod -g {{.Gid}} action` +
 	` && chown -R {{.Uid}}:{{.Gid}} /home/action` +
-	` && echo {{.Id}} >> /etc/action/box_id` +
 	` && echo {{.Id}} >> /etc/action/box_id` +
 	` {{ range $i, $key := .PublicKeys }} && echo "{{$key}}" >> /etc/ssh/univ_public_keys {{end}}` +
 	`
