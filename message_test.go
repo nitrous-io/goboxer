@@ -1,7 +1,9 @@
 package goboxer
 
 import (
+	"encoding/json"
 	. "launchpad.net/gocheck"
+	//"reflect"
 	"strings"
 )
 
@@ -37,4 +39,17 @@ func (s *MessageSuite) TestToJSONOmitEmpty(c *C) {
 	for k, v := range res {
 		c.Assert(strings.Contains(json, k), Equals, v, Commentf(k, v))
 	}
+}
+
+func (s *MessageSuite) TestFromJSON(c *C) {
+	msg := "{\"id\":\"46.137.252.155\",\"name\":\"rbtest1-372\",\"data\":[\"HEROKU_POSTGRES_URL\"],\"dataType\":\"aio:configure:remove_env_variables\"" +
+		",\"type\":\"aio:configure\"}"
+	message := Message{}
+	json.Unmarshal([]byte(msg), &message)
+	data := []string{}
+	vdata, _ := (message.Data).([]interface{})
+	for i := 0; i < len(vdata); i++ {
+		data = append(data, vdata[i].(string))
+	}
+	c.Assert(data[0], Equals, "HEROKU_POSTGRES_URL")
 }

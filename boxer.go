@@ -391,8 +391,15 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 		return message
 	case "aio:configure:remove_env_variables":
 		message.DataType = "aio:configured:remove_env_variables"
-		data, ok := (m.Data).([]string)
+		data := []string{}
+		vdata, ok := (m.Data).([]interface{})
 		if !ok {
+			return boxer.NewInvalidParamMessage()
+		}
+		for i := 0; i < len(vdata); i++ {
+			data = append(data, vdata[i].(string))
+		}
+		if len(data) == 0 {
 			return boxer.NewInvalidParamMessage()
 		}
 		message.Success = true
