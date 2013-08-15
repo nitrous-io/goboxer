@@ -18,7 +18,6 @@ lxc.cap.drop = mac_admin mac_override
 lxc.cap.drop = mknod setfcap setpcap
 lxc.cap.drop = sys_boot sys_module sys_nice sys_pacct sys_rawio sys_resource
 lxc.cap.drop = sys_time sys_tty_config
-lxc.cap.drop = sys_admin
 
 lxc.network.type = veth
 lxc.network.flags = up
@@ -63,10 +62,6 @@ lxc.utsname = {{.ContainerName}}
 {{$ROOTFS := .RootFS}}
 lxc.rootfs = {{$ROOTFS}}
 lxc.mount  = {{$CONTAINERFS}}/fstab
-lxc.mount.entry = /sys/fs/fuse/connections /sys/fs/fuse/connections fusectl optional 0 0
-lxc.mount.entry = /sys/kernel/debug /sys/kernel/debug debugfs optional 0 0
-lxc.mount.entry = /sys/kernel/security {{$ROOTFS}}/sys/kernel/security securityfs optional 0 0
-lxc.mount.entry = /run {{$ROOTFS}}/run tmpfs noexec,nosuid,size=10%,mode=0755  0 0
 `
 const NetworkConfigTemplate = `
 auto lo
