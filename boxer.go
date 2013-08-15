@@ -133,13 +133,23 @@ func (boxer *Boxer) runtimeKeys() []string {
 // Then, whenever we received a `Message` with `Type` == "aio:locate" or
 // "aio:create", we knows how to dispatch the message to `LocateBoxHandler` and
 // `CreateBoxHandler` function correctly
-func (boxer *Boxer) Receive(msg Message) Message {
+func (boxer *Boxer) Receive(msg Message) (message Message) {
+	defer func() {
+		if r := recover(); r != nil {
+			if err, ok := r.(error); !ok {
+				logger.Println("Error in Receive", msg, err)
+			}
+			message = boxer.NewInvalidParamMessage()
+		}
+	}()
 	handle, ok := boxer.Handles[msg.Type]
 	if !ok {
-		return boxer.NewInvalidParamMessage()
+		message = boxer.NewInvalidParamMessage()
+	} else {
+		msg.Id = boxer.Id
+		message = handle(msg, boxer)
 	}
-	msg.Id = boxer.Id
-	return handle(msg, boxer)
+	return
 }
 
 func (boxer *Boxer) NewAdvertiseMessage() Message {
