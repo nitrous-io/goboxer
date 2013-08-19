@@ -6,6 +6,7 @@
 package goboxer
 
 import (
+	"encoding/json"
 	"github.com/action-io/goboxer/quota/quotatest"
 	"github.com/garyburd/redigo/redis"
 	. "launchpad.net/gocheck"
@@ -625,15 +626,14 @@ func (s *BoxerSuite) TestRemoveEnvVariables(c *C) {
 			"REDIS_HOST":   "127.0.0.1",
 		},
 	})
-	message := s.Boxer.Receive(Message{
-		Id:       "testboxer",
-		BoxId:    "1",
-		Type:     "aio:configure",
-		Name:     "mclovins-container-1",
-		DataType: "aio:configure:remove_env_variables",
-		Data:     []string{"RDS_HOST", "RDS_PASSWORD"},
-	})
+	msg := "{\"id\":\"testboxer\",\"name\":\"mclovins-container-1\"," +
+		"\"data\":[\"RDS_HOST\", \"RDS_PASSWORD\"]," +
+		"\"dataType\":\"aio:configure:remove_env_variables\"" +
+		",\"type\":\"aio:configure\"}"
+	message := Message{}
+	json.Unmarshal([]byte(msg), &message)
 
+	message = s.Boxer.Receive(message)
 	c.Assert(message.Type, Equals, "aio:configured")
 	c.Assert(message.DataType, Equals, "aio:configured:remove_env_variables")
 	c.Assert(message.Id, Equals, "testboxer")
