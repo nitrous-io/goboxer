@@ -8,6 +8,7 @@ package goboxer
 import (
 	"encoding/json"
 	"github.com/action-io/goboxer/quota/quotatest"
+	"github.com/action-io/goboxer/s3"
 	"github.com/garyburd/redigo/redis"
 	. "launchpad.net/gocheck"
 	"os/exec"
@@ -64,6 +65,9 @@ func (s *BoxerSuite) SetUpTest(c *C) {
 		},
 		s.ResourcePool,
 		false,
+		s3.AuthTest{},
+		"ap-southeast-1",
+		"staging-bucket",
 	)
 }
 
@@ -774,4 +778,95 @@ func (s *BoxerSuite) TestChangeBoxSpecsInvalidParams(c *C) {
 	currentDiskSpace, _ := (data["diskSpace"]).(string)
 	c.Assert(currentMemory, Equals, "256M")
 	c.Assert(currentDiskSpace, Equals, "1024M")
+}
+
+func (s *BoxerSuite) TestSnapshot(c *C) {
+	s.Boxer.Receive(Message{
+		Id:         "testboxer",
+		BoxId:      "1",
+		Type:       "aio:create",
+		Name:       "mclovins-container",
+		Runtime:    "test",
+		Memory:     "256M",
+		DiskSpace:  "1024M",
+		PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
+	})
+	defer s.deleteBox("1", "mclovins-container")
+
+	message := s.Boxer.Receive(Message{
+		Id:         "testboxer",
+		BoxId:      "1",
+		Type:       "aio:migrate",
+		DataType:   "aio:migrate:snapshot",
+		Runtime:    "test",
+		Memory:     "256M",
+		DiskSpace:  "1024M",
+		Name:       "mclovins-container", // the actual name, not typical container-id name
+		PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
+	})
+
+	c.Assert(message.Success, Equals, true)
+	c.Assert(message.Type, Equals, "aio:migrate")
+	c.Assert(message.DataType, Equals, "aio:migrate:snapshotted")
+	c.Assert(strings.Contains(message.SnapshotURL,
+		"s3://staging-bucket/mclovins-container-1"), Equals, true)
+}
+
+func (s *BoxerSuite) TestMigrate(c *C) {
+	message := s.Boxer.Receive(Message{
+		Id:          "testboxer",
+		BoxId:       "1",
+		Type:        "aio:migrate",
+		DataType:    "aio:migrate:create",
+		Name:        "mclovins-container",
+		Runtime:     "test",
+		SnapshotURL: "s3://ap-southeast-1/staging-apse1.action.io/testboxer-1234.tar.gz",
+		Memory:      "256M",
+		DiskSpace:   "1024M",
+		PublicKeys:  []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
+	})
+	defer s.deleteBox("1", "mclovins-container")
+
+	c.Assert(message.Success, Equals, true)
+	c.Assert(message.Type, Equals, "aio:migrate")
+	c.Assert(message.DataType, Equals, "aio:migrate:created")
+
+	// it contains the content of the snapshot
+	root := "/lxc/disk1/mclovins-container-1"
+	DoesExist(c, []string{
+		root + "/rootfs/home/action/test.txt",
+	})
+
+	var checkContainsContent = map[string][]string{
+		root + "/rootfs/etc/passwd":        {"action:x:15001:15001"},
+		root + "/rootfs/etc/action/box_id": {"1"},
+		root + "/rootfs/etc/hostname":      {"mclovins-container-1"},
+		root + "/rootfs/etc/ssh/univ_public_keys": {
+			"ssh-rsa QWER",
+			"ssh-rsa ASDF",
+		},
+		root + "/rootfs/etc/network/interfaces": {
+			"address 192.168.254.2",
+			"gateway 192.168.254.1",
+		},
+		root + "/config": {
+			"lxc.cgroup.memory.limit_in_bytes = 256M",
+			"lxc.cgroup.memory.memsw.limit_in_bytes = 768M",
+			"lxc.network.hwaddr = 02:00",
+		},
+	}
+
+	var checkPermissions = map[string][]int{
+		root + "/rootfs/home/action": {15001, 15001},
+	}
+
+	// check the container contents at /lxc/disk1
+	DoesContain(c, checkContainsContent)
+	DoesHavePermissions(c, checkPermissions)
+
+	// check redis
+	conn := s.Redis.Get()
+	defer conn.Close()
+	usedIp, _ := redis.String(conn.Do("LPOP", "aio:used_resources"))
+	c.Assert(usedIp, Equals, "192.168.254.2")
 }

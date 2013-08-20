@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/action-io/goboxer"
+	"github.com/action-io/goboxer/s3"
 	"github.com/garyburd/redigo/redis"
 	"io/ioutil"
 	"os"
@@ -18,6 +19,7 @@ const ADVERTISE_INTERVAL = 5001
 
 type Config struct {
 	Id             string            `json:"id"`
+	LxcRoot        string            `json:"lxcRoot"`
 	BoxerChannel   string            `json:"boxerChannel"`
 	CoachChannel   string            `json:"coachChannel"`
 	RedisMQHost    string            `json:"redisMQHost"`
@@ -29,6 +31,10 @@ type Config struct {
 	Runtimes       map[string]string `json:"runtimes"`
 	PingHost       string            `json:"pingHost"`
 	PingPort       string            `json:"pingPort"`
+	AWSAccessKey   string            `json:"awsAccessKey"`
+	AWSSecretKey   string            `json:"awsSecretKey"`
+	AWSRegion      string            `json:"awsRegion"`
+	AWSBucket      string            `json:"awsBucket"`
 }
 
 func (c Config) RedisMQAddr() string {
@@ -84,6 +90,9 @@ func main() {
 		panic("Cannot parse config file " + *flConfigPath)
 		os.Exit(1)
 	}
+	if len(config.LxcRoot) == 0 {
+		config.LxcRoot = "/var/lib/lxc"
+	}
 
 	boxerConn, err := redis.Dial("tcp", config.RedisMQAddr())
 	if err != nil {
@@ -97,12 +106,15 @@ func main() {
 
 	boxer := goboxer.NewBoxer(
 		config.Id,
-		"/var/lib/lxc",
+		config.LxcRoot,
 		config.SelectedDisk,
 		config.Disks,
 		config.Runtimes,
 		resourcePool,
 		*flUseProjQuota,
+		s3.Auth{config.AWSAccessKey, config.AWSSecretKey},
+		config.AWSRegion,
+		config.AWSBucket,
 	)
 
 	if *flStartAll {
