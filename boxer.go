@@ -37,8 +37,6 @@ type Boxer struct {
 	sync.Mutex
 	Id           string
 	Root         string
-	SelectedDisk string
-	Disks        []string
 	ResourcePool *ResourcePool
 	Runtimes     map[string]string
 	Handles      map[string]MessageHandler
@@ -48,28 +46,15 @@ type Boxer struct {
 	S3Bucket     string
 }
 
-func NewBoxer(id, root, selectedDisk string, disks []string,
-	runtimes map[string]string, resourcePool *ResourcePool,
-	useProjQuota bool, s3auth s3.AuthInterface, region string,
-	bucket string) *Boxer {
-	boxer := &Boxer{
-		Id:           id,
-		Root:         root,
-		Runtimes:     runtimes,
-		SelectedDisk: selectedDisk,
-		Disks:        disks,
-		Handles:      handlers,
-		ResourcePool: resourcePool,
-		S3Auth:       s3auth,
-		S3Region:     region,
-		S3Bucket:     bucket,
-	}
+// Configure a new instance of Boxer. This needs to be called whenever you
+// create a new *Boxer
+func (boxer *Boxer) Configure(useProjQuota bool) {
+	boxer.Handles = handlers
 	if useProjQuota {
 		boxer.Quota = quota.Quota{}
 	} else {
 		boxer.Quota = quota.UserQuota{}
 	}
-	return boxer
 }
 
 // return back a slice of keys for the runtimes
@@ -164,7 +149,6 @@ func CreateBoxHandler(m Message, boxer *Boxer) Message {
 		DiskSpace:        m.DiskSpace,
 		PublicKeys:       m.PublicKeys,
 		SnapshotURL:      m.SnapshotURL,
-		Disk:             boxer.SelectedDisk,
 		Template:         boxer.Runtimes[m.Runtime],
 		Ip:               resource.Ip,
 		Gateway:          resource.Gateway,
@@ -454,7 +438,6 @@ func MigrateBoxHandler(m Message, boxer *Boxer) Message {
 			DiskSpace:        m.DiskSpace,
 			PublicKeys:       m.PublicKeys,
 			SnapshotURL:      m.SnapshotURL,
-			Disk:             boxer.SelectedDisk,
 			Template:         boxer.Runtimes[m.Runtime],
 			Ip:               resource.Ip,
 			Gateway:          resource.Gateway,

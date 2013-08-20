@@ -55,20 +55,16 @@ func (s *BoxerSuite) SetUpTest(c *C) {
 
 	s.ResourcePool = &ResourcePool{Pool: s.Redis}
 
-	s.Boxer = NewBoxer(
-		"testboxer",
-		"/var/lib/lxc",
-		"/lxc/disk1",
-		[]string{"/lxc/disk1"},
-		map[string]string{
-			"test": "nitrous/test",
-		},
-		s.ResourcePool,
-		false,
-		s3.AuthTest{},
-		"ap-southeast-1",
-		"staging-bucket",
-	)
+	s.Boxer = &Boxer{
+		Id:           "testboxer",
+		Root:         "/var/lib/docker",
+		Runtimes:     map[string]string{"test": "nitrous/test"},
+		ResourcePool: s.ResourcePool,
+		S3Auth:       s3.AuthTest{},
+		S3Region:     "ap-southeast-1",
+		S3Bucket:     "staging-bucket",
+	}
+	s.Boxer.Configure(false)
 }
 
 func (s *BoxerSuite) TearDownTest(c *C) {

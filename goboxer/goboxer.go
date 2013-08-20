@@ -19,15 +19,13 @@ const ADVERTISE_INTERVAL = 5001
 
 type Config struct {
 	Id             string            `json:"id"`
-	LxcRoot        string            `json:"lxcRoot"`
+	DockerRoot     string            `json:"dockerRoot"`
 	BoxerChannel   string            `json:"boxerChannel"`
 	CoachChannel   string            `json:"coachChannel"`
 	RedisMQHost    string            `json:"redisMQHost"`
 	RedisMQPort    string            `json:"redisMQPort"`
 	RedisStoreHost string            `json:"redisStoreHost"`
 	RedisStorePort string            `json:"redisStorePort"`
-	SelectedDisk   string            `json:"selectedDisk"`
-	Disks          []string          `json:"disks"`
 	Runtimes       map[string]string `json:"runtimes"`
 	PingHost       string            `json:"pingHost"`
 	PingPort       string            `json:"pingPort"`
@@ -90,8 +88,8 @@ func main() {
 		panic("Cannot parse config file " + *flConfigPath)
 		os.Exit(1)
 	}
-	if len(config.LxcRoot) == 0 {
-		config.LxcRoot = "/var/lib/lxc"
+	if len(config.DockerRoot) == 0 {
+		config.DockerRoot = "/var/lib/docker"
 	}
 
 	boxerConn, err := redis.Dial("tcp", config.RedisMQAddr())
@@ -104,18 +102,16 @@ func main() {
 		Pool: goboxer.NewRedisPool(config.RedisStoreAddr()),
 	}
 
-	boxer := goboxer.NewBoxer(
-		config.Id,
-		config.LxcRoot,
-		config.SelectedDisk,
-		config.Disks,
-		config.Runtimes,
-		resourcePool,
-		*flUseProjQuota,
-		s3.Auth{config.AWSAccessKey, config.AWSSecretKey},
-		config.AWSRegion,
-		config.AWSBucket,
-	)
+	boxer := &goboxer.Boxer{
+		Id:           config.Id,
+		Root:         config.DockerRoot,
+		Runtimes:     config.Runtimes,
+		ResourcePool: resourcePool,
+		S3Auth:       s3.Auth{config.AWSAccessKey, config.AWSSecretKey},
+		S3Region:     config.AWSRegion,
+		S3Bucket:     config.AWSBucket,
+	}
+	boxer.Configure(*flUseProjQuota)
 
 	if *flStartAll {
 		fmt.Println("Starting all containers ...")

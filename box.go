@@ -18,9 +18,7 @@ import (
 )
 
 const UidStart = 15000
-const DOCKER_BIN = "/home/action/gocode/bin/docker"
-const DOCKER_DISK = "/var/lib/docker"
-const DOCKER_CONTAINER_PATH = "/var/lib/docker/containers"
+const DOCKER_BIN = "docker"
 
 type BoxSpec struct {
 	Memory    string `json:"memory,omitempty"`
@@ -55,11 +53,9 @@ type Box struct {
 	boxer *Boxer
 }
 
-func (b *Box) ContainerName() string { return fmt.Sprintf("%s-%s", b.Name, b.Id) }
-func (b *Box) SetPublicKeys() error  { return b.AddPublicKey(b.PublicKeys...) }
-
-func (b *Box) BoxIdFile() string      { return path.Join(b.RootFS(), "etc", "action", "box_id") }
-func (b *Box) PrivateKeyPath() string { return path.Join("home", "action", ".ssh", "id_rsa") }
+func (b *Box) ContainerName() string {
+	return fmt.Sprintf("%s-%s", b.Name, b.Id)
+}
 
 func (b *Box) Home() string {
 	containerPath, _ := b.DockerContainerPath()
@@ -70,9 +66,6 @@ func (b *Box) TarName() string {
 	return fmt.Sprintf("%s-%v.tar.gz", b.ContainerName(), time.Now().Unix())
 }
 
-func (b *Box) RootFS() string      { return path.Join(DOCKER_CONTAINER_PATH, b.ContainerName(), "rootfs") }
-func (b *Box) ContainerFS() string { return path.Join(b.Disk, b.ContainerName()) }
-
 func (b *Box) EnvPath() string {
 	containerPath, _ := b.DockerContainerPath()
 	return path.Join(containerPath, "rootfs", "etc", "environment")
@@ -81,10 +74,6 @@ func (b *Box) EnvPath() string {
 func (b *Box) PublicKeysPath() string {
 	containerPath, _ := b.DockerContainerPath()
 	return path.Join(containerPath, "rootfs", "etc", "ssh", "univ_public_keys")
-}
-
-func (b *Box) ContainerDeltaPath() string {
-	return path.Join(b.Disk, b.ContainerName()+"_delta")
 }
 
 func (b *Box) Uid() string {
@@ -110,25 +99,19 @@ func (b *Box) RemovePublicKey(key string) error {
 	return DeleteLineContains(b.PublicKeysPath(), key)
 }
 
-func (b *Box) HomePath() string {
-	return path.Join(b.Disk, b.ContainerName()+"_delta", "rootfs", "home", "action")
-}
-
 func (b *Box) SetQuota(q quota.QuotaInterface) error {
 	b.boxer.Lock()
 	defer b.boxer.Unlock()
 	defer logger.LogDuration(
 		fmt.Sprintf("%s:SetQuota", b.ContainerName()),
 	)(time.Now())
-	return q.SetLimit(b.Id, b.ContainerName(), b.HomePath(),
-		DOCKER_DISK, b.DiskSpace)
+	return q.SetLimit(b.Id, b.ContainerName(), "", b.boxer.Root, b.DiskSpace)
 }
 
 func (b *Box) UnsetQuota(q quota.QuotaInterface) error {
 	b.boxer.Lock()
 	defer b.boxer.Unlock()
-	return q.RemoveLimit(b.Id, b.ContainerName(), b.HomePath(),
-		DOCKER_DISK)
+	return q.RemoveLimit(b.Id, b.ContainerName(), "", b.boxer.Root)
 }
 
 // valid data, start changing specs by
@@ -201,7 +184,7 @@ func (b *Box) LxcState(container dockerContainer) string {
 
 // Return current storage usage in kb
 func (b *Box) StorageUsage(q quota.QuotaInterface) (int, error) {
-	quotaInfo, err := q.ViewLimit(b.Id, DOCKER_DISK)
+	quotaInfo, err := q.ViewLimit(b.Id, b.boxer.Root)
 	if err != nil {
 		return 0, err
 	}
@@ -495,8 +478,8 @@ type dockerCollection struct {
 	Containers []dockerContainer
 }
 
-func (c dockerContainer) Path() string {
-	return path.Join(DOCKER_CONTAINER_PATH, c.Id)
+func (c dockerContainer) Path(prefix string) string {
+	return path.Join(prefix, c.Id)
 }
 
 // Use this only when you have to inspect the content of the running container
@@ -506,7 +489,7 @@ func (b *Box) DockerContainerPath() (p string, err error) {
 	if err != nil {
 		return
 	}
-	p = c.Path()
+	p = c.Path(path.Join(b.boxer.Root, "containers"))
 	return
 }
 
