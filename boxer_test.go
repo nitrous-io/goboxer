@@ -603,7 +603,7 @@ func (s *BoxerSuite) TestDoubleSetEnvVariables(c *C) {
 		},
 	})
 
-	s.Boxer.Receive(Message{
+	message := s.Boxer.Receive(Message{
 		Id:       "testboxer",
 		BoxId:    "1",
 		Type:     "aio:configure",
@@ -615,7 +615,7 @@ func (s *BoxerSuite) TestDoubleSetEnvVariables(c *C) {
 		},
 	})
 
-	root := "/lxc/disk1/mclovins-container-1"
+	root, _ := message.box.DockerContainerPath()
 	DoesContain(c, map[string][]string{
 		root + "/rootfs/etc/environment": []string{
 			"RDS_HOST=mysql://secure",
