@@ -179,7 +179,7 @@ func CreateBoxHandler(m Message, boxer *Boxer) Message {
 		msg.Success = false
 		return msg
 	}
-	if err := boxer.ResourcePool.SaveBox(box); err != nil {
+	if err := box.UpdateState("running"); err != nil {
 		logger.Printf("ERROR: Fail to save %v, err: %v\n", box, err)
 		msg.Success = false
 		return msg
@@ -207,7 +207,7 @@ func StartBoxHandler(m Message, boxer *Boxer) Message {
 		Success:    true,
 		box:        box,
 	}
-	if err := boxer.ResourcePool.UpdateState(box, "running"); err != nil {
+	if err := box.UpdateState("running"); err != nil {
 		logger.Printf("ERROR: Fail to update box state %v, err: %v\n", box, err)
 		msg.Success = false
 	}
@@ -232,7 +232,7 @@ func StopBoxHandler(m Message, boxer *Boxer) Message {
 		Success:    true,
 		box:        box,
 	}
-	if err := boxer.ResourcePool.UpdateState(box, "stopped"); err != nil {
+	if err := box.UpdateState("stopped"); err != nil {
 		logger.Printf("ERROR: Fail to update box state %v, err: %v\n", box, err)
 		msg.Success = false
 	}
@@ -257,7 +257,7 @@ func RestartBoxHandler(m Message, boxer *Boxer) Message {
 		Success:    true,
 		box:        box,
 	}
-	if err := boxer.ResourcePool.UpdateState(box, "running"); err != nil {
+	if err := box.UpdateState("running"); err != nil {
 		logger.Printf("ERROR: Fail to update box state %v, err: %v\n", box, err)
 		msg.Success = false
 	}
@@ -355,7 +355,7 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 			message.Success = false
 			return message
 		}
-		if err := boxer.ResourcePool.UpdateState(box, "running"); err != nil {
+		if err := box.UpdateState("running"); err != nil {
 			message.Success = false
 			return message
 		}
@@ -408,6 +408,7 @@ func InfoRequestBoxHandler(m Message, boxer *Boxer) Message {
 	}
 	info, err := box.Info(boxer.Quota)
 	if err != nil {
+		logger.Println("InfoFailed", err)
 		message.Success = false
 		return message
 	}
@@ -450,7 +451,7 @@ func MigrateBoxHandler(m Message, boxer *Boxer) Message {
 			boxer.ResourcePool.Release(resource.Ip)
 			return message
 		}
-		if err := boxer.ResourcePool.SaveBox(box); err != nil {
+		if err := box.Persist(); err != nil {
 			logger.Printf("ERROR: Fail to save %v, err: %v\n", box, err)
 			return message
 		}
@@ -472,7 +473,7 @@ func (boxer *Boxer) StartAll(boxes []*Box) error {
 		err := box.StartContainer()
 		if err != nil {
 			// make sure that the box are in running state
-			if err := boxer.ResourcePool.UpdateState(box, "running"); err != nil {
+			if err := box.UpdateState("running"); err != nil {
 				errors = append(errors, err)
 			}
 		} else {

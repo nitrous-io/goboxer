@@ -108,8 +108,6 @@ func (s *ResourcePoolSuite) TestFindRunningBoxes(c *C) {
 	b, _ := rs.FindRunningBoxes()
 
 	c.Assert(len(b), Equals, 2)
-	c.Assert(b[0].Id, Equals, "3")
 	c.Assert(b[0].State, Equals, "running")
-	c.Assert(b[1].Id, Equals, "1")
 	c.Assert(b[1].State, Equals, "running")
 }

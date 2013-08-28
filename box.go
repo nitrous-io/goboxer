@@ -156,9 +156,19 @@ func (b *Box) ChangeSpec(spec *BoxSpec, q quota.QuotaInterface) error {
 // the unit if B, so if we want to convert to MB, it needs to be divided with
 // 1024 * 1024
 func (b *Box) MemoryUsageInBytes(container dockerContainer) (m int, err error) {
-	filename := fmt.Sprintf("/sys/fs/cgroup/memory/lxc/%s/memory.usage_in_bytes",
+	var file *os.File
+	var filename string
+	filename = fmt.Sprintf(
+		"/sys/fs/cgroup/memory/sysdefault/lxc/%s/memory.usage_in_bytes",
 		container.Id)
-	file, err := os.Open(filename)
+	file, err = os.Open(filename)
+	// falback to old default location if we cant find cgroup data
+	if os.IsNotExist(err) {
+		filename = fmt.Sprintf(
+			"/sys/fs/cgroup/memory/lxc/%s/memory.usage_in_bytes",
+			container.Id)
+		file, err = os.Open(filename)
+	}
 	if err != nil {
 		return
 	}
@@ -404,7 +414,7 @@ func (b *Box) CreateContainer() (err error) {
 	}
 	b.DockerId = id
 	// docker id changes here, we will save the new data into redis
-	return b.boxer.ResourcePool.SaveBox(b)
+	return b.UpdateState("running")
 }
 
 // dont complain if the container is running
@@ -420,7 +430,7 @@ func (b *Box) StartContainer() (err error) {
 	if err != nil && !strings.Contains(output, "is already running") {
 		return
 	}
-	return b.boxer.ResourcePool.UpdateState(b, "running")
+	return b.UpdateState("running")
 }
 
 func (b *Box) StopContainer() (err error) {
@@ -433,7 +443,7 @@ func (b *Box) StopContainer() (err error) {
 	if err = exec.Command(DOCKER_BIN, "stop", b.DockerId).Run(); err != nil {
 		return
 	}
-	return b.boxer.ResourcePool.UpdateState(b, "stopped")
+	return b.UpdateState("stopped")
 }
 
 func (b *Box) RestartContainer() (err error) {
@@ -465,10 +475,39 @@ func (b *Box) CommitContainer() (err error) {
 		b.DockerId, b.Image()).Run()
 }
 
+// make sure that the current state of box is persisted to resource pool
+func (b *Box) Persist() error {
+	if len(b.State) == 0 {
+		return fmt.Errorf("BoxStateNotFound: %v", b)
+	}
+	dockerInfo, err := b.dockerInfo()
+	if err != nil {
+		return fmt.Errorf("DockerInfoNotFound: err %v", err)
+	}
+	b.Ip = dockerInfo.NetworkSettings.IPAddress
+	b.Gateway = dockerInfo.NetworkSettings.Gateway
+	b.NetworkInterface = dockerInfo.NetworkSettings.Bridge
+	return b.boxer.ResourcePool.SaveBox(b)
+}
+
+func (b *Box) UpdateState(state string) error {
+	b.State = state
+	return b.Persist()
+}
+
+type dockerPortMap map[string]string
+
 type dockerContainer struct {
 	Id    string `json:"id"`
 	State struct {
 		Running bool
+	}
+	NetworkSettings struct {
+		IPAddress   string
+		IPPrefixLen int
+		Gateway     string
+		Bridge      string
+		PortMapping map[string]dockerPortMap
 	}
 }
 
