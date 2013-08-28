@@ -15,9 +15,9 @@
   "awsRegion": "sample_region",
   "awsBucket": "sample_bucket",
   "runtimes": {
-    "rails": "ruby_template",
-    "nodejs": "nodejs_template",
-    "django": "python_template",
-    "golang": "golang_template"
+    "rails": "docker-registry.nitrous.io/nitrous/ruby",
+    "nodejs": "docker-registry.nitrous.io/nitrous/nodejs",
+    "django": "docker-registry.nitrous.io/nitrous/python",
+    "golang": "docker-registry.nitrous.io/nitrous/golang"
   }
 }
