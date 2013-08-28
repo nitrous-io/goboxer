@@ -5,7 +5,7 @@ import (
 )
 
 const DockerfileTemplate = `
-FROM  {{.BaseImage}}
+FROM  {{.Template}}
 RUN` +
 	` mkdir -p /home/action/.ssh` +
 	` && ssh-keygen -N '' -f /home/action/.ssh/id_rsa -b 1024 -t rsa -q` +

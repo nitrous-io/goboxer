@@ -245,9 +245,7 @@ func (b Box) Tar() (compressedPath string, err error) {
 	return Tar(b.TarName(), b.Home())
 }
 
-func (b *Box) Image() string { return "nitrous/" + b.Id }
-
-func (b *Box) BaseImage() string { return b.Template }
+func (b *Box) Image() string { return "docker-registry.nitrous.io/nitrous/" + b.Id }
 
 func (b *Box) CreateImage() (err error) {
 	defer logger.LogDuration(
