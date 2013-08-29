@@ -66,7 +66,7 @@ func (s *BenchmarkSuite) SetUpTest(c *C) {
 		S3Region:     "ap-southeast-1",
 		S3Bucket:     "staging-bucket",
 	}
-	s.Boxer.Configure(false)
+	s.Boxer.Configure()
 }
 
 func (s *BenchmarkSuite) TearDownTest(c *C) {

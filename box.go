@@ -105,13 +105,13 @@ func (b *Box) SetQuota(q quota.QuotaInterface) error {
 	defer logger.LogDuration(
 		fmt.Sprintf("%s:SetQuota", b.ContainerName()),
 	)(time.Now())
-	return q.SetLimit(b.Id, b.ContainerName(), "", b.boxer.Root, b.DiskSpace)
+	return q.SetLimit(b.Id, b.boxer.Root, b.DiskSpace)
 }
 
 func (b *Box) UnsetQuota(q quota.QuotaInterface) error {
 	b.boxer.Lock()
 	defer b.boxer.Unlock()
-	return q.RemoveLimit(b.Id, b.ContainerName(), "", b.boxer.Root)
+	return q.RemoveLimit(b.Id, b.boxer.Root)
 }
 
 // valid data, start changing specs by
@@ -138,7 +138,6 @@ func (b *Box) ChangeSpec(spec *BoxSpec, q quota.QuotaInterface) error {
 		return err
 	}
 	if err := b.StartContainer(); err != nil {
-		logger.Debugln("what", err)
 		return err
 	}
 	if spec.DiskSpace != b.DiskSpace {
@@ -323,7 +322,7 @@ func (b *Box) CreateFromSnapshot(stream io.ReadCloser) (err error) {
 
 	// create a container from the base image, and not from
 	// docker_template
-	id, err := createContainer(b, "nitrous/base")
+	id, err := createContainer(b, b.boxer.Runtimes["base"])
 	if err != nil {
 		logger.Println("fail to retrieve id", id, err)
 		return

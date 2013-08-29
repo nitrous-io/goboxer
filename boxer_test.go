@@ -56,15 +56,18 @@ func (s *BoxerSuite) SetUpTest(c *C) {
 	s.ResourcePool = &ResourcePool{Pool: s.Redis}
 
 	s.Boxer = &Boxer{
-		Id:           "testboxer",
-		Root:         "/var/lib/docker",
-		Runtimes:     map[string]string{"test": "nitrous/test"},
+		Id:   "testboxer",
+		Root: "/var/lib/docker",
+		Runtimes: map[string]string{
+			"test": "docker-registry.nitrous.io/nitrous/test",
+			"base": "docker-registry.nitrous.io/nitrous/test",
+		},
 		ResourcePool: s.ResourcePool,
 		S3Auth:       s3.AuthTest{},
 		S3Region:     "ap-southeast-1",
 		S3Bucket:     "staging-bucket",
 	}
-	s.Boxer.Configure(false)
+	s.Boxer.Configure()
 }
 
 func (s *BoxerSuite) TearDownTest(c *C) {
@@ -72,7 +75,7 @@ func (s *BoxerSuite) TearDownTest(c *C) {
 	defer conn.Close()
 	defer s.Redis.Close()
 	conn.Do("FLUSHDB")
-	exec.Command(DOCKER_BIN, "rmi", "nitrous/1").Run()
+	exec.Command(DOCKER_BIN, "rmi", "docker-registry.nitrous.io/nitrous/1").Run()
 }
 
 // TODO: check if the quota is set correctly
@@ -451,7 +454,7 @@ func (s *BoxerSuite) TestChangeBoxSpecs(c *C) {
 
 func (s *BoxerSuite) TestNewAdvertiseMessage(c *C) {
 	m := s.Boxer.NewAdvertiseMessage()
-	c.Assert(m.Runtimes, DeepEquals, []string{"test"})
+	c.Assert(m.Runtimes, DeepEquals, []string{"test", "base"})
 	s.Boxer.Runtimes = map[string]string{
 		"test": "test_container_template",
 		"ruby": "ruby_template",

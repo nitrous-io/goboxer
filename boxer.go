@@ -48,13 +48,9 @@ type Boxer struct {
 
 // Configure a new instance of Boxer. This needs to be called whenever you
 // create a new *Boxer
-func (boxer *Boxer) Configure(useProjQuota bool) {
+func (boxer *Boxer) Configure() {
 	boxer.Handles = handlers
-	if useProjQuota {
-		boxer.Quota = quota.Quota{}
-	} else {
-		boxer.Quota = quota.UserQuota{}
-	}
+	boxer.Quota = quota.Quota{}
 }
 
 // return back a slice of keys for the runtimes

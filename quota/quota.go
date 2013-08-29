@@ -1,11 +1,17 @@
 package quota
 
 import (
+	"bufio"
 	"fmt"
 	"os/exec"
 	"strconv"
 	"strings"
 )
+
+// this should be the same as the uid that we used as base to calculate user id
+// a bit hacky now as we can pass the real id to methods instead of having to
+// calculate it with this
+const UidStart = 15000
 
 type QuotaInfo struct {
 	Used  int
@@ -13,15 +19,24 @@ type QuotaInfo struct {
 }
 
 type QuotaInterface interface {
-	SetLimit(id, name, path, projectContainer, limit string) error
-	RemoveLimit(id, name, path, projectContainer string) error
-	ViewLimit(id, projectContainer string) (QuotaInfo, error)
+	SetLimit(id, fileSystem, limit string) error
+	RemoveLimit(id, fileSystem string) error
+	ViewLimit(id, fileSystem string) (QuotaInfo, error)
 }
 
 type Quota struct{}
 
-func (q Quota) SetLimit(id, name, path, projectContainer, limit string) error {
-	quotaInfo, err := q.ViewLimit(id, projectContainer)
+func uid(id string) (uid int, err error) {
+	intid, err := strconv.Atoi(id)
+	if err != nil {
+		return
+	}
+	uid = UidStart + intid
+	return
+}
+
+func (q Quota) SetLimit(id, fileSystem, limit string) error {
+	quotaInfo, err := q.ViewLimit(id, fileSystem)
 	if err != nil {
 		return err
 	}
@@ -30,45 +45,77 @@ func (q Quota) SetLimit(id, name, path, projectContainer, limit string) error {
 		return fmt.Errorf("Current usage %d exceeded new limit %d",
 			quotaInfo.Used, newLimit)
 	}
-	if err := AppendlnUnlessContain("/etc/projid", name+":"+id); err != nil {
-		return err
-	}
-	if err := AppendlnUnlessContain("/etc/projects", id+":"+path); err != nil {
-		return err
-	}
-	// assume that xfs_quota works here
-	quotaValue := fmt.Sprintf("%d%s", int(ScaleUnit(newLimit, "M")), "M")
-	xfsquota("project -s "+name, projectContainer)
-	xfsquota(fmt.Sprintf("limit -p bhard=%s %s", quotaValue, name), projectContainer)
-	return nil
-}
-
-func (q Quota) RemoveLimit(id, name, path, projectContainer string) error {
-	if err := DeleteLineContains("/etc/projid", name+":"+id); err != nil {
-		return err
-	}
-	if err := DeleteLineContains("/etc/projects", path); err != nil {
-		return err
-	}
-	xfsquota("limit -p bhard=0 "+id, projectContainer)
-	return nil
-}
-
-func (q Quota) ViewLimit(id, projectContainer string) (QuotaInfo, error) {
-	stdout, err := xfsquota("quota -pvN "+id, projectContainer)
+	userId, err := uid(id)
 	if err != nil {
-		return QuotaInfo{}, err
+		return err
 	}
-	fields := strings.Fields(string(stdout))
+	// ignore errors here
+	err = setQuota(newLimit, newLimit, userId, fileSystem)
+	if err != nil {
+		fmt.Println("SetLimitError", err)
+	}
+	return nil
+}
+
+func (q Quota) RemoveLimit(id, fileSystem string) error {
+	userId, err := uid(id)
+	if err != nil {
+		return err
+	}
+	err = setQuota(0, 0, userId, fileSystem)
+	if err != nil {
+		fmt.Println("RemoveLimitError", err)
+	}
+	return nil
+}
+
+func (q Quota) ViewLimit(id, fileSystem string) (info QuotaInfo, err error) {
+	var userId int
+	var fields []string
+	if userId, err = uid(id); err != nil {
+		return
+	}
+	if fields, err = viewQuota(userId, fileSystem); err != nil {
+		return
+	}
 	if len(fields) == 0 {
-		return QuotaInfo{}, nil
+		return
 	}
-	used, _ := strconv.Atoi(fields[1])
-	limit, _ := strconv.Atoi(fields[3])
+	usedStr := strings.Replace(fields[2], "*", "", -1)
+	limitStr := strings.Replace(fields[4], "*", "", -1)
+	used, _ := strconv.Atoi(usedStr)
+	limit, _ := strconv.Atoi(limitStr)
 	return QuotaInfo{Used: used, Limit: limit}, nil
 }
 
-func xfsquota(arg, path string) ([]byte, error) {
-	cmd := fmt.Sprintf("xfs_quota -x -c '%s' %s", arg, path)
-	return exec.Command("bash", "-c", cmd).CombinedOutput()
+func setQuota(softLimit, hardLimit int, user int, fileSystem string) error {
+	cmd := exec.Command("setquota", "-u", strconv.Itoa(user),
+		strconv.Itoa(softLimit), strconv.Itoa(hardLimit), "0", "0", fileSystem)
+	return cmd.Run()
+}
+
+func viewQuota(user int, fileSystem string) (fields []string, err error) {
+	cmd := exec.Command("quota", "-wu", strconv.Itoa(user), "--show-mntpoint")
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return
+	}
+	scanner := bufio.NewScanner(stdout)
+	cmd.Start()
+	for scanner.Scan() {
+		info := scanner.Text()
+		fields = strings.Fields(info)
+		if fields[1] == fileSystem {
+			break
+		}
+	}
+	if err = scanner.Err(); err != nil {
+		return
+	}
+	cmd.Wait()
+	return
+}
+
+func toString(input []byte, err error) (string, error) {
+	return string(input), err
 }

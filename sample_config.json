@@ -15,6 +15,7 @@
   "awsRegion": "sample_region",
   "awsBucket": "sample_bucket",
   "runtimes": {
+    "base": "docker-registry.nitrous.io/nitrous/base",
     "rails": "docker-registry.nitrous.io/nitrous/ruby",
     "nodejs": "docker-registry.nitrous.io/nitrous/nodejs",
     "django": "docker-registry.nitrous.io/nitrous/python",

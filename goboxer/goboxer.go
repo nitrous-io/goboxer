@@ -72,7 +72,6 @@ func main() {
 	flBenchmark := flag.Bool("benchmark", false, "Start benchmark mode")
 	flBenchmarkStartAll := flag.Bool("benchmark-start-all", false, "Start benchmark mode for start all")
 	flNumBox := flag.Int("num", 10, "Number of box that will be created in benchmark mode")
-	flUseProjQuota := flag.Bool("use-projquota", false, "Use project quota instead of user quota")
 	flag.Parse()
 	if *flVersion {
 		fmt.Println(version)
@@ -111,7 +110,7 @@ func main() {
 		S3Region:     config.AWSRegion,
 		S3Bucket:     config.AWSBucket,
 	}
-	boxer.Configure(*flUseProjQuota)
+	boxer.Configure()
 
 	if *flStartAll {
 		fmt.Println("Starting all containers ...")
