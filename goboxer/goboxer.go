@@ -19,7 +19,6 @@ const ADVERTISE_INTERVAL = 5001
 
 type Config struct {
 	Id             string            `json:"id"`
-	DockerRoot     string            `json:"dockerRoot"`
 	BoxerChannel   string            `json:"boxerChannel"`
 	CoachChannel   string            `json:"coachChannel"`
 	RedisMQHost    string            `json:"redisMQHost"`
@@ -33,6 +32,20 @@ type Config struct {
 	AWSSecretKey   string            `json:"awsSecretKey"`
 	AWSRegion      string            `json:"awsRegion"`
 	AWSBucket      string            `json:"awsBucket"`
+
+	// docker configs
+	//
+	// `DockerSocket`: current active docker daemon socket that will
+	// accept box creation
+	// `DockerDisks`: map of disk to socket of all docker daemons that are
+	// running on the servers. This is useful when we want to redirect
+	// non-creation request ( such as restart, stop etc) to existing boxes
+	// that may not be under current docker daemon
+	//
+	// goboxer currently will not try to setup docker instances. This normally
+	// should be done as part of a separate process such as upstart
+	DockerSocket string            `json:"dockerSocket"`
+	DockerDisks  map[string]string `json:"dockerDisks"`
 }
 
 func (c Config) RedisMQAddr() string {
@@ -87,8 +100,9 @@ func main() {
 		panic("Cannot parse config file " + *flConfigPath)
 		os.Exit(1)
 	}
-	if len(config.DockerRoot) == 0 {
-		config.DockerRoot = "/var/lib/docker"
+	if len(config.DockerSocket) == 0 || len(config.DockerDisks) == 0 {
+		panic("Require docker socket and disks mapping to be configured")
+		os.Exit(1)
 	}
 
 	boxerConn, err := redis.Dial("tcp", config.RedisMQAddr())
@@ -103,7 +117,8 @@ func main() {
 
 	boxer := &goboxer.Boxer{
 		Id:           config.Id,
-		Root:         config.DockerRoot,
+		DockerSocket: config.DockerSocket,
+		DockerDisks:  config.DockerDisks,
 		Runtimes:     config.Runtimes,
 		ResourcePool: resourcePool,
 		S3Auth:       s3.Auth{config.AWSAccessKey, config.AWSSecretKey},

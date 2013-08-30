@@ -59,8 +59,14 @@ func (s *BenchmarkSuite) SetUpTest(c *C) {
 	s.ResourcePool = &ResourcePool{Pool: s.Redis}
 	s.Boxer = &Boxer{
 		Id:           "testboxer",
-		Root:         "/var/lib/docker",
-		Runtimes:     map[string]string{"test": "nitrous/test"},
+		DockerSocket: "/var/run/docker.sock",
+		DockerDisks: map[string]string{
+			"/var/run/docker.sock": "/var/lib/docker",
+		},
+		Runtimes: map[string]string{
+			"test": "docker-registry.nitrous.io/nitrous/test",
+			"base": "docker-registry.nitrous.io/nitrous/test",
+		},
 		ResourcePool: s.ResourcePool,
 		S3Auth:       s3.AuthTest{},
 		S3Region:     "ap-southeast-1",
