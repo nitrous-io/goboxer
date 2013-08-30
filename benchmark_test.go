@@ -2,6 +2,7 @@
 package goboxer
 
 import (
+	"github.com/action-io/goboxer/s3"
 	"github.com/garyburd/redigo/redis"
 	. "launchpad.net/gocheck"
 	"strconv"
@@ -56,17 +57,22 @@ func (s *BenchmarkSuite) SetUpTest(c *C) {
 	}
 
 	s.ResourcePool = &ResourcePool{Pool: s.Redis}
-	s.Boxer = NewBoxer(
-		"testboxer",
-		"/var/lib/lxc",
-		"/lxc/disk1",
-		[]string{"/lxc/disk1"},
-		map[string]string{
-			"test": "test_container_template",
+	s.Boxer = &Boxer{
+		Id:           "testboxer",
+		DockerSocket: "/var/run/docker.sock",
+		DockerDisks: map[string]string{
+			"/var/run/docker.sock": "/var/lib/docker",
 		},
-		s.ResourcePool,
-		false,
-	)
+		Runtimes: map[string]string{
+			"test": "docker-registry.nitrous.io/nitrous/test",
+			"base": "docker-registry.nitrous.io/nitrous/test",
+		},
+		ResourcePool: s.ResourcePool,
+		S3Auth:       s3.AuthTest{},
+		S3Region:     "ap-southeast-1",
+		S3Bucket:     "staging-bucket",
+	}
+	s.Boxer.Configure()
 }
 
 func (s *BenchmarkSuite) TearDownTest(c *C) {

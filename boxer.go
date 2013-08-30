@@ -9,15 +9,11 @@ import (
 	"fmt"
 	"github.com/action-io/goboxer/host"
 	"github.com/action-io/goboxer/quota"
+	"github.com/action-io/goboxer/s3"
 	"sync"
 )
 
 var handlers map[string]MessageHandler
-var CreateStates []State
-var StartStates []State
-var StopStates []State
-var RestartStates []State
-var DestroyStates []State
 
 func init() {
 	handlers = map[string]MessageHandler{
@@ -29,40 +25,7 @@ func init() {
 		"aio:destroy":      logger.LogHandler("aio:destroy", DestroyBoxHandler),
 		"aio:configure":    logger.LogHandler("aio:configure", ConfigureBoxHandler),
 		"aio:info_request": logger.LogHandler("aio:info_request", InfoRequestBoxHandler),
-	}
-
-	CreateStates = []State{
-		State{Name: "CreateMountContainer", Advance: MountContainer, Rollback: UnmountContainer},
-		State{Name: "CreateSetupContainer", Advance: SetupContainer, Rollback: Pass},
-		State{Name: "CreateSetQuota", Advance: SetQuota, Rollback: UnsetQuota},
-		State{Name: "CreateSetPortForwarding", Advance: SetPortForwarding, Rollback: UnsetPortForwarding},
-	}
-
-	StartStates = []State{
-		State{Name: "StartMountContainer", Advance: MountContainer, Rollback: UnmountContainer},
-		State{Name: "StartSetQuota", Advance: SetQuota, Rollback: UnsetQuota},
-		State{Name: "StartStartContainer", Advance: StartContainer, Rollback: StopContainer},
-	}
-
-	StopStates = []State{
-		State{Name: "StopStopContainer", Advance: StopContainer, Rollback: Pass},
-		State{Name: "StopUnmountContainer", Advance: UnmountContainer, Rollback: MountContainer},
-		State{Name: "StopUnsetQuota", Advance: UnsetQuota, Rollback: SetQuota},
-	}
-
-	DestroyStates = []State{
-		State{Name: "DestroyStopContainer", Advance: StopContainer, Rollback: Pass},
-		State{Name: "DestroyUnsetPortForwarding", Advance: UnsetPortForwarding, Rollback: SetPortForwarding},
-		State{Name: "DestroyUnmountCcontainer", Advance: UnmountContainer, Rollback: MountContainer},
-		State{Name: "DestroyUnsetQuota", Advance: UnsetQuota, Rollback: SetQuota},
-		State{Name: "DestroyDeleteContainerData", Advance: DeleteContainerData, Rollback: Pass},
-	}
-
-	RestartStates = []State{
-		State{Name: "RestartStopContainer", Advance: StopContainer, Rollback: Pass},
-		State{Name: "RestartUnmountContainer", Advance: UnmountContainer, Rollback: Pass},
-		State{Name: "RestartMountContainer", Advance: MountContainer, Rollback: Pass},
-		State{Name: "RestartStartContainer", Advance: StartContainer, Rollback: Pass},
+		"aio:migrate":      logger.LogHandler("aio:migrate", MigrateBoxHandler),
 	}
 }
 
@@ -73,33 +36,25 @@ type MessageHandler func(m Message, boxer *Boxer) Message
 type Boxer struct {
 	sync.Mutex
 	Id           string
-	Root         string
-	SelectedDisk string
-	Disks        []string
 	ResourcePool *ResourcePool
 	Runtimes     map[string]string
 	Handles      map[string]MessageHandler
 	Quota        quota.QuotaInterface
+	S3Auth       s3.AuthInterface
+	S3Region     string
+	S3Bucket     string
+	// docker settings
+	// `DockerSocket`: active daemon's container such as /var/run/docker.sock
+	// `DockerDisks`: map of all daemons' container and socket
+	DockerSocket string
+	DockerDisks  map[string]string
 }
 
-func NewBoxer(id, root, selectedDisk string, disks []string,
-	runtimes map[string]string, resourcePool *ResourcePool,
-	useProjQuota bool) *Boxer {
-	boxer := &Boxer{
-		Id:           id,
-		Root:         root,
-		Runtimes:     runtimes,
-		SelectedDisk: selectedDisk,
-		Disks:        disks,
-		Handles:      handlers,
-		ResourcePool: resourcePool,
-	}
-	if useProjQuota {
-		boxer.Quota = quota.Quota{}
-	} else {
-		boxer.Quota = quota.UserQuota{}
-	}
-	return boxer
+// Configure a new instance of Boxer. This needs to be called whenever you
+// create a new *Boxer
+func (boxer *Boxer) Configure() {
+	boxer.Handles = handlers
+	boxer.Quota = quota.Quota{}
 }
 
 // return back a slice of keys for the runtimes
@@ -194,7 +149,6 @@ func CreateBoxHandler(m Message, boxer *Boxer) Message {
 		DiskSpace:        m.DiskSpace,
 		PublicKeys:       m.PublicKeys,
 		SnapshotURL:      m.SnapshotURL,
-		Disk:             boxer.SelectedDisk,
 		Template:         boxer.Runtimes[m.Runtime],
 		Ip:               resource.Ip,
 		Gateway:          resource.Gateway,
@@ -202,17 +156,36 @@ func CreateBoxHandler(m Message, boxer *Boxer) Message {
 		Port:             resource.GetPort(),
 	}
 	box.boxer = boxer
-	if err := boxer.Create(box); !err.Success() {
-		logger.Printf("ERROR: Fail to create %v, err: %v\n", box, err)
+	box.DockerSocket = boxer.DockerSocket
+	// create the base image for the box. Base image will be named as
+	// docker-registry.nitrous.io/nitrous/<box_id>
+	if err := box.CreateImage(); err != nil {
+		logger.Printf("ERROR: Fail to create image %v, err: %v\n", box, err)
 		boxer.ResourcePool.Release(resource.Ip)
 		msg.Success = false
 		return msg
 	}
-	if err := boxer.ResourcePool.SaveBox(box); err != nil {
+	// from the base image, we run a new container. This is where all user
+	// changes happens
+	if err := box.CreateContainer(); err != nil {
+		logger.Printf("ERROR: Fail to create container %v, err: %v\n", box, err)
+		msg.Success = false
+		return msg
+	}
+	// set quota for the box. This should only works with usrquota for now
+	box.SetQuota(boxer.Quota)
+	// start the new container
+	if err := box.StartContainer(); err != nil {
+		logger.Printf("ERROR: Fail to start %v, err: %v\n", box, err)
+		msg.Success = false
+		return msg
+	}
+	if err := box.UpdateState("running"); err != nil {
 		logger.Printf("ERROR: Fail to save %v, err: %v\n", box, err)
 		msg.Success = false
 		return msg
 	}
+	msg.box = box
 	msg.Port = box.Port
 	msg.Success = true
 	return msg
@@ -223,7 +196,7 @@ func StartBoxHandler(m Message, boxer *Boxer) Message {
 	if err != nil {
 		return boxer.NewInvalidParamMessage()
 	}
-	if err := boxer.Start(box); !err.Success() {
+	if err := box.StartContainer(); err != nil {
 		logger.Printf("ERROR: Fail to start %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
 	}
@@ -233,8 +206,9 @@ func StartBoxHandler(m Message, boxer *Boxer) Message {
 		BoxId:      box.Id,
 		ReturnVars: m.ReturnVars,
 		Success:    true,
+		box:        box,
 	}
-	if err := boxer.ResourcePool.UpdateState(box, "running"); err != nil {
+	if err := box.UpdateState("running"); err != nil {
 		logger.Printf("ERROR: Fail to update box state %v, err: %v\n", box, err)
 		msg.Success = false
 	}
@@ -247,7 +221,7 @@ func StopBoxHandler(m Message, boxer *Boxer) Message {
 		logger.Printf("ERROR: Fail to find box %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
 	}
-	if err := boxer.Stop(box); !err.Success() {
+	if err := box.StopContainer(); err != nil {
 		logger.Printf("ERROR: Fail to stop box %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
 	}
@@ -257,8 +231,9 @@ func StopBoxHandler(m Message, boxer *Boxer) Message {
 		BoxId:      box.Id,
 		ReturnVars: m.ReturnVars,
 		Success:    true,
+		box:        box,
 	}
-	if err := boxer.ResourcePool.UpdateState(box, "stopped"); err != nil {
+	if err := box.UpdateState("stopped"); err != nil {
 		logger.Printf("ERROR: Fail to update box state %v, err: %v\n", box, err)
 		msg.Success = false
 	}
@@ -271,7 +246,7 @@ func RestartBoxHandler(m Message, boxer *Boxer) Message {
 		logger.Printf("ERROR: Fail to find box %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
 	}
-	if err := boxer.Restart(box); !err.Success() {
+	if err := box.RestartContainer(); err != nil {
 		logger.Printf("ERROR: Fail to restart box %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
 	}
@@ -281,8 +256,9 @@ func RestartBoxHandler(m Message, boxer *Boxer) Message {
 		BoxId:      box.Id,
 		ReturnVars: m.ReturnVars,
 		Success:    true,
+		box:        box,
 	}
-	if err := boxer.ResourcePool.UpdateState(box, "running"); err != nil {
+	if err := box.UpdateState("running"); err != nil {
 		logger.Printf("ERROR: Fail to update box state %v, err: %v\n", box, err)
 		msg.Success = false
 	}
@@ -295,7 +271,7 @@ func DestroyBoxHandler(m Message, boxer *Boxer) Message {
 		logger.Printf("ERROR: Fail to find box %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
 	}
-	if err := boxer.Destroy(box); !err.Success() {
+	if err := box.DestroyContainer(); err != nil {
 		logger.Printf("ERROR: Fail to destroy box %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
 	}
@@ -309,6 +285,7 @@ func DestroyBoxHandler(m Message, boxer *Boxer) Message {
 		BoxId:      box.Id,
 		ReturnVars: m.ReturnVars,
 		Success:    true,
+		box:        box,
 	}
 }
 
@@ -322,6 +299,7 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 		Id:         boxer.Id,
 		BoxId:      box.Id,
 		ReturnVars: m.ReturnVars,
+		box:        box,
 	}
 	switch m.DataType {
 	case "aio:configure:add_public_key":
@@ -331,6 +309,7 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 			return boxer.NewInvalidParamMessage()
 		}
 		if err := box.AddPublicKey(data); err != nil {
+			logger.Println("failed to add public key", err)
 			return boxer.NewInvalidParamMessage()
 		}
 		message.Success = true
@@ -368,21 +347,16 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 			message.Success = false
 			return message
 		}
-		err := box.ChangeSpec(spec, boxer.Quota)
+		err = box.ChangeSpec(spec, boxer.Quota)
 		message.Data = map[string]interface{}{
 			"memory":    box.Memory,
 			"diskSpace": box.DiskSpace,
 		}
 		if err != nil {
-			logger.Debugf("ChangeSpecs: %v\n", err)
 			message.Success = false
 			return message
 		}
-		if err := boxer.Restart(box); !err.Success() {
-			message.Success = false
-			return message
-		}
-		if err := boxer.ResourcePool.UpdateState(box, "running"); err != nil {
+		if err := box.UpdateState("running"); err != nil {
 			message.Success = false
 			return message
 		}
@@ -431,9 +405,11 @@ func InfoRequestBoxHandler(m Message, boxer *Boxer) Message {
 		Id:         boxer.Id,
 		BoxId:      box.Id,
 		ReturnVars: m.ReturnVars,
+		box:        box,
 	}
 	info, err := box.Info(boxer.Quota)
 	if err != nil {
+		logger.Println("InfoFailed", err)
 		message.Success = false
 		return message
 	}
@@ -442,92 +418,49 @@ func InfoRequestBoxHandler(m Message, boxer *Boxer) Message {
 	return message
 }
 
-func SetupContainer(c *BoxCommand) error {
-	box := c.Box
-	if err := box.ExtractTemplate(); err != nil {
-		return err
-	}
-	if err := box.WriteConfig(); err != nil {
-		return err
-	}
-	if err := box.SetHostname(); err != nil {
-		return err
-	}
-	if err := box.SetNetworkConfig(); err != nil {
-		return err
-	}
-	if err := box.SetWorkspace(); err != nil {
-		return err
-	}
-	if err := box.SetDefaultKeypair(); err != nil {
-		return err
-	}
-	if err := box.SetPermission(); err != nil {
-		return err
-	}
-	if err := box.SetBoxId(); err != nil {
-		return err
-	}
-	if err := box.SetPublicKeys(); err != nil {
-		return err
-	}
-	return nil
-}
+func MigrateBoxHandler(m Message, boxer *Boxer) Message {
+	// use the same sent message structure
+	message := m
+	message.Success = false
 
-func MountContainer(c *BoxCommand) error      { return c.Box.Mount(c.Boxer.Root) }
-func UnmountContainer(c *BoxCommand) error    { return c.Box.Unmount(c.Boxer.Root) }
-func SetQuota(c *BoxCommand) error            { return c.Box.SetQuota(c.Boxer.Quota) }
-func UnsetQuota(c *BoxCommand) error          { return c.Box.UnsetQuota(c.Boxer.Quota) }
-func SetPortForwarding(c *BoxCommand) error   { return c.Box.SetPortForwarding() }
-func UnsetPortForwarding(c *BoxCommand) error { return c.Box.UnsetPortForwarding() }
-func StartContainer(c *BoxCommand) error      { return c.Box.StartContainer() }
-func StopContainer(c *BoxCommand) error       { return c.Box.StopContainer() }
-func DeleteContainerData(c *BoxCommand) error { return c.Box.DeleteContainerData() }
-func Pass(c *BoxCommand) error                { return nil }
-
-func (boxer *Boxer) Create(box *Box) *CommandError {
-	return Advance(&BoxCommand{
-		Name:   "Create",
-		Boxer:  boxer,
-		Box:    box,
-		States: CreateStates,
-	})
-}
-
-func (boxer *Boxer) Start(box *Box) *CommandError {
-	return Advance(&BoxCommand{
-		Name:   "Start",
-		Boxer:  boxer,
-		Box:    box,
-		States: StartStates,
-	})
-}
-
-func (boxer *Boxer) Restart(box *Box) *CommandError {
-	return Advance(&BoxCommand{
-		Name:   "Restart",
-		Boxer:  boxer,
-		Box:    box,
-		States: RestartStates,
-	})
-}
-
-func (boxer *Boxer) Stop(box *Box) *CommandError {
-	return Advance(&BoxCommand{
-		Name:   "Stop",
-		Boxer:  boxer,
-		Box:    box,
-		States: StopStates,
-	})
-}
-
-func (boxer *Boxer) Destroy(box *Box) *CommandError {
-	return Advance(&BoxCommand{
-		Name:   "Destroy",
-		Boxer:  boxer,
-		Box:    box,
-		States: DestroyStates,
-	})
+	switch m.DataType {
+	case "aio:migrate:create":
+		message.DataType = "aio:migrate:created"
+		resource, err := boxer.ResourcePool.Acquire()
+		if err != nil {
+			logger.Println("ERROR: Cant acquire resource", err)
+			return message
+		}
+		box := &Box{
+			Id:               m.BoxId,
+			BoxerId:          m.Id,
+			Name:             m.Name,
+			Runtime:          m.Runtime,
+			Memory:           m.Memory,
+			DiskSpace:        m.DiskSpace,
+			PublicKeys:       m.PublicKeys,
+			SnapshotURL:      m.SnapshotURL,
+			Template:         boxer.Runtimes[m.Runtime],
+			Ip:               resource.Ip,
+			Gateway:          resource.Gateway,
+			NetworkInterface: resource.NetworkInterface,
+			Port:             resource.GetPort(),
+		}
+		box.boxer = boxer
+		if err := box.Migrate(boxer.S3Auth); err != nil {
+			logger.Printf("ERROR: Fail to migrate %v, err: %v\n", box, err)
+			boxer.ResourcePool.Release(resource.Ip)
+			return message
+		}
+		if err := box.Persist(); err != nil {
+			logger.Printf("ERROR: Fail to save %v, err: %v\n", box, err)
+			return message
+		}
+		message.box = box
+		message.Port = box.Port
+		message.Success = true
+	}
+	return message
 }
 
 // Given a list of boxes, try to start all of them.
@@ -536,20 +469,17 @@ func (boxer *Boxer) StartAll(boxes []*Box) error {
 	var errors []error
 	for _, box := range boxes {
 		box.boxer = boxer
-		err := Advance(&BoxCommand{
-			Name:   "Start",
-			Boxer:  boxer,
-			Box:    box,
-			States: StartStates,
-		})
-		if err.Success() {
+		// make sure that the quota for box is set
+		box.SetQuota(boxer.Quota)
+		err := box.StartContainer()
+		if err != nil {
 			// make sure that the box are in running state
-			if err := boxer.ResourcePool.UpdateState(box, "running"); err != nil {
+			if err := box.UpdateState("running"); err != nil {
 				errors = append(errors, err)
 			}
 		} else {
 			errors = append(errors, fmt.Errorf("Failed to start box: %s",
-				box.ContainerName()))
+				box.Image()))
 		}
 	}
 	if len(errors) > 0 {

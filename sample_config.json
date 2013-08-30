@@ -1,7 +1,9 @@
 {
   "id": "46.137.252.155",
-  "disks": ["/lxc/disk1"],
-  "selectedDisk": "/lxc/disk1",
+  "dockerSocket": "/var/run/docker.sock",
+  "dockerDisks": {
+    "/var/run/docker.sock" => "/var/lib/docker"
+  },
   "boxerChannel": "aio-boxer-channel",
   "coachChannel": "aio-coach-channel",
   "redisMQHost": "127.0.0.1",
@@ -10,10 +12,15 @@
   "redisStorePort": "6379",
   "pingHost": "127.0.0.1",
   "pingPort": "1339",
+  "awsAccessKey": "sample_access_key",
+  "awsSecretKey": "sample_secret_key",
+  "awsRegion": "sample_region",
+  "awsBucket": "sample_bucket",
   "runtimes": {
-    "rails": "ruby_template",
-    "nodejs": "nodejs_template",
-    "django": "python_template",
-    "golang": "golang_template"
+    "base": "docker-registry.nitrous.io/nitrous/base",
+    "rails": "docker-registry.nitrous.io/nitrous/ruby",
+    "nodejs": "docker-registry.nitrous.io/nitrous/nodejs",
+    "django": "docker-registry.nitrous.io/nitrous/python",
+    "golang": "docker-registry.nitrous.io/nitrous/golang"
   }
 }

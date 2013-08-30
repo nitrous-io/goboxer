@@ -7,11 +7,12 @@ package goboxer
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/action-io/goboxer/quota/quotatest"
+	"github.com/action-io/goboxer/s3"
 	"github.com/garyburd/redigo/redis"
 	. "launchpad.net/gocheck"
 	"os/exec"
-	"strings"
 )
 
 type BoxerSuite struct {
@@ -54,17 +55,22 @@ func (s *BoxerSuite) SetUpTest(c *C) {
 
 	s.ResourcePool = &ResourcePool{Pool: s.Redis}
 
-	s.Boxer = NewBoxer(
-		"testboxer",
-		"/var/lib/lxc",
-		"/lxc/disk1",
-		[]string{"/lxc/disk1"},
-		map[string]string{
-			"test": "test_container_template",
+	s.Boxer = &Boxer{
+		Id:           "testboxer",
+		DockerSocket: "/var/run/docker.sock",
+		DockerDisks: map[string]string{
+			"/var/run/docker.sock": "/var/lib/docker",
 		},
-		s.ResourcePool,
-		false,
-	)
+		Runtimes: map[string]string{
+			"test": "docker-registry.nitrous.io/nitrous/test",
+			"base": "docker-registry.nitrous.io/nitrous/test",
+		},
+		ResourcePool: s.ResourcePool,
+		S3Auth:       s3.AuthTest{},
+		S3Region:     "ap-southeast-1",
+		S3Bucket:     "staging-bucket",
+	}
+	s.Boxer.Configure()
 }
 
 func (s *BoxerSuite) TearDownTest(c *C) {
@@ -72,6 +78,7 @@ func (s *BoxerSuite) TearDownTest(c *C) {
 	defer conn.Close()
 	defer s.Redis.Close()
 	conn.Do("FLUSHDB")
+	exec.Command(DOCKER_BIN, "rmi", "docker-registry.nitrous.io/nitrous/1").Run()
 }
 
 // TODO: check if the quota is set correctly
@@ -82,7 +89,7 @@ func (s *BoxerSuite) TestCreateBox(c *C) {
 		Type:       "aio:create",
 		Name:       "mclovins-container",
 		Runtime:    "test",
-		Memory:     "256M",
+		Memory:     "1M",
 		DiskSpace:  "1G",
 		PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
 	})
@@ -94,12 +101,9 @@ func (s *BoxerSuite) TestCreateBox(c *C) {
 	c.Assert(message.Port, Equals, 10002)
 	c.Assert(message.Success, Equals, true)
 
-	root := "/lxc/disk1/mclovins-container-1"
+	root, _ := message.box.DockerContainerPath()
 	var checkExists = []string{
-		"/var/lib/lxc/mclovins-container-1",
 		root,
-		root + "_delta",
-		root + "/rootfs",
 		root + "/rootfs/home/action/workspace",
 		root + "/rootfs/home/action/.ssh",
 		root + "/rootfs/home/action/.ssh/id_rsa",
@@ -109,19 +113,14 @@ func (s *BoxerSuite) TestCreateBox(c *C) {
 	var checkContainsContent = map[string][]string{
 		root + "/rootfs/etc/passwd":        {"action:x:15001:15001"},
 		root + "/rootfs/etc/action/box_id": {"1"},
-		root + "/rootfs/etc/hostname":      {"mclovins-container-1"},
 		root + "/rootfs/etc/ssh/univ_public_keys": {
 			"ssh-key QWER",
 			"ssh-key ASDF",
 		},
-		root + "/rootfs/etc/network/interfaces": {
-			"address 192.168.254.2",
-			"gateway 192.168.254.1",
-		},
-		root + "/config": {
-			"lxc.cgroup.memory.limit_in_bytes = 256M",
-			"lxc.cgroup.memory.memsw.limit_in_bytes = 768M",
-			"lxc.network.hwaddr = 02:00",
+		root + "/config.lxc": {
+			"lxc.utsname = mclovins-container-1",
+			fmt.Sprintf("lxc.cgroup.memory.limit_in_bytes = %d", 1024*1024),
+			fmt.Sprintf("lxc.cgroup.memory.memsw.limit_in_bytes = %d", 2*1024*1024),
 		},
 	}
 
@@ -133,12 +132,6 @@ func (s *BoxerSuite) TestCreateBox(c *C) {
 		root + "/rootfs/home/action/.ssh/id_rsa.pub": {15001, 15001},
 	}
 
-	// actually mount the container at /var/lib/lxc after create at /lxc/disk1
-	isMounted, err := Mounted("/var/lib/lxc/mclovins-container-1")
-	c.Assert(err, IsNil)
-	c.Assert(isMounted, Equals, true)
-
-	// check the container contents at /lxc/disk1
 	DoesExist(c, checkExists)
 	DoesContain(c, checkContainsContent)
 	DoesHavePermissions(c, checkPermissions)
@@ -146,8 +139,12 @@ func (s *BoxerSuite) TestCreateBox(c *C) {
 	// check redis
 	conn := s.Redis.Get()
 	defer conn.Close()
-	usedIp, _ := redis.String(conn.Do("LPOP", "aio:used_resources"))
-	c.Assert(usedIp, Equals, "192.168.254.2")
+	box, _ := s.ResourcePool.FindBox("mclovins-container-1")
+	c.Assert(box.DockerId, Equals, message.box.DockerId)
+
+	// Quota
+	limit, _ := s.Boxer.Quota.ViewLimit("1", "/var/lib/docker")
+	c.Assert(limit.Limit, Equals, 1024*1024)
 }
 
 func (s *BoxerSuite) TestStop(c *C) {
@@ -174,13 +171,65 @@ func (s *BoxerSuite) TestStop(c *C) {
 	c.Assert(message.BoxId, Equals, "1")
 	c.Assert(message.Success, Equals, true)
 
-	AssertLxcState(c, "mclovins-container-1", "STOPPED")
+	info, _ := message.box.dockerInfo()
+	c.Assert(info.State.Running, Equals, false)
+}
 
-	DoesNotExist(c, []string{
-		"/var/lib/lxc/mclovins-container-1",
+func (s *BoxerSuite) TestMigrate(c *C) {
+	message := s.Boxer.Receive(Message{
+		Id:          "testboxer",
+		BoxId:       "1",
+		Type:        "aio:migrate",
+		DataType:    "aio:migrate:create",
+		Name:        "mclovins-container",
+		Runtime:     "test",
+		SnapshotURL: "s3://ap-southeast-1/staging-apse1.action.io/testboxer-1234.tar.gz",
+		Memory:      "1M",
+		DiskSpace:   "1024M",
+		PublicKeys:  []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
+	})
+	defer s.deleteBox("1", "mclovins-container")
+
+	c.Assert(message.Success, Equals, true)
+	c.Assert(message.Type, Equals, "aio:migrate")
+	c.Assert(message.DataType, Equals, "aio:migrate:created")
+
+	// it contains the content of the snapshot
+	root, _ := message.box.DockerContainerPath()
+	DoesExist(c, []string{
+		root + "/rootfs/home/action/test.txt",
 	})
 
-	s.assertBoxState(c, "mclovins-container-1", "stopped")
+	var checkContainsContent = map[string][]string{
+		root + "/rootfs/etc/passwd":        {"action:x:15001:15001"},
+		root + "/rootfs/etc/action/box_id": {"1"},
+		root + "/rootfs/etc/ssh/univ_public_keys": {
+			"ssh-rsa QWER",
+			"ssh-rsa ASDF",
+		},
+		root + "/config.lxc": {
+			"lxc.utsname = mclovins-container-1",
+			fmt.Sprintf("lxc.cgroup.memory.limit_in_bytes = %d", 1024*1024),
+			fmt.Sprintf("lxc.cgroup.memory.memsw.limit_in_bytes = %d", 2*1024*1024),
+		},
+	}
+
+	var checkPermissions = map[string][]int{
+		root + "/rootfs/home/action": {15001, 15001},
+	}
+
+	DoesContain(c, checkContainsContent)
+	DoesHavePermissions(c, checkPermissions)
+
+	// check redis
+	conn := s.Redis.Get()
+	defer conn.Close()
+	box, _ := s.ResourcePool.FindBox("mclovins-container-1")
+	c.Assert(box.DockerId, Equals, message.box.DockerId)
+
+	// Quota
+	limit, _ := s.Boxer.Quota.ViewLimit("1", "/var/lib/docker")
+	c.Assert(limit.Limit, Equals, 1024*1024)
 }
 
 func (s *BoxerSuite) TestStart(c *C) {
@@ -207,13 +256,8 @@ func (s *BoxerSuite) TestStart(c *C) {
 	c.Assert(message.BoxId, Equals, "1")
 	c.Assert(message.Success, Equals, true)
 
-	AssertLxcState(c, "mclovins-container-1", "RUNNING")
-
-	DoesExist(c, []string{
-		"/var/lib/lxc/mclovins-container-1/rootfs",
-	})
-
-	s.assertBoxState(c, "mclovins-container-1", "running")
+	info, _ := message.box.dockerInfo()
+	c.Assert(info.State.Running, Equals, true)
 }
 
 func (s *BoxerSuite) TestDestroy(c *C) {
@@ -239,22 +283,12 @@ func (s *BoxerSuite) TestDestroy(c *C) {
 	c.Assert(message.BoxId, Equals, "1")
 	c.Assert(message.Success, Equals, true)
 
-	AssertLxcState(c, "mclovins-container-1", "STOPPED")
-
-	DoesNotExist(c, []string{
-		"/var/lib/lxc/mclovins-container-1",
-		"/lxc/disk1/mclovins-container-1",
-		"/lxc/disk1/mclovins-container-1_delta",
-	})
-
-	output, _ := exec.Command("iptables", "-L", "-t", "nat").Output()
-	c.Assert(strings.Contains(string(output), "192.168.254.2:22"), Equals, false)
+	_, err := message.box.dockerInfo()
+	c.Assert(err, NotNil)
 
 	// check redis
 	conn := s.Redis.Get()
 	defer conn.Close()
-	availableIp, _ := redis.String(conn.Do("RPOP", "aio:available_resources"))
-	c.Assert(availableIp, Equals, "192.168.254.2")
 	// box should be deleted from the collection
 	res, _ := conn.Do("HGET", "aio:boxes", "mclovins-container-1")
 	c.Assert(res, IsNil)
@@ -284,15 +318,8 @@ func (s *BoxerSuite) TestRestart(c *C) {
 	c.Assert(message.BoxId, Equals, "1")
 	c.Assert(message.Success, Equals, true)
 
-	AssertLxcState(c, "mclovins-container-1", "RUNNING")
-
-	DoesExist(c, []string{
-		"/var/lib/lxc/mclovins-container-1",
-		"/lxc/disk1/mclovins-container-1",
-		"/lxc/disk1/mclovins-container-1_delta",
-	})
-
-	s.assertBoxState(c, "mclovins-container-1", "running")
+	info, _ := message.box.dockerInfo()
+	c.Assert(info.State.Running, Equals, true)
 }
 
 func (s *BoxerSuite) TestAddPublicKey(c *C) {
@@ -323,8 +350,7 @@ func (s *BoxerSuite) TestAddPublicKey(c *C) {
 	c.Assert(message.BoxId, Equals, "1")
 	c.Assert(message.Success, Equals, true)
 
-	root := "/lxc/disk1/mclovins-container-1"
-
+	root, _ := message.box.DockerContainerPath()
 	var checkContainsContent = map[string][]string{
 		root + "/rootfs/etc/ssh/univ_public_keys": {
 			"ssh-rsa QWER",
@@ -332,7 +358,6 @@ func (s *BoxerSuite) TestAddPublicKey(c *C) {
 			"ssh-rsa publickey",
 		},
 	}
-
 	DoesContain(c, checkContainsContent)
 }
 
@@ -364,7 +389,7 @@ func (s *BoxerSuite) TestRemovePublicKey(c *C) {
 	c.Assert(message.BoxId, Equals, "1")
 	c.Assert(message.Success, Equals, true)
 
-	root := "/lxc/disk1/mclovins-container-1"
+	root, _ := message.box.DockerContainerPath()
 	var checkContent = map[string][]string{
 		root + "/rootfs/etc/ssh/univ_public_keys": {
 			"ssh-rsa QWER",
@@ -380,12 +405,13 @@ func (s *BoxerSuite) TestChangeBoxSpecs(c *C) {
 		Type:       "aio:create",
 		Name:       "mclovins-container",
 		Runtime:    "test",
-		Memory:     "256M",
+		Memory:     "1M",
 		DiskSpace:  "1024M",
 		PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
 	})
 	defer s.deleteBox("1", "mclovins-container")
-	limit, _ := s.Boxer.Quota.ViewLimit("1", "/lxc/disk1")
+
+	limit, _ := s.Boxer.Quota.ViewLimit("1", "/var/lib/docker")
 	c.Assert(limit.Limit, Equals, 1024*1024)
 
 	message := s.Boxer.Receive(Message{
@@ -394,7 +420,7 @@ func (s *BoxerSuite) TestChangeBoxSpecs(c *C) {
 		Type:     "aio:configure",
 		DataType: "aio:configure:change_specs",
 		Data: map[string]interface{}{
-			"memory":    "512M",
+			"memory":    "2M",
 			"diskSpace": "2048M",
 		},
 		Name: "mclovins-container-1",
@@ -409,28 +435,29 @@ func (s *BoxerSuite) TestChangeBoxSpecs(c *C) {
 	currentMemory, _ := (data["memory"]).(string)
 	currentDiskSpace, _ := (data["diskSpace"]).(string)
 	// memory is set successfully
-	c.Assert(currentMemory, Equals, "512M")
+	c.Assert(currentMemory, Equals, "2M")
 	// disk space cant be set so we still use the old value
 	c.Assert(currentDiskSpace, Equals, "2048M")
 
-	root := "/lxc/disk1/mclovins-container-1"
+	root, _ := message.box.DockerContainerPath()
 	var checkContent = map[string][]string{
-		root + "/config": {
-			"lxc.cgroup.memory.limit_in_bytes = 512M",
-			"lxc.cgroup.memory.memsw.limit_in_bytes = 1536M",
+		root + "/config.lxc": {
+			fmt.Sprintf("lxc.cgroup.memory.limit_in_bytes = %d", 2*1024*1024),
+			fmt.Sprintf("lxc.cgroup.memory.memsw.limit_in_bytes = %d", 4*1024*1024),
 		},
 	}
 	DoesContain(c, checkContent)
 
-	newLimit, _ := s.Boxer.Quota.ViewLimit("1", "/lxc/disk1")
-	c.Assert(newLimit.Limit, Equals, 2*1024*1024)
+	limit, _ = s.Boxer.Quota.ViewLimit("1", "/var/lib/docker")
+	c.Assert(limit.Limit, Equals, 2*1024*1024)
 
-	s.assertBoxState(c, "mclovins-container-1", "running")
+	info, _ := message.box.dockerInfo()
+	c.Assert(info.State.Running, Equals, true)
 }
 
 func (s *BoxerSuite) TestNewAdvertiseMessage(c *C) {
 	m := s.Boxer.NewAdvertiseMessage()
-	c.Assert(m.Runtimes, DeepEquals, []string{"test"})
+	c.Assert(m.Runtimes, DeepEquals, []string{"test", "base"})
 	s.Boxer.Runtimes = map[string]string{
 		"test": "test_container_template",
 		"ruby": "ruby_template",
@@ -455,25 +482,27 @@ func (s *BoxerSuite) TestStartAll(c *C) {
 			PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
 		})
 		defer s.deleteBox(id, "mclovins-container")
+		s.Boxer.Receive(Message{
+			Id:    "testboxer",
+			BoxId: id,
+			Type:  "aio:stop",
+			Name:  "mclovins-container-" + id,
+		})
 	}
-
-	AssertLxcState(c, "mclovins-container-1", "STOPPED")
-	AssertLxcState(c, "mclovins-container-2", "STOPPED")
 
 	box1, _ := s.ResourcePool.FindBox("mclovins-container-1")
 	box2, _ := s.ResourcePool.FindBox("mclovins-container-2")
+	info1, _ := box1.dockerInfo()
+	c.Assert(info1.State.Running, Equals, false)
+	info2, _ := box2.dockerInfo()
+	c.Assert(info2.State.Running, Equals, false)
+
 	s.Boxer.StartAll([]*Box{box1, box2})
 
-	AssertLxcState(c, "mclovins-container-1", "RUNNING")
-	AssertLxcState(c, "mclovins-container-2", "RUNNING")
-
-	DoesExist(c, []string{
-		"/var/lib/lxc/mclovins-container-1/rootfs",
-		"/var/lib/lxc/mclovins-container-2/rootfs",
-	})
-
-	s.assertBoxState(c, "mclovins-container-1", "running")
-	s.assertBoxState(c, "mclovins-container-2", "running")
+	info1, _ = box1.dockerInfo()
+	c.Assert(info1.State.Running, Equals, true)
+	info2, _ = box2.dockerInfo()
+	c.Assert(info2.State.Running, Equals, true)
 }
 
 func (s *BoxerSuite) TestInfo(c *C) {
@@ -507,7 +536,8 @@ func (s *BoxerSuite) TestInfo(c *C) {
 	c.Assert(message.BoxId, Equals, "1")
 	c.Assert(message.Success, Equals, true)
 
-	c.Assert(message.Info.LxcStatus, Equals, "RUNNING")
+	info, _ := message.box.dockerInfo()
+	c.Assert(info.State.Running, Equals, true)
 }
 
 func (s *BoxerSuite) TestSetEnvVariables(c *C) {
@@ -541,7 +571,7 @@ func (s *BoxerSuite) TestSetEnvVariables(c *C) {
 	c.Assert(message.BoxId, Equals, "1")
 	c.Assert(message.Success, Equals, true)
 
-	root := "/lxc/disk1/mclovins-container-1"
+	root, _ := message.box.DockerContainerPath()
 	DoesContain(c, map[string][]string{
 		root + "/rootfs/etc/environment": []string{
 			"RDS_HOST=mysql://insecure",
@@ -575,7 +605,7 @@ func (s *BoxerSuite) TestDoubleSetEnvVariables(c *C) {
 		},
 	})
 
-	s.Boxer.Receive(Message{
+	message := s.Boxer.Receive(Message{
 		Id:       "testboxer",
 		BoxId:    "1",
 		Type:     "aio:configure",
@@ -587,7 +617,7 @@ func (s *BoxerSuite) TestDoubleSetEnvVariables(c *C) {
 		},
 	})
 
-	root := "/lxc/disk1/mclovins-container-1"
+	root, _ := message.box.DockerContainerPath()
 	DoesContain(c, map[string][]string{
 		root + "/rootfs/etc/environment": []string{
 			"RDS_HOST=mysql://secure",
@@ -640,7 +670,7 @@ func (s *BoxerSuite) TestRemoveEnvVariables(c *C) {
 	c.Assert(message.BoxId, Equals, "1")
 	c.Assert(message.Success, Equals, true)
 
-	root := "/lxc/disk1/mclovins-container-1"
+	root, _ := message.box.DockerContainerPath()
 	DoesContain(c, map[string][]string{
 		root + "/rootfs/etc/environment": []string{
 			"REDIS_HOST=127.0.0.1",
@@ -689,12 +719,13 @@ func (s *BoxerSuite) TestChangeBoxSpecsFail(c *C) {
 		Type:       "aio:create",
 		Name:       "mclovins-container",
 		Runtime:    "test",
-		Memory:     "256M",
+		Memory:     "1M",
 		DiskSpace:  "1024M",
 		PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
 	})
 	defer s.deleteBox("1", "mclovins-container")
-	limit, _ := s.Boxer.Quota.ViewLimit("1", "/lxc/disk1")
+
+	limit, _ := s.Boxer.Quota.ViewLimit("1", "/var/lib/docker")
 	c.Assert(limit.Limit, Equals, 1024*1024)
 
 	// swap Quota with FailQuota so all quota calls will return errors
@@ -707,7 +738,7 @@ func (s *BoxerSuite) TestChangeBoxSpecsFail(c *C) {
 		Type:     "aio:configure",
 		DataType: "aio:configure:change_specs",
 		Data: map[string]interface{}{
-			"memory":    "512M",
+			"memory":    "2M",
 			"diskSpace": "2048M",
 		},
 		Name: "mclovins-container-1",
@@ -720,7 +751,7 @@ func (s *BoxerSuite) TestChangeBoxSpecsFail(c *C) {
 	currentMemory, _ := (data["memory"]).(string)
 	currentDiskSpace, _ := (data["diskSpace"]).(string)
 	// memory is set successfully
-	c.Assert(currentMemory, Equals, "512M")
+	c.Assert(currentMemory, Equals, "2M")
 	// disk space cant be set so we still use the old value
 	c.Assert(currentDiskSpace, Equals, "1024M")
 
@@ -729,17 +760,17 @@ func (s *BoxerSuite) TestChangeBoxSpecsFail(c *C) {
 	s.Boxer.Quota = oldQuota
 
 	// it still sets the new memory
-	root := "/lxc/disk1/mclovins-container-1"
+	root, _ := message.box.DockerContainerPath()
 	var checkContent = map[string][]string{
-		root + "/config": {
-			"lxc.cgroup.memory.limit_in_bytes = 512M",
-			"lxc.cgroup.memory.memsw.limit_in_bytes = 1536M",
+		root + "/config.lxc": {
+			fmt.Sprintf("lxc.cgroup.memory.limit_in_bytes = %d", 2*1024*1024),
+			fmt.Sprintf("lxc.cgroup.memory.memsw.limit_in_bytes = %d", 4*1024*1024),
 		},
 	}
 	DoesContain(c, checkContent)
 
 	// it cant set the new quota
-	newLimit, _ := s.Boxer.Quota.ViewLimit("1", "/lxc/disk1")
+	newLimit, _ := s.Boxer.Quota.ViewLimit("1", "/var/lib/docker")
 	c.Assert(newLimit.Limit, Equals, 1024*1024)
 }
 

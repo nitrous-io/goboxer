@@ -59,3 +59,7 @@ func RunCommand(cmd string, args ...string) error {
 	}
 	return nil
 }
+
+func ToString(b []byte, err error) (string, error) {
+	return strings.TrimSpace(string(b)), err
+}

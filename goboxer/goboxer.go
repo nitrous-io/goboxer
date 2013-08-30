@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/action-io/goboxer"
+	"github.com/action-io/goboxer/s3"
 	"github.com/garyburd/redigo/redis"
 	"io/ioutil"
 	"os"
@@ -24,11 +25,27 @@ type Config struct {
 	RedisMQPort    string            `json:"redisMQPort"`
 	RedisStoreHost string            `json:"redisStoreHost"`
 	RedisStorePort string            `json:"redisStorePort"`
-	SelectedDisk   string            `json:"selectedDisk"`
-	Disks          []string          `json:"disks"`
 	Runtimes       map[string]string `json:"runtimes"`
 	PingHost       string            `json:"pingHost"`
 	PingPort       string            `json:"pingPort"`
+	AWSAccessKey   string            `json:"awsAccessKey"`
+	AWSSecretKey   string            `json:"awsSecretKey"`
+	AWSRegion      string            `json:"awsRegion"`
+	AWSBucket      string            `json:"awsBucket"`
+
+	// docker configs
+	//
+	// `DockerSocket`: current active docker daemon socket that will
+	// accept box creation
+	// `DockerDisks`: map of disk to socket of all docker daemons that are
+	// running on the servers. This is useful when we want to redirect
+	// non-creation request ( such as restart, stop etc) to existing boxes
+	// that may not be under current docker daemon
+	//
+	// goboxer currently will not try to setup docker instances. This normally
+	// should be done as part of a separate process such as upstart
+	DockerSocket string            `json:"dockerSocket"`
+	DockerDisks  map[string]string `json:"dockerDisks"`
 }
 
 func (c Config) RedisMQAddr() string {
@@ -68,7 +85,6 @@ func main() {
 	flBenchmark := flag.Bool("benchmark", false, "Start benchmark mode")
 	flBenchmarkStartAll := flag.Bool("benchmark-start-all", false, "Start benchmark mode for start all")
 	flNumBox := flag.Int("num", 10, "Number of box that will be created in benchmark mode")
-	flUseProjQuota := flag.Bool("use-projquota", false, "Use project quota instead of user quota")
 	flag.Parse()
 	if *flVersion {
 		fmt.Println(version)
@@ -84,6 +100,10 @@ func main() {
 		panic("Cannot parse config file " + *flConfigPath)
 		os.Exit(1)
 	}
+	if len(config.DockerSocket) == 0 || len(config.DockerDisks) == 0 {
+		panic("Require docker socket and disks mapping to be configured")
+		os.Exit(1)
+	}
 
 	boxerConn, err := redis.Dial("tcp", config.RedisMQAddr())
 	if err != nil {
@@ -95,15 +115,17 @@ func main() {
 		Pool: goboxer.NewRedisPool(config.RedisStoreAddr()),
 	}
 
-	boxer := goboxer.NewBoxer(
-		config.Id,
-		"/var/lib/lxc",
-		config.SelectedDisk,
-		config.Disks,
-		config.Runtimes,
-		resourcePool,
-		*flUseProjQuota,
-	)
+	boxer := &goboxer.Boxer{
+		Id:           config.Id,
+		DockerSocket: config.DockerSocket,
+		DockerDisks:  config.DockerDisks,
+		Runtimes:     config.Runtimes,
+		ResourcePool: resourcePool,
+		S3Auth:       s3.Auth{config.AWSAccessKey, config.AWSSecretKey},
+		S3Region:     config.AWSRegion,
+		S3Bucket:     config.AWSBucket,
+	}
+	boxer.Configure()
 
 	if *flStartAll {
 		fmt.Println("Starting all containers ...")
