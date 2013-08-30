@@ -48,6 +48,7 @@ type Box struct {
 	Runtime          string   `json:"-"`
 	SnapshotURL      string   `json:"-"`
 	PublicKeys       []string `json:"-"`
+	DockerSocket     string   `json:"dockerSocket"`
 
 	// hold a reference to boxer so that we can access mutex capabilities
 	boxer *Boxer
@@ -105,13 +106,13 @@ func (b *Box) SetQuota(q quota.QuotaInterface) error {
 	defer logger.LogDuration(
 		fmt.Sprintf("%s:SetQuota", b.ContainerName()),
 	)(time.Now())
-	return q.SetLimit(b.Id, b.boxer.Root, b.DiskSpace)
+	return q.SetLimit(b.Id, b.DockerRoot(), b.DiskSpace)
 }
 
 func (b *Box) UnsetQuota(q quota.QuotaInterface) error {
 	b.boxer.Lock()
 	defer b.boxer.Unlock()
-	return q.RemoveLimit(b.Id, b.boxer.Root)
+	return q.RemoveLimit(b.Id, b.DockerRoot())
 }
 
 // valid data, start changing specs by
@@ -193,7 +194,7 @@ func (b *Box) LxcState(container dockerContainer) string {
 
 // Return current storage usage in kb
 func (b *Box) StorageUsage(q quota.QuotaInterface) (int, error) {
-	quotaInfo, err := q.ViewLimit(b.Id, b.boxer.Root)
+	quotaInfo, err := q.ViewLimit(b.Id, b.DockerRoot())
 	if err != nil {
 		return 0, err
 	}
@@ -261,13 +262,14 @@ func (b *Box) CreateImage() (err error) {
 		fmt.Sprintf("%s:CreateImage", b.Image()),
 	)(time.Now())
 	var stdinPipe io.WriteCloser
-	cmd := exec.Command(DOCKER_BIN, "build", "-t", b.Image(), "-")
+	cmd := b.docker("build", "-t", b.Image(), "-")
 	var b2 bytes.Buffer
 	cmd.Stdout = &b2
 	if stdinPipe, err = cmd.StdinPipe(); err != nil {
 		return
 	}
 	if err = cmd.Start(); err != nil {
+		logger.Println("start", err)
 		return
 	}
 	if err = DockerfileCompiled.Execute(stdinPipe, b); err != nil {
@@ -357,7 +359,7 @@ func (b *Box) CreateFromSnapshot(stream io.ReadCloser) (err error) {
 
 func createImage(b *Box, dockerFile *template.Template) (err error) {
 	var stdinPipe io.WriteCloser
-	cmd := exec.Command(DOCKER_BIN, "build", "-t", b.Image(), "-")
+	cmd := b.docker("build", "-t", b.Image(), "-")
 	var b2 bytes.Buffer
 	cmd.Stdout = &b2
 	if stdinPipe, err = cmd.StdinPipe(); err != nil {
@@ -380,7 +382,7 @@ func createContainer(b *Box, base string) (dockerId string, err error) {
 	port := fmt.Sprintf("%d:22", b.Port)
 	// because of legacy reeason, we pass memory as 256M,this value has to be
 	// converted to byte value here before so that we can passed it to docker
-	cmd := exec.Command(DOCKER_BIN, "run", "-d",
+	cmd := b.docker("run", "-d",
 		"-p", port,
 		"-m", b.MemoryAsByte(),
 		"-h", b.ContainerName(),
@@ -401,7 +403,7 @@ func (b *Box) CreateContainer() (err error) {
 	port := fmt.Sprintf("%d:22", b.Port)
 	// because of legacy reeason, we pass memory as 256M,this value has to be
 	// converted to byte value here before so that we can passed it to docker
-	cmd := exec.Command(DOCKER_BIN, "run", "-d",
+	cmd := b.docker("run", "-d",
 		"-p", port,
 		"-m", b.MemoryAsByte(),
 		"-h", b.ContainerName(),
@@ -424,8 +426,7 @@ func (b *Box) StartContainer() (err error) {
 	if b.State == "running" {
 		return
 	}
-	output, err := ToString(exec.Command(DOCKER_BIN, "start",
-		b.DockerId).CombinedOutput())
+	output, err := ToString(b.docker("start", b.DockerId).CombinedOutput())
 	if err != nil && !strings.Contains(output, "is already running") {
 		return
 	}
@@ -439,7 +440,7 @@ func (b *Box) StopContainer() (err error) {
 	if b.State == "stopped" {
 		return
 	}
-	if err = exec.Command(DOCKER_BIN, "stop", b.DockerId).Run(); err != nil {
+	if err = b.docker("stop", b.DockerId).Run(); err != nil {
 		return
 	}
 	return b.UpdateState("stopped")
@@ -449,8 +450,7 @@ func (b *Box) RestartContainer() (err error) {
 	defer logger.LogDuration(
 		fmt.Sprintf("%s:RestartContainer", b.ContainerName()),
 	)(time.Now())
-	return exec.Command(DOCKER_BIN, "restart",
-		b.DockerId).Run()
+	return b.docker("restart", b.DockerId).Run()
 }
 
 func (b *Box) DestroyContainer() (err error) {
@@ -461,7 +461,7 @@ func (b *Box) DestroyContainer() (err error) {
 	if err != nil {
 		return
 	}
-	return exec.Command(DOCKER_BIN, "rm", b.DockerId).Run()
+	return b.docker("rm", b.DockerId).Run()
 }
 
 // commit changes in container into the base image
@@ -469,8 +469,7 @@ func (b *Box) CommitContainer() (err error) {
 	defer logger.LogDuration(
 		fmt.Sprintf("%s:CommitContainer", b.ContainerName()),
 	)(time.Now())
-	return exec.Command(DOCKER_BIN, "commit",
-		"-m", fmt.Sprintf("version: %v", time.Now()),
+	return b.docker("commit", "-m", fmt.Sprintf("version: %v", time.Now()),
 		b.DockerId, b.Image()).Run()
 }
 
@@ -525,14 +524,13 @@ func (b *Box) DockerContainerPath() (p string, err error) {
 	if err != nil {
 		return
 	}
-	p = c.Path(path.Join(b.boxer.Root, "containers"))
+	p = c.Path(path.Join(b.DockerRoot(), "containers"))
 	return
 }
 
 // used to debug docker state
 func (b *Box) dockerInfo() (c dockerContainer, err error) {
-	inspectOutput, err := exec.Command(DOCKER_BIN, "inspect",
-		b.DockerId).CombinedOutput()
+	inspectOutput, err := b.docker("inspect", b.DockerId).CombinedOutput()
 	if err != nil {
 		return
 	}
@@ -543,4 +541,29 @@ func (b *Box) dockerInfo() (c dockerContainer, err error) {
 	}
 	c = collection.Containers[0]
 	return
+}
+
+func (b *Box) DockerRoot() string {
+	return b.boxer.DockerDisks[b.socket()]
+}
+
+// convenience method to run docker cmd
+func (b *Box) docker(args ...string) *exec.Cmd {
+	return docker(b.socket(), args...)
+}
+
+// return the docker socket that the box should talk to
+func (b *Box) socket() string {
+	if len(b.DockerSocket) > 0 {
+		return b.DockerSocket
+	}
+	return b.boxer.DockerSocket
+}
+
+// given a docker socket, run docker commands with this socket and not use the
+// default socket
+func docker(socket string, args ...string) *exec.Cmd {
+	dockerArgs := []string{"-H", "unix://" + socket}
+	dockerArgs = append(dockerArgs, args...)
+	return exec.Command(DOCKER_BIN, dockerArgs...)
 }

@@ -36,7 +36,6 @@ type MessageHandler func(m Message, boxer *Boxer) Message
 type Boxer struct {
 	sync.Mutex
 	Id           string
-	Root         string
 	ResourcePool *ResourcePool
 	Runtimes     map[string]string
 	Handles      map[string]MessageHandler
@@ -44,6 +43,11 @@ type Boxer struct {
 	S3Auth       s3.AuthInterface
 	S3Region     string
 	S3Bucket     string
+	// docker settings
+	// `DockerSocket`: active daemon's container such as /var/run/docker.sock
+	// `DockerDisks`: map of all daemons' container and socket
+	DockerSocket string
+	DockerDisks  map[string]string
 }
 
 // Configure a new instance of Boxer. This needs to be called whenever you
@@ -152,8 +156,9 @@ func CreateBoxHandler(m Message, boxer *Boxer) Message {
 		Port:             resource.GetPort(),
 	}
 	box.boxer = boxer
+	box.DockerSocket = boxer.DockerSocket
 	// create the base image for the box. Base image will be named as
-	// nitrous/<box_id>
+	// docker-registry.nitrous.io/nitrous/<box_id>
 	if err := box.CreateImage(); err != nil {
 		logger.Printf("ERROR: Fail to create image %v, err: %v\n", box, err)
 		boxer.ResourcePool.Release(resource.Ip)
