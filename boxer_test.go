@@ -56,8 +56,11 @@ func (s *BoxerSuite) SetUpTest(c *C) {
 	s.ResourcePool = &ResourcePool{Pool: s.Redis}
 
 	s.Boxer = &Boxer{
-		Id:   "testboxer",
-		Root: "/var/lib/docker",
+		Id:           "testboxer",
+		DockerSocket: "/var/run/docker.sock",
+		DockerDisks: map[string]string{
+			"/var/run/docker.sock": "/var/lib/docker",
+		},
 		Runtimes: map[string]string{
 			"test": "docker-registry.nitrous.io/nitrous/test",
 			"base": "docker-registry.nitrous.io/nitrous/test",
@@ -483,7 +486,7 @@ func (s *BoxerSuite) TestStartAll(c *C) {
 			Id:    "testboxer",
 			BoxId: id,
 			Type:  "aio:stop",
-			Name:  "mclovins-container-1",
+			Name:  "mclovins-container-" + id,
 		})
 	}
 
@@ -491,14 +494,14 @@ func (s *BoxerSuite) TestStartAll(c *C) {
 	box2, _ := s.ResourcePool.FindBox("mclovins-container-2")
 	info1, _ := box1.dockerInfo()
 	c.Assert(info1.State.Running, Equals, false)
-	info2, _ := box1.dockerInfo()
+	info2, _ := box2.dockerInfo()
 	c.Assert(info2.State.Running, Equals, false)
 
 	s.Boxer.StartAll([]*Box{box1, box2})
 
 	info1, _ = box1.dockerInfo()
 	c.Assert(info1.State.Running, Equals, true)
-	info2, _ = box1.dockerInfo()
+	info2, _ = box2.dockerInfo()
 	c.Assert(info2.State.Running, Equals, true)
 }
 
