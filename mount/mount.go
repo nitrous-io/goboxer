@@ -1,4 +1,4 @@
-package goboxer
+package mount
 
 import (
 	"fmt"
@@ -11,6 +11,17 @@ import (
 
 func umount(target string) error {
 	return syscall.Unmount(target, 0)
+}
+
+func Mount(source, target, fstype string) (err error) {
+	mounted, err := Mounted(target)
+	if err != nil {
+		return err
+	}
+	if mounted {
+		return nil
+	}
+	return exec.Command("mount", "-t", fstype, source, target).Run()
 }
 
 func MountOverlay(source, delta, target string) (err error) {
@@ -33,7 +44,7 @@ func Symlink(source, target string) error {
 	return os.Symlink(source, target)
 }
 
-func UnmountOverlay(target string) error {
+func Unmount(target string) error {
 	// We'll just keep retrying until umount success
 	for retries := 0; retries < 1000; retries++ {
 		mounted, err := Mounted(target)

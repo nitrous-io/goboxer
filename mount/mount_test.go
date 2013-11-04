@@ -1,4 +1,4 @@
-package goboxer
+package mount
 
 import (
 	. "launchpad.net/gocheck"
