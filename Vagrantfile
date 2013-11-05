@@ -23,13 +23,13 @@ $script = <<SCRIPT
 
   cd $HOME
   mkdir -p $HOME/gocode/src/github.com/action-io
-  ln -fs $HOME/goboxer $HOME/gocode/src/github.com/action-io/goboxer
+  ln -fs $HOME/gocode/src/github.com/action-io/goboxer $HOME/goboxer
 
   # setup lvm
   if [[ ! -f $HOME/lxc_disk.img ]]; then
     dd if=/dev/zero of=$HOME/lxc_disk.img bs=1024 count=5000000
   fi
-  if [[ ! `losetup -a | grep /dev/loop0`]]; then
+  if [[ ! `losetup -a | grep /dev/loop0` ]]; then
     losetup /dev/loop0 $HOME/lxc_disk.img
   fi
   pvcreate /dev/loop0
@@ -40,7 +40,7 @@ $script = <<SCRIPT
   if [[ ! -f $HOME/xfs_disk.img ]]; then
     dd if=/dev/zero of=$HOME/xfs_disk.img bs=1024 count=5000000
   fi
-  if [[ ! `losetup -a | grep /dev/loop1`]]; then
+  if [[ ! `losetup -a | grep /dev/loop1` ]]; then
     losetup /dev/loop1 $HOME/xfs_disk.img
   fi
   if [[ ! `blkid /dev/loop1 | grep xfs` ]]; then
@@ -54,7 +54,7 @@ $script = <<SCRIPT
   if [[ ! -f $HOME/ext4_disk.img ]]; then
     dd if=/dev/zero of=$HOME/ext4_disk.img bs=1024 count=5000000
   fi
-  if [[ ! `losetup -a | grep /dev/loop2`]]; then
+  if [[ ! `losetup -a | grep /dev/loop2` ]]; then
     losetup /dev/loop2 $HOME/ext4_disk.img
   fi
   if [[ ! `blkid /dev/loop1 | grep ext4` ]]; then
@@ -123,7 +123,7 @@ Vagrant.configure("2") do |config|
   # the path on the host to the actual folder. The second argument is
   # the path on the guest to mount the folder. And the optional third
   # argument is a set of non-required options.
-  config.vm.synced_folder "./", "/home/vagrant/goboxer"
+  config.vm.synced_folder "./", "/home/vagrant/gocode/src/github.com/action-io/goboxer"
 
   # Provider-specific configuration so you can fine-tune various
   # backing providers for Vagrant. These expose provider-specific options.
@@ -133,12 +133,14 @@ Vagrant.configure("2") do |config|
     v.customize ["modifyvm", :id, "--cpus", "2"]
     v.customize ["modifyvm", :id, "--memory", "2048"]
     v.customize ["modifyvm", :id, "--natdnshostresolver1", "on"]
+    v.customize ["modifyvm", :id, "--natdnsproxy1", "on"]
   end
 
   # View the documentation for the provider you're using for more
   # information on available options.
   # config.ssh.max_tries = 40
   # config.ssh.timeout   = 120
+  config.ssh.forward_agent = true
 
   config.vm.provision "shell", inline: $script
 end
