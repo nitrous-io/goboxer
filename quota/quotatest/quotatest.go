@@ -8,12 +8,12 @@ import (
 // test quota impl that will fail on everything
 type FailQuota struct{}
 
-func (q FailQuota) SetLimit(id, name, path, projectContainer, limit string) error {
+func (q FailQuota) SetLimit(arg quota.QuotaArg) error {
 	return fmt.Errorf("failed to set limit")
 }
-func (q FailQuota) RemoveLimit(id, name, path, projectContainer string) error {
+func (q FailQuota) RemoveLimit(arg quota.QuotaArg) error {
 	return fmt.Errorf("failed to remove limit")
 }
-func (q FailQuota) ViewLimit(id, projectContainer string) (quota.QuotaInfo, error) {
+func (q FailQuota) ViewLimit(arg quota.QuotaArg) (quota.QuotaInfo, error) {
 	return quota.QuotaInfo{}, fmt.Errorf("failed to view limit")
 }

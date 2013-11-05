@@ -1,0 +1,22 @@
+#!/bin/bash
+
+[ -n "$DEBUG" ] && set -o xtrace
+set -o nounset
+shopt -s nullglob
+
+name=$1
+disk=$2
+uid=$3
+box_path=${disk}/${name}
+box_delta_path=${disk}/${name}_delta
+
+if [ -d $box_path ]; then
+  lxc-stop -n $name
+  lxc-wait -n $name -s STOPPED
+  umount /var/lib/lxc/$name
+  umount $box_path
+  setquota -u $uid 0 0 0 0 $disk
+  rm -rf ${box_path}
+  rm -rf ${box_delta_path}
+  iptables -t nat -F
+fi

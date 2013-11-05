@@ -8,7 +8,6 @@ package goboxer
 import (
 	"fmt"
 	"github.com/action-io/goboxer/host"
-	"github.com/action-io/goboxer/quota"
 	"sync"
 )
 
@@ -30,40 +29,6 @@ func init() {
 		"aio:configure":    logger.LogHandler("aio:configure", ConfigureBoxHandler),
 		"aio:info_request": logger.LogHandler("aio:info_request", InfoRequestBoxHandler),
 	}
-
-	CreateStates = []State{
-		State{Name: "CreateMountContainer", Advance: MountContainer, Rollback: UnmountContainer},
-		State{Name: "CreateSetupContainer", Advance: SetupContainer, Rollback: Pass},
-		State{Name: "CreateSetQuota", Advance: SetQuota, Rollback: UnsetQuota},
-		State{Name: "CreateSetPortForwarding", Advance: SetPortForwarding, Rollback: UnsetPortForwarding},
-	}
-
-	StartStates = []State{
-		State{Name: "StartMountContainer", Advance: MountContainer, Rollback: UnmountContainer},
-		State{Name: "StartSetQuota", Advance: SetQuota, Rollback: UnsetQuota},
-		State{Name: "StartStartContainer", Advance: StartContainer, Rollback: StopContainer},
-	}
-
-	StopStates = []State{
-		State{Name: "StopStopContainer", Advance: StopContainer, Rollback: Pass},
-		State{Name: "StopUnmountContainer", Advance: UnmountContainer, Rollback: MountContainer},
-		State{Name: "StopUnsetQuota", Advance: UnsetQuota, Rollback: SetQuota},
-	}
-
-	DestroyStates = []State{
-		State{Name: "DestroyStopContainer", Advance: StopContainer, Rollback: Pass},
-		State{Name: "DestroyUnsetPortForwarding", Advance: UnsetPortForwarding, Rollback: SetPortForwarding},
-		State{Name: "DestroyUnmountCcontainer", Advance: UnmountContainer, Rollback: MountContainer},
-		State{Name: "DestroyUnsetQuota", Advance: UnsetQuota, Rollback: SetQuota},
-		State{Name: "DestroyDeleteContainerData", Advance: DeleteContainerData, Rollback: Pass},
-	}
-
-	RestartStates = []State{
-		State{Name: "RestartStopContainer", Advance: StopContainer, Rollback: Pass},
-		State{Name: "RestartUnmountContainer", Advance: UnmountContainer, Rollback: Pass},
-		State{Name: "RestartMountContainer", Advance: MountContainer, Rollback: Pass},
-		State{Name: "RestartStartContainer", Advance: StartContainer, Rollback: Pass},
-	}
 }
 
 // a handler will receive message and runtime, do some work with it and return
@@ -79,27 +44,13 @@ type Boxer struct {
 	ResourcePool *ResourcePool
 	Runtimes     map[string]string
 	Handles      map[string]MessageHandler
-	Quota        quota.QuotaInterface
+	MountMethod  string
+	QuotaMethod  string
+	SelectedVG   string
 }
 
-func NewBoxer(id, root, selectedDisk string, disks []string,
-	runtimes map[string]string, resourcePool *ResourcePool,
-	useProjQuota bool) *Boxer {
-	boxer := &Boxer{
-		Id:           id,
-		Root:         root,
-		Runtimes:     runtimes,
-		SelectedDisk: selectedDisk,
-		Disks:        disks,
-		Handles:      handlers,
-		ResourcePool: resourcePool,
-	}
-	if useProjQuota {
-		boxer.Quota = quota.Quota{}
-	} else {
-		boxer.Quota = quota.UserQuota{}
-	}
-	return boxer
+func (boxer *Boxer) Configure() {
+	boxer.Handles = handlers
 }
 
 // return back a slice of keys for the runtimes
@@ -194,15 +145,18 @@ func CreateBoxHandler(m Message, boxer *Boxer) Message {
 		DiskSpace:        m.DiskSpace,
 		PublicKeys:       m.PublicKeys,
 		SnapshotURL:      m.SnapshotURL,
-		Disk:             boxer.SelectedDisk,
 		Template:         boxer.Runtimes[m.Runtime],
 		Ip:               resource.Ip,
 		Gateway:          resource.Gateway,
 		NetworkInterface: resource.NetworkInterface,
 		Port:             resource.GetPort(),
+		Disk:             boxer.SelectedDisk,
+		MountMethod:      boxer.MountMethod,
+		QuotaMethod:      boxer.QuotaMethod,
+		SelectedVG:       boxer.SelectedVG,
 	}
 	box.boxer = boxer
-	if err := boxer.Create(box); !err.Success() {
+	if err := box.Create(); err != nil {
 		logger.Printf("ERROR: Fail to create %v, err: %v\n", box, err)
 		boxer.ResourcePool.Release(resource.Ip)
 		msg.Success = false
@@ -223,7 +177,7 @@ func StartBoxHandler(m Message, boxer *Boxer) Message {
 	if err != nil {
 		return boxer.NewInvalidParamMessage()
 	}
-	if err := boxer.Start(box); !err.Success() {
+	if err := box.Start(); err != nil {
 		logger.Printf("ERROR: Fail to start %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
 	}
@@ -247,7 +201,7 @@ func StopBoxHandler(m Message, boxer *Boxer) Message {
 		logger.Printf("ERROR: Fail to find box %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
 	}
-	if err := boxer.Stop(box); !err.Success() {
+	if err := box.Stop(); err != nil {
 		logger.Printf("ERROR: Fail to stop box %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
 	}
@@ -271,7 +225,7 @@ func RestartBoxHandler(m Message, boxer *Boxer) Message {
 		logger.Printf("ERROR: Fail to find box %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
 	}
-	if err := boxer.Restart(box); !err.Success() {
+	if err := box.Restart(); err != nil {
 		logger.Printf("ERROR: Fail to restart box %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
 	}
@@ -295,7 +249,7 @@ func DestroyBoxHandler(m Message, boxer *Boxer) Message {
 		logger.Printf("ERROR: Fail to find box %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
 	}
-	if err := boxer.Destroy(box); !err.Success() {
+	if err := box.Destroy(); err != nil {
 		logger.Printf("ERROR: Fail to destroy box %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
 	}
@@ -368,7 +322,7 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 			message.Success = false
 			return message
 		}
-		err := box.ChangeSpec(spec, boxer.Quota)
+		err := box.ChangeSpec(spec)
 		message.Data = map[string]interface{}{
 			"memory":    box.Memory,
 			"diskSpace": box.DiskSpace,
@@ -378,7 +332,7 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 			message.Success = false
 			return message
 		}
-		if err := boxer.Restart(box); !err.Success() {
+		if err := box.Restart(); err != nil {
 			message.Success = false
 			return message
 		}
@@ -432,7 +386,7 @@ func InfoRequestBoxHandler(m Message, boxer *Boxer) Message {
 		BoxId:      box.Id,
 		ReturnVars: m.ReturnVars,
 	}
-	info, err := box.Info(boxer.Quota)
+	info, err := box.Info()
 	if err != nil {
 		message.Success = false
 		return message
@@ -442,114 +396,20 @@ func InfoRequestBoxHandler(m Message, boxer *Boxer) Message {
 	return message
 }
 
-func SetupContainer(c *BoxCommand) error {
-	box := c.Box
-	if err := box.ExtractTemplate(); err != nil {
-		return err
-	}
-	if err := box.WriteConfig(); err != nil {
-		return err
-	}
-	if err := box.SetHostname(); err != nil {
-		return err
-	}
-	if err := box.SetNetworkConfig(); err != nil {
-		return err
-	}
-	if err := box.SetWorkspace(); err != nil {
-		return err
-	}
-	if err := box.SetDefaultKeypair(); err != nil {
-		return err
-	}
-	if err := box.SetPermission(); err != nil {
-		return err
-	}
-	if err := box.SetBoxId(); err != nil {
-		return err
-	}
-	if err := box.SetPublicKeys(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func MountContainer(c *BoxCommand) error      { return c.Box.Mount(c.Boxer.Root) }
-func UnmountContainer(c *BoxCommand) error    { return c.Box.Unmount(c.Boxer.Root) }
-func SetQuota(c *BoxCommand) error            { return c.Box.SetQuota(c.Boxer.Quota) }
-func UnsetQuota(c *BoxCommand) error          { return c.Box.UnsetQuota(c.Boxer.Quota) }
-func SetPortForwarding(c *BoxCommand) error   { return c.Box.SetPortForwarding() }
-func UnsetPortForwarding(c *BoxCommand) error { return c.Box.UnsetPortForwarding() }
-func StartContainer(c *BoxCommand) error      { return c.Box.StartContainer() }
-func StopContainer(c *BoxCommand) error       { return c.Box.StopContainer() }
-func DeleteContainerData(c *BoxCommand) error { return c.Box.DeleteContainerData() }
-func Pass(c *BoxCommand) error                { return nil }
-
-func (boxer *Boxer) Create(box *Box) *CommandError {
-	return Advance(&BoxCommand{
-		Name:   "Create",
-		Boxer:  boxer,
-		Box:    box,
-		States: CreateStates,
-	})
-}
-
-func (boxer *Boxer) Start(box *Box) *CommandError {
-	return Advance(&BoxCommand{
-		Name:   "Start",
-		Boxer:  boxer,
-		Box:    box,
-		States: StartStates,
-	})
-}
-
-func (boxer *Boxer) Restart(box *Box) *CommandError {
-	return Advance(&BoxCommand{
-		Name:   "Restart",
-		Boxer:  boxer,
-		Box:    box,
-		States: RestartStates,
-	})
-}
-
-func (boxer *Boxer) Stop(box *Box) *CommandError {
-	return Advance(&BoxCommand{
-		Name:   "Stop",
-		Boxer:  boxer,
-		Box:    box,
-		States: StopStates,
-	})
-}
-
-func (boxer *Boxer) Destroy(box *Box) *CommandError {
-	return Advance(&BoxCommand{
-		Name:   "Destroy",
-		Boxer:  boxer,
-		Box:    box,
-		States: DestroyStates,
-	})
-}
-
 // Given a list of boxes, try to start all of them.
 // This should process all the boxes even when some cant be started
 func (boxer *Boxer) StartAll(boxes []*Box) error {
 	var errors []error
 	for _, box := range boxes {
 		box.boxer = boxer
-		err := Advance(&BoxCommand{
-			Name:   "Start",
-			Boxer:  boxer,
-			Box:    box,
-			States: StartStates,
-		})
-		if err.Success() {
+		if err := box.Start(); err != nil {
+			errors = append(errors, fmt.Errorf("Failed to start box: %s",
+				box.ContainerName()))
+		} else {
 			// make sure that the box are in running state
 			if err := boxer.ResourcePool.UpdateState(box, "running"); err != nil {
 				errors = append(errors, err)
 			}
-		} else {
-			errors = append(errors, fmt.Errorf("Failed to start box: %s",
-				box.ContainerName()))
 		}
 	}
 	if len(errors) > 0 {

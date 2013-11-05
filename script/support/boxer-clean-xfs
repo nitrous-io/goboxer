@@ -1,0 +1,35 @@
+#!/bin/bash
+
+[ -n "$DEBUG" ] && set -o xtrace
+set -o nounset
+shopt -s nullglob
+
+name=$1
+disk=$2
+box_path=${disk}/${name}
+box_delta_path=${disk}/${name}_delta
+
+if [ -d $box_path ]; then
+  lxc-stop -n $name
+  lxc-wait -n $name -s STOPPED
+
+  umount /var/lib/lxc/$name
+  umount $box_path
+
+  if [ -f /etc/projects ]; then
+    echo 'Removing line from /etc/projects'
+    sed -i "/${name}_delta\b/d" /etc/projects
+  fi
+
+  if [ -f /etc/projid ]; then
+    echo 'Removing line from /etc/projid'
+    sed -i "\%${name}:%d" /etc/projid
+  fi
+
+  echo 'Deleting all remnants of the container'
+  rm -rf ${box_path}
+  rm -rf ${box_delta_path}
+
+  echo 'Flushing IPTables'
+  iptables -t nat -F
+fi

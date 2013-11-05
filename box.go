@@ -4,7 +4,9 @@ import (
 	"bufio"
 	"fmt"
 	"github.com/action-io/goboxer/lxc"
+	"github.com/action-io/goboxer/mount"
 	"github.com/action-io/goboxer/quota"
+	"github.com/action-io/goboxer/quota/quotatest"
 	"os"
 	"path"
 	"strconv"
@@ -38,6 +40,10 @@ type Box struct {
 	BoxerId          string   `json:"boxerId"`
 	State            string   `json:"containerState"`
 	Disk             string   `json:"disk"`
+	Aufs             bool     `json:"aufs"`
+	MountMethod      string   `json:"mount"`
+	QuotaMethod      string   `json:"quotaMethod"`
+	SelectedVG       string   `json:"selectedVG"`
 	Runtime          string   `json:"-"`
 	SnapshotURL      string   `json:"-"`
 	PublicKeys       []string `json:"-"`
@@ -45,11 +51,77 @@ type Box struct {
 	boxer *Boxer
 }
 
-func (b *Box) ContainerName() string { return fmt.Sprintf("%s-%s", b.Name, b.Id) }
-func (b *Box) TemplatePath() string  { return b.Template + ".tar.gz" }
-func (b *Box) SetPublicKeys() error  { return b.AddPublicKey(b.PublicKeys...) }
+func (b *Box) Create() error {
+	defer logger.LogDuration(
+		fmt.Sprintf("%s:Create", b.ContainerName()),
+	)(time.Now())
+	if err := b.Mount(b.boxer.Root); err != nil {
+		return err
+	}
+	if err := b.setupContainer(); err != nil {
+		return err
+	}
+	if err := b.SetQuota(); err != nil {
+		return err
+	}
+	if err := b.SetPortForwarding(); err != nil {
+		return err
+	}
+	return nil
+}
 
-func (b *Box) BoxIdFile() string      { return path.Join(b.RootFS(), "etc", "action", "box_id") }
+func (b *Box) Start() error {
+	defer logger.LogDuration(
+		fmt.Sprintf("%s:Start", b.ContainerName()),
+	)(time.Now())
+	if err := b.Mount(b.boxer.Root); err != nil {
+		return err
+	}
+	return lxc.Start(b.ContainerName())
+}
+
+func (b *Box) Stop() error {
+	defer logger.LogDuration(
+		fmt.Sprintf("%s:Stop", b.ContainerName()),
+	)(time.Now())
+	if err := lxc.Stop(b.ContainerName()); err != nil {
+		return err
+	}
+	return b.Unmount(b.boxer.Root)
+}
+
+func (b *Box) Restart() error {
+	defer logger.LogDuration(
+		fmt.Sprintf("%s:Restart", b.ContainerName()),
+	)(time.Now())
+	if err := b.Stop(); err != nil {
+		return err
+	}
+	return b.Start()
+}
+
+func (b *Box) Destroy() error {
+	defer logger.LogDuration(
+		fmt.Sprintf("%s:Destroy", b.ContainerName()),
+	)(time.Now())
+	if err := b.Stop(); err != nil {
+		return err
+	}
+	if err := b.UnsetPortForwarding(); err != nil {
+		return err
+	}
+	if err := b.UnsetQuota(); err != nil {
+		return err
+	}
+	if err := b.DeleteContainerData(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (b *Box) ContainerName() string  { return fmt.Sprintf("%s-%s", b.Name, b.Id) }
+func (b *Box) TemplatePath() string   { return b.Template + ".tar.gz" }
+func (b *Box) SetPublicKeys() error   { return b.AddPublicKey(b.PublicKeys...) }
 func (b *Box) PublicKeysPath() string { return path.Join(b.RootFS(), "etc", "ssh", "univ_public_keys") }
 func (b *Box) PrivateKeyPath() string { return path.Join("home", "action", ".ssh", "id_rsa") }
 func (b *Box) RootFS() string         { return path.Join(b.Disk, b.ContainerName(), "rootfs") }
@@ -99,22 +171,22 @@ func (b *Box) HomePath() string {
 	return path.Join(b.Disk, b.ContainerName()+"_delta", "rootfs", "home", "action")
 }
 
-func (b *Box) SetQuota(q quota.QuotaInterface) error {
+func (b *Box) SetQuota() error {
 	b.boxer.Lock()
 	defer b.boxer.Unlock()
 	defer logger.LogDuration(
 		fmt.Sprintf("%s:SetQuota", b.ContainerName()),
 	)(time.Now())
-	return q.SetLimit(b.Id, b.ContainerName(), b.HomePath(), b.Disk, b.DiskSpace)
+	return b.quota().SetLimit(b.quotaArg())
 }
 
-func (b *Box) UnsetQuota(q quota.QuotaInterface) error {
+func (b *Box) UnsetQuota() error {
 	b.boxer.Lock()
 	defer b.boxer.Unlock()
-	return q.RemoveLimit(b.Id, b.ContainerName(), b.HomePath(), b.Disk)
+	return b.quota().RemoveLimit(b.quotaArg())
 }
 
-func (b *Box) ChangeSpec(spec *BoxSpec, q quota.QuotaInterface) error {
+func (b *Box) ChangeSpec(spec *BoxSpec) error {
 	if spec.Memory != b.Memory {
 		b.Memory = spec.Memory
 		if err := b.WriteConfig(); err != nil {
@@ -124,7 +196,7 @@ func (b *Box) ChangeSpec(spec *BoxSpec, q quota.QuotaInterface) error {
 	if spec.DiskSpace != b.DiskSpace {
 		oldDiskSpace := b.DiskSpace
 		b.DiskSpace = spec.DiskSpace
-		if err := b.SetQuota(q); err != nil {
+		if err := b.SetQuota(); err != nil {
 			b.DiskSpace = oldDiskSpace
 			return err
 		}
@@ -169,7 +241,12 @@ func (b *Box) SetWorkspace() error {
 }
 
 func (b *Box) SetBoxId() error {
-	boxIdFile, err := os.Create(b.BoxIdFile())
+	actionPath := path.Join(b.RootFS(), "etc", "action")
+	boxIdPath := path.Join(actionPath, "box_id")
+	if err := os.MkdirAll(actionPath, 0755); err != nil {
+		return err
+	}
+	boxIdFile, err := os.Create(boxIdPath)
 	if err != nil {
 		return err
 	}
@@ -247,20 +324,6 @@ func (b *Box) SetDefaultKeypair() error {
 		"/home/action/.ssh")
 }
 
-func (b *Box) StopContainer() error {
-	defer logger.LogDuration(
-		fmt.Sprintf("%s:StopContainer", b.ContainerName()),
-	)(time.Now())
-	return lxc.Stop(b.ContainerName())
-}
-
-func (b *Box) StartContainer() error {
-	defer logger.LogDuration(
-		fmt.Sprintf("%s:StartContainer", b.ContainerName()),
-	)(time.Now())
-	return lxc.Start(b.ContainerName())
-}
-
 func (b *Box) Mount(root string) error {
 	b.boxer.Lock()
 	defer b.boxer.Unlock()
@@ -280,23 +343,37 @@ func (b *Box) Mount(root string) error {
 	if err := os.MkdirAll(boxDeltaHomePath, 0755); err != nil {
 		return err
 	}
-	if err := MountOverlay(boxPath, boxDeltaPath, baseContainerPath); err != nil {
-		return err
+	switch b.GetMountMethod() {
+	case "overlayfs", "aufs":
+		if err := mount.Union(b.GetMountMethod(), boxPath, boxDeltaPath, baseContainerPath); err != nil {
+			return err
+		}
+		if err := os.MkdirAll(lxcBoxPath, 0755); err != nil {
+			return err
+		}
+		// FIXME: MountBind to make it similar to boxer. Ideally we probably
+		// want to symlink as it doesnt make any difference and seems to be
+		// more stable. Less mountpoint is better
+		return mount.MountBind(boxPath, lxcBoxPath)
+	case "lvm":
+		return fmt.Errorf("%s is not yet supported", b.GetMountMethod())
+	default:
+		return fmt.Errorf("%s is not a supported mount method",
+			b.GetMountMethod())
 	}
-	if err := os.RemoveAll(lxcBoxPath); err != nil {
-		return err
-	}
-	return Symlink(boxPath, lxcBoxPath)
 }
 
 func (b *Box) Unmount(root string) error {
 	b.boxer.Lock()
 	defer b.boxer.Unlock()
 	lxcBoxPath := path.Join(root, b.ContainerName())
+	if err := mount.Unmount(lxcBoxPath); err != nil {
+		return err
+	}
 	if err := os.RemoveAll(lxcBoxPath); err != nil {
 		return err
 	}
-	return UnmountOverlay(b.ContainerFS())
+	return mount.Unmount(b.ContainerFS())
 }
 
 func (b *Box) DeleteContainerData() error {
@@ -333,8 +410,8 @@ func (b *Box) LxcState() (string, error) {
 }
 
 // Return current storage usage in kb
-func (b *Box) StorageUsage(q quota.QuotaInterface) (int, error) {
-	quotaInfo, err := q.ViewLimit(b.Id, b.Disk)
+func (b *Box) StorageUsage() (int, error) {
+	quotaInfo, err := b.quota().ViewLimit(quota.QuotaArg{Id: b.Id, Disk: b.Disk})
 	if err != nil {
 		return 0, err
 	}
@@ -342,7 +419,7 @@ func (b *Box) StorageUsage(q quota.QuotaInterface) (int, error) {
 }
 
 // Return BoxInfo with `MB` units
-func (b *Box) Info(q quota.QuotaInterface) (BoxInfo, error) {
+func (b *Box) Info() (BoxInfo, error) {
 	var info BoxInfo
 	if memoryUsage, err := b.MemoryUsageInBytes(); err != nil {
 		return info, err
@@ -354,7 +431,7 @@ func (b *Box) Info(q quota.QuotaInterface) (BoxInfo, error) {
 	} else {
 		info.LxcStatus = state
 	}
-	if storageUsage, err := b.StorageUsage(q); err != nil {
+	if storageUsage, err := b.StorageUsage(); err != nil {
 		return info, err
 	} else {
 		info.StorageUsage = quota.ScaleUnit(storageUsage, "M")
@@ -385,4 +462,83 @@ func (b *Box) RemoveEnv(data []string) (err error) {
 		}
 	}
 	return
+}
+
+// Populate the contents of user's container. This should be done after the
+// container is mounted/unionized so we only works on the mount point and not
+// the delta storage.
+func (b *Box) setupContainer() error {
+	if err := b.ExtractTemplate(); err != nil {
+		return err
+	}
+	if err := b.WriteConfig(); err != nil {
+		return err
+	}
+	if err := b.SetHostname(); err != nil {
+		return err
+	}
+	if err := b.SetNetworkConfig(); err != nil {
+		return err
+	}
+	if err := b.SetWorkspace(); err != nil {
+		return err
+	}
+	if err := b.SetDefaultKeypair(); err != nil {
+		return err
+	}
+	if err := b.SetPermission(); err != nil {
+		return err
+	}
+	if err := b.SetBoxId(); err != nil {
+		return err
+	}
+	if err := b.SetPublicKeys(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (b *Box) quotaArg() quota.QuotaArg {
+	return quota.QuotaArg{
+		Id:    b.Id,
+		Name:  b.ContainerName(),
+		Path:  b.HomePath(),
+		Disk:  b.Disk,
+		Limit: b.DiskSpace,
+	}
+}
+
+func (b *Box) GetMountMethod() string {
+	if b.MountMethod == "lvm" {
+		return "lvm"
+	} else if b.MountMethod == "aufs" || b.Aufs {
+		return "aufs"
+	} else if b.MountMethod == "failed" {
+		return "failed"
+	}
+	return "overlayfs"
+}
+
+func (b *Box) GetQuotaMethod() string {
+	if b.QuotaMethod == "usrquota" {
+		return "usrquota"
+	}
+	return "prjquota"
+}
+
+// return the quota strategy that the box should use. The return object will be
+// an instance that supports quota.QuotaInterface interface
+//
+// We specifically supports MountMethod: "failed" here so we dont have to
+// inject special quota instance in test. This should never happens in
+// production
+func (b *Box) quota() quota.QuotaInterface {
+	if b.GetMountMethod() == "lvm" {
+		return quota.LvmQuota{}
+	} else if b.GetQuotaMethod() == "usrquota" {
+		return quota.UsrQuota{}
+	} else if b.GetQuotaMethod() == "failed" {
+		return quotatest.FailQuota{}
+	}
+	return quota.PrjQuota{}
 }
