@@ -51,7 +51,7 @@ func MountBind(source, target string) error {
 		return err
 	}
 	if mounted {
-		return fmt.Errorf("%s is mounted", target)
+		return nil
 	}
 	cmd := exec.Command("mount", "--bind", source, target)
 	return cmd.Run()
