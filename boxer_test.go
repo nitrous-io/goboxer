@@ -14,7 +14,7 @@ import (
 	. "launchpad.net/gocheck"
 	"os/exec"
 	"path/filepath"
-	//"strings"
+	"strings"
 )
 
 type BoxerSuite struct {
@@ -212,228 +212,267 @@ func (s *BoxerSuite) TestCreateBox(c *C) {
 	}
 }
 
-// func (s *BoxerSuite) TestStop(c *C) {
-// 	s.Boxer.Receive(Message{
-// 		Id:         "testboxer",
-// 		BoxId:      "1",
-// 		Type:       "aio:create",
-// 		Name:       "mclovins-container",
-// 		Runtime:    "test",
-// 		Memory:     "256M",
-// 		DiskSpace:  "1G",
-// 		PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
-// 	})
-// 	message := s.Boxer.Receive(Message{
-// 		Id:    "testboxer",
-// 		BoxId: "1",
-// 		Type:  "aio:stop",
-// 		Name:  "mclovins-container-1",
-// 	})
-// 	defer s.deleteBox("1", "mclovins-container")
-//
-// 	c.Assert(message.Type, Equals, "aio:stopped")
-// 	c.Assert(message.Id, Equals, "testboxer")
-// 	c.Assert(message.BoxId, Equals, "1")
-// 	c.Assert(message.Success, Equals, true)
-//
-// 	AssertLxcState(c, "mclovins-container-1", "STOPPED")
-//
-// 	DoesNotExist(c, []string{
-// 		"/var/lib/lxc/mclovins-container-1",
-// 	})
-//
-// 	s.assertBoxState(c, "mclovins-container-1", "stopped")
-// }
-//
-// func (s *BoxerSuite) TestStart(c *C) {
-// 	s.Boxer.Receive(Message{
-// 		Id:         "testboxer",
-// 		BoxId:      "1",
-// 		Type:       "aio:create",
-// 		Name:       "mclovins-container",
-// 		Runtime:    "test",
-// 		Memory:     "256M",
-// 		DiskSpace:  "1G",
-// 		PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
-// 	})
-// 	defer s.deleteBox("1", "mclovins-container")
-// 	message := s.Boxer.Receive(Message{
-// 		Id:    "testboxer",
-// 		BoxId: "1",
-// 		Type:  "aio:start",
-// 		Name:  "mclovins-container-1",
-// 	})
-//
-// 	c.Assert(message.Type, Equals, "aio:started")
-// 	c.Assert(message.Id, Equals, "testboxer")
-// 	c.Assert(message.BoxId, Equals, "1")
-// 	c.Assert(message.Success, Equals, true)
-//
-// 	AssertLxcState(c, "mclovins-container-1", "RUNNING")
-//
-// 	DoesExist(c, []string{
-// 		"/var/lib/lxc/mclovins-container-1/rootfs",
-// 	})
-//
-// 	s.assertBoxState(c, "mclovins-container-1", "running")
-// }
-//
-// func (s *BoxerSuite) TestDestroy(c *C) {
-// 	s.Boxer.Receive(Message{
-// 		Id:         "testboxer",
-// 		BoxId:      "1",
-// 		Type:       "aio:create",
-// 		Name:       "mclovins-container",
-// 		Runtime:    "test",
-// 		Memory:     "256M",
-// 		DiskSpace:  "1G",
-// 		PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
-// 	})
-// 	message := s.Boxer.Receive(Message{
-// 		Id:    "testboxer",
-// 		BoxId: "1",
-// 		Type:  "aio:destroy",
-// 		Name:  "mclovins-container-1",
-// 	})
-//
-// 	c.Assert(message.Type, Equals, "aio:destroyed")
-// 	c.Assert(message.Id, Equals, "testboxer")
-// 	c.Assert(message.BoxId, Equals, "1")
-// 	c.Assert(message.Success, Equals, true)
-//
-// 	AssertLxcState(c, "mclovins-container-1", "STOPPED")
-//
-// 	DoesNotExist(c, []string{
-// 		"/var/lib/lxc/mclovins-container-1",
-// 		"/lxc/disk1/mclovins-container-1",
-// 		"/lxc/disk1/mclovins-container-1_delta",
-// 	})
-//
-// 	output, _ := exec.Command("iptables", "-L", "-t", "nat").Output()
-// 	c.Assert(strings.Contains(string(output), "192.168.254.2:22"), Equals, false)
-//
-// 	// check redis
-// 	conn := s.Redis.Get()
-// 	defer conn.Close()
-// 	availableIp, _ := redis.String(conn.Do("RPOP", "aio:available_resources"))
-// 	c.Assert(availableIp, Equals, "192.168.254.2")
-// 	// box should be deleted from the collection
-// 	res, _ := conn.Do("HGET", "aio:boxes", "mclovins-container-1")
-// 	c.Assert(res, IsNil)
-// }
-//
-// func (s *BoxerSuite) TestRestart(c *C) {
-// 	s.Boxer.Receive(Message{
-// 		Id:         "testboxer",
-// 		BoxId:      "1",
-// 		Type:       "aio:create",
-// 		Name:       "mclovins-container",
-// 		Runtime:    "test",
-// 		Memory:     "256M",
-// 		DiskSpace:  "1G",
-// 		PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
-// 	})
-// 	defer s.deleteBox("1", "mclovins-container")
-// 	message := s.Boxer.Receive(Message{
-// 		Id:    "testboxer",
-// 		BoxId: "1",
-// 		Type:  "aio:restart",
-// 		Name:  "mclovins-container-1",
-// 	})
-//
-// 	c.Assert(message.Type, Equals, "aio:restarted")
-// 	c.Assert(message.Id, Equals, "testboxer")
-// 	c.Assert(message.BoxId, Equals, "1")
-// 	c.Assert(message.Success, Equals, true)
-//
-// 	AssertLxcState(c, "mclovins-container-1", "RUNNING")
-//
-// 	DoesExist(c, []string{
-// 		"/var/lib/lxc/mclovins-container-1",
-// 		"/lxc/disk1/mclovins-container-1",
-// 		"/lxc/disk1/mclovins-container-1_delta",
-// 	})
-//
-// 	s.assertBoxState(c, "mclovins-container-1", "running")
-// }
-//
-// func (s *BoxerSuite) TestAddPublicKey(c *C) {
-// 	s.Boxer.Receive(Message{
-// 		Id:         "testboxer",
-// 		BoxId:      "1",
-// 		Type:       "aio:create",
-// 		Name:       "mclovins-container",
-// 		Runtime:    "test",
-// 		Memory:     "256M",
-// 		DiskSpace:  "1G",
-// 		PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
-// 	})
-// 	defer s.deleteBox("1", "mclovins-container")
-//
-// 	message := s.Boxer.Receive(Message{
-// 		Id:       "testboxer",
-// 		BoxId:    "1",
-// 		Type:     "aio:configure",
-// 		DataType: "aio:configure:add_public_key",
-// 		Data:     "ssh-rsa publickey",
-// 		Name:     "mclovins-container-1",
-// 	})
-//
-// 	c.Assert(message.Type, Equals, "aio:configured")
-// 	c.Assert(message.DataType, Equals, "aio:configured:add_public_key")
-// 	c.Assert(message.Id, Equals, "testboxer")
-// 	c.Assert(message.BoxId, Equals, "1")
-// 	c.Assert(message.Success, Equals, true)
-//
-// 	root := "/lxc/disk1/mclovins-container-1"
-//
-// 	var checkContainsContent = map[string][]string{
-// 		root + "/rootfs/etc/ssh/univ_public_keys": {
-// 			"ssh-rsa QWER",
-// 			"ssh-rsa ASDF",
-// 			"ssh-rsa publickey",
-// 		},
-// 	}
-//
-// 	DoesContain(c, checkContainsContent)
-// }
-//
-// func (s *BoxerSuite) TestRemovePublicKey(c *C) {
-// 	s.Boxer.Receive(Message{
-// 		Id:         "testboxer",
-// 		BoxId:      "1",
-// 		Type:       "aio:create",
-// 		Name:       "mclovins-container",
-// 		Runtime:    "test",
-// 		Memory:     "256M",
-// 		DiskSpace:  "1G",
-// 		PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
-// 	})
-// 	defer s.deleteBox("1", "mclovins-container")
-//
-// 	message := s.Boxer.Receive(Message{
-// 		Id:       "testboxer",
-// 		BoxId:    "1",
-// 		Type:     "aio:configure",
-// 		DataType: "aio:configure:remove_public_key",
-// 		Data:     "ssh-rsa QWER",
-// 		Name:     "mclovins-container-1",
-// 	})
-//
-// 	c.Assert(message.Type, Equals, "aio:configured")
-// 	c.Assert(message.DataType, Equals, "aio:configured:remove_public_key")
-// 	c.Assert(message.Id, Equals, "testboxer")
-// 	c.Assert(message.BoxId, Equals, "1")
-// 	c.Assert(message.Success, Equals, true)
-//
-// 	root := "/lxc/disk1/mclovins-container-1"
-// 	var checkContent = map[string][]string{
-// 		root + "/rootfs/etc/ssh/univ_public_keys": {
-// 			"ssh-rsa QWER",
-// 		},
-// 	}
-// 	DoesNotContain(c, checkContent)
-// }
+func (s *BoxerSuite) TestStop(c *C) {
+	for stratName, stratValue := range strategies {
+		s.mergeProvisionStrategy(stratValue)
+		cleanContainer(stratName, "mclovins-container-1",
+			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
+		s.Boxer.Receive(Message{
+			Id:         "testboxer",
+			BoxId:      "1",
+			Type:       "aio:create",
+			Name:       "mclovins-container",
+			Runtime:    "test",
+			Memory:     "256M",
+			DiskSpace:  "1G",
+			PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
+		})
+		message := s.Boxer.Receive(Message{
+			Id:    "testboxer",
+			BoxId: "1",
+			Type:  "aio:stop",
+			Name:  "mclovins-container-1",
+		})
+		defer cleanContainer(stratName, "mclovins-container-1",
+			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
+
+		c.Assert(message.Type, Equals, "aio:stopped")
+		c.Assert(message.Id, Equals, "testboxer")
+		c.Assert(message.BoxId, Equals, "1")
+		c.Assert(message.Success, Equals, true)
+
+		AssertLxcState(c, "mclovins-container-1", "STOPPED")
+
+		DoesNotExist(c, []string{
+			"/var/lib/lxc/mclovins-container-1",
+		})
+
+		s.assertBoxState(c, "mclovins-container-1", "stopped")
+	}
+}
+
+func (s *BoxerSuite) TestStart(c *C) {
+	for stratName, stratValue := range strategies {
+		s.mergeProvisionStrategy(stratValue)
+		cleanContainer(stratName, "mclovins-container-1",
+			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
+		s.Boxer.Receive(Message{
+			Id:         "testboxer",
+			BoxId:      "1",
+			Type:       "aio:create",
+			Name:       "mclovins-container",
+			Runtime:    "test",
+			Memory:     "256M",
+			DiskSpace:  "1G",
+			PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
+		})
+		defer cleanContainer(stratName, "mclovins-container-1",
+			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
+		message := s.Boxer.Receive(Message{
+			Id:    "testboxer",
+			BoxId: "1",
+			Type:  "aio:start",
+			Name:  "mclovins-container-1",
+		})
+
+		c.Assert(message.Type, Equals, "aio:started")
+		c.Assert(message.Id, Equals, "testboxer")
+		c.Assert(message.BoxId, Equals, "1")
+		c.Assert(message.Success, Equals, true)
+
+		AssertLxcState(c, "mclovins-container-1", "RUNNING")
+
+		DoesExist(c, []string{
+			"/var/lib/lxc/mclovins-container-1/rootfs",
+		})
+
+		s.assertBoxState(c, "mclovins-container-1", "running")
+	}
+
+}
+
+func (s *BoxerSuite) TestDestroy(c *C) {
+	for stratName, stratValue := range strategies {
+		s.mergeProvisionStrategy(stratValue)
+		cleanContainer(stratName, "mclovins-container-1",
+			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
+		s.Boxer.Receive(Message{
+			Id:         "testboxer",
+			BoxId:      "1",
+			Type:       "aio:create",
+			Name:       "mclovins-container",
+			Runtime:    "test",
+			Memory:     "256M",
+			DiskSpace:  "1G",
+			PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
+		})
+		defer cleanContainer(stratName, "mclovins-container-1",
+			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
+		message := s.Boxer.Receive(Message{
+			Id:    "testboxer",
+			BoxId: "1",
+			Type:  "aio:destroy",
+			Name:  "mclovins-container-1",
+		})
+
+		c.Assert(message.Type, Equals, "aio:destroyed")
+		c.Assert(message.Id, Equals, "testboxer")
+		c.Assert(message.BoxId, Equals, "1")
+		c.Assert(message.Success, Equals, true)
+
+		AssertLxcState(c, "mclovins-container-1", "STOPPED")
+
+		DoesNotExist(c, []string{
+			"/var/lib/lxc/mclovins-container-1",
+			"/lxc/disk1/mclovins-container-1",
+			"/lxc/disk1/mclovins-container-1_delta",
+		})
+
+		output, _ := exec.Command("iptables", "-L", "-t", "nat").Output()
+		c.Assert(strings.Contains(string(output), "192.168.254.2:22"), Equals, false)
+
+		// check redis
+		conn := s.Redis.Get()
+		defer conn.Close()
+		availableIp, _ := redis.String(conn.Do("RPOP", "aio:available_resources"))
+		c.Assert(availableIp, Equals, "192.168.254.2")
+		// box should be deleted from the collection
+		res, _ := conn.Do("HGET", "aio:boxes", "mclovins-container-1")
+		c.Assert(res, IsNil)
+	}
+}
+
+func (s *BoxerSuite) TestRestart(c *C) {
+	for stratName, stratValue := range strategies {
+		s.mergeProvisionStrategy(stratValue)
+		cleanContainer(stratName, "mclovins-container-1",
+			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
+		s.Boxer.Receive(Message{
+			Id:         "testboxer",
+			BoxId:      "1",
+			Type:       "aio:create",
+			Name:       "mclovins-container",
+			Runtime:    "test",
+			Memory:     "256M",
+			DiskSpace:  "1G",
+			PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
+		})
+		defer cleanContainer(stratName, "mclovins-container-1",
+			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
+		message := s.Boxer.Receive(Message{
+			Id:    "testboxer",
+			BoxId: "1",
+			Type:  "aio:restart",
+			Name:  "mclovins-container-1",
+		})
+
+		c.Assert(message.Type, Equals, "aio:restarted")
+		c.Assert(message.Id, Equals, "testboxer")
+		c.Assert(message.BoxId, Equals, "1")
+		c.Assert(message.Success, Equals, true)
+
+		AssertLxcState(c, "mclovins-container-1", "RUNNING")
+
+		DoesExist(c, []string{
+			"/var/lib/lxc/mclovins-container-1",
+			"/lxc/disk1/mclovins-container-1",
+			"/lxc/disk1/mclovins-container-1_delta",
+		})
+
+		s.assertBoxState(c, "mclovins-container-1", "running")
+	}
+}
+
+func (s *BoxerSuite) TestAddPublicKey(c *C) {
+	for stratName, stratValue := range strategies {
+		s.mergeProvisionStrategy(stratValue)
+		cleanContainer(stratName, "mclovins-container-1",
+			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
+		s.Boxer.Receive(Message{
+			Id:         "testboxer",
+			BoxId:      "1",
+			Type:       "aio:create",
+			Name:       "mclovins-container",
+			Runtime:    "test",
+			Memory:     "256M",
+			DiskSpace:  "1G",
+			PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
+		})
+		defer cleanContainer(stratName, "mclovins-container-1",
+			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
+
+		message := s.Boxer.Receive(Message{
+			Id:       "testboxer",
+			BoxId:    "1",
+			Type:     "aio:configure",
+			DataType: "aio:configure:add_public_key",
+			Data:     "ssh-rsa publickey",
+			Name:     "mclovins-container-1",
+		})
+
+		c.Assert(message.Type, Equals, "aio:configured")
+		c.Assert(message.DataType, Equals, "aio:configured:add_public_key")
+		c.Assert(message.Id, Equals, "testboxer")
+		c.Assert(message.BoxId, Equals, "1")
+		c.Assert(message.Success, Equals, true)
+
+		root := "/lxc/disk1/mclovins-container-1"
+
+		var checkContainsContent = map[string][]string{
+			root + "/rootfs/etc/ssh/univ_public_keys": {
+				"ssh-rsa QWER",
+				"ssh-rsa ASDF",
+				"ssh-rsa publickey",
+			},
+		}
+
+		DoesContain(c, checkContainsContent)
+	}
+}
+
+func (s *BoxerSuite) TestRemovePublicKey(c *C) {
+	for stratName, stratValue := range strategies {
+		s.mergeProvisionStrategy(stratValue)
+		cleanContainer(stratName, "mclovins-container-1",
+			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
+		s.Boxer.Receive(Message{
+			Id:         "testboxer",
+			BoxId:      "1",
+			Type:       "aio:create",
+			Name:       "mclovins-container",
+			Runtime:    "test",
+			Memory:     "256M",
+			DiskSpace:  "1G",
+			PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
+		})
+		defer cleanContainer(stratName, "mclovins-container-1",
+			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
+
+		message := s.Boxer.Receive(Message{
+			Id:       "testboxer",
+			BoxId:    "1",
+			Type:     "aio:configure",
+			DataType: "aio:configure:remove_public_key",
+			Data:     "ssh-rsa QWER",
+			Name:     "mclovins-container-1",
+		})
+
+		c.Assert(message.Type, Equals, "aio:configured")
+		c.Assert(message.DataType, Equals, "aio:configured:remove_public_key")
+		c.Assert(message.Id, Equals, "testboxer")
+		c.Assert(message.BoxId, Equals, "1")
+		c.Assert(message.Success, Equals, true)
+
+		root := "/lxc/disk1/mclovins-container-1"
+		var checkContent = map[string][]string{
+			root + "/rootfs/etc/ssh/univ_public_keys": {
+				"ssh-rsa QWER",
+			},
+		}
+		DoesNotContain(c, checkContent)
+	}
+}
+
 //
 // func (s *BoxerSuite) TestChangeBoxSpecs(c *C) {
 // 	s.Boxer.Receive(Message{
