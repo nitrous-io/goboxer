@@ -24,8 +24,8 @@ func Mount(source, target, fstype string) (err error) {
 	return exec.Command("mount", "-t", fstype, source, target).Run()
 }
 
-func MountOverlay(source, delta, target string) (err error) {
-	mountOptions := "rw,upperdir=" + delta + ",lowerdir=" + target
+func Union(unionType, target, upper, lower string) (err error) {
+	var mountOptions string
 	mounted, err := Mounted(target)
 	if err != nil {
 		return err
@@ -33,8 +33,28 @@ func MountOverlay(source, delta, target string) (err error) {
 	if mounted {
 		return nil
 	}
-	return exec.Command("mount", "-n", "-t", "overlayfs", "-o", mountOptions,
-		"none", source).Run()
+	if unionType == "aufs" {
+		mountOptions = "br=" + upper + ":" + lower
+	} else if unionType == "overlayfs" {
+		mountOptions = "rw,upperdir=" + upper + ",lowerdir=" + lower
+	} else {
+		return fmt.Errorf("%s is not a supported union type", unionType)
+	}
+	cmd := exec.Command("mount", "-t", unionType, "-o", mountOptions,
+		"none", target)
+	return cmd.Run()
+}
+
+func MountBind(source, target string) error {
+	mounted, err := Mounted(target)
+	if err != nil {
+		return err
+	}
+	if mounted {
+		return fmt.Errorf("%s is mounted", target)
+	}
+	cmd := exec.Command("mount", "--bind", source, target)
+	return cmd.Run()
 }
 
 func Symlink(source, target string) error {
