@@ -39,12 +39,12 @@ var strategies = map[string]testProvisionStrategy{
 		SelectedDisk: "/lxc/disk1",
 		SelectedVG:   "",
 	},
-	//"ext4": testProvisionStrategy{
-	//    MountMethod:  "aufs",
-	//    QuotaMethod:  "usrquota",
-	//    SelectedDisk: "/lxc/disk2",
-	//    SelectedVG:   "",
-	//},
+	"ext4": testProvisionStrategy{
+		MountMethod:  "aufs",
+		QuotaMethod:  "usrquota",
+		SelectedDisk: "/lxc/disk2",
+		SelectedVG:   "",
+	},
 	//"lvm": testProvisionStrategy{
 	//    MountMethod:  "lvm",
 	//    QuotaMethod:  "lvm",
@@ -97,6 +97,20 @@ func (s *BoxerSuite) mergeProvisionStrategy(p testProvisionStrategy) {
 	s.Boxer.Configure()
 }
 
+type testFunction func(s *BoxerSuite, c *C, stratName string, stratValue testProvisionStrategy)
+
+func (s *BoxerSuite) testEachStrategy(c *C, test testFunction) {
+	for stratName, stratValue := range strategies {
+		conn := s.Redis.Get()
+		conn.Do("FLUSHDB")
+		s.insertResource("192.168.254.2", "192.168.254.1", "br-lxc-254", "10002")
+		conn.Close()
+
+		s.mergeProvisionStrategy(stratValue)
+		test(s, c, stratName, stratValue)
+	}
+}
+
 func (s *BoxerSuite) deleteBox(id, name string) Message {
 	message := s.Boxer.Receive(Message{
 		Type:  "aio:destroy",
@@ -109,13 +123,7 @@ func (s *BoxerSuite) deleteBox(id, name string) Message {
 
 func (s *BoxerSuite) SetUpTest(c *C) {
 	s.Redis = NewRedisPool(":6379")
-	conn := s.Redis.Get()
-	defer conn.Close()
-	conn.Do("FLUSHDB")
-	s.insertResource("192.168.254.2", "192.168.254.1", "br-lxc-254", "10002")
-
 	s.ResourcePool = &ResourcePool{Pool: s.Redis}
-
 	s.Boxer = &Boxer{
 		Id:           "testboxer",
 		Root:         "/var/lib/lxc",
@@ -134,8 +142,8 @@ func (s *BoxerSuite) TearDownTest(c *C) {
 }
 
 func (s *BoxerSuite) TestCreateBox(c *C) {
-	for stratName, stratValue := range strategies {
-		s.mergeProvisionStrategy(stratValue)
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
 		cleanContainer(stratName, "mclovins-container-1",
 			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
 		message := s.Boxer.Receive(Message{
@@ -194,12 +202,12 @@ func (s *BoxerSuite) TestCreateBox(c *C) {
 			root + "/rootfs/home/action/.ssh/id_rsa.pub": {15001, 15001},
 		}
 
-		// actually mount the container at /var/lib/lxc after create at /lxc/disk1
+		// actually mount the container at /var/lib/lxc after create
 		isMounted, err := mount.Mounted("/var/lib/lxc/mclovins-container-1")
 		c.Assert(err, IsNil)
 		c.Assert(isMounted, Equals, true)
 
-		// check the container contents at /lxc/disk1
+		// check the container contents
 		DoesExist(c, checkExists)
 		DoesContain(c, checkContainsContent)
 		DoesHavePermissions(c, checkPermissions)
@@ -209,12 +217,12 @@ func (s *BoxerSuite) TestCreateBox(c *C) {
 		defer conn.Close()
 		usedIp, _ := redis.String(conn.Do("LPOP", "aio:used_resources"))
 		c.Assert(usedIp, Equals, "192.168.254.2")
-	}
+	})
 }
 
 func (s *BoxerSuite) TestStop(c *C) {
-	for stratName, stratValue := range strategies {
-		s.mergeProvisionStrategy(stratValue)
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
 		cleanContainer(stratName, "mclovins-container-1",
 			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
 		s.Boxer.Receive(Message{
@@ -248,12 +256,12 @@ func (s *BoxerSuite) TestStop(c *C) {
 		})
 
 		s.assertBoxState(c, "mclovins-container-1", "stopped")
-	}
+	})
 }
 
 func (s *BoxerSuite) TestStart(c *C) {
-	for stratName, stratValue := range strategies {
-		s.mergeProvisionStrategy(stratValue)
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
 		cleanContainer(stratName, "mclovins-container-1",
 			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
 		s.Boxer.Receive(Message{
@@ -287,13 +295,12 @@ func (s *BoxerSuite) TestStart(c *C) {
 		})
 
 		s.assertBoxState(c, "mclovins-container-1", "running")
-	}
-
+	})
 }
 
 func (s *BoxerSuite) TestDestroy(c *C) {
-	for stratName, stratValue := range strategies {
-		s.mergeProvisionStrategy(stratValue)
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
 		cleanContainer(stratName, "mclovins-container-1",
 			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
 		s.Boxer.Receive(Message{
@@ -322,11 +329,20 @@ func (s *BoxerSuite) TestDestroy(c *C) {
 
 		AssertLxcState(c, "mclovins-container-1", "STOPPED")
 
-		DoesNotExist(c, []string{
+		containerPlace := []string{
 			"/var/lib/lxc/mclovins-container-1",
-			"/lxc/disk1/mclovins-container-1",
-			"/lxc/disk1/mclovins-container-1_delta",
-		})
+		}
+		switch stratName {
+		case "xfs", "ext4":
+			containerPlace = append(containerPlace, stratValue.SelectedDisk+
+				"/mclovins-container-1")
+			containerPlace = append(containerPlace, stratValue.SelectedDisk+
+				"/mclovins-container-1_delta")
+		case "lvm":
+			containerPlace = append(containerPlace, "/dev/"+stratValue.SelectedVG+
+				"/mclovins-container-1")
+		}
+		DoesNotExist(c, containerPlace)
 
 		output, _ := exec.Command("iptables", "-L", "-t", "nat").Output()
 		c.Assert(strings.Contains(string(output), "192.168.254.2:22"), Equals, false)
@@ -339,12 +355,12 @@ func (s *BoxerSuite) TestDestroy(c *C) {
 		// box should be deleted from the collection
 		res, _ := conn.Do("HGET", "aio:boxes", "mclovins-container-1")
 		c.Assert(res, IsNil)
-	}
+	})
 }
 
 func (s *BoxerSuite) TestRestart(c *C) {
-	for stratName, stratValue := range strategies {
-		s.mergeProvisionStrategy(stratValue)
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
 		cleanContainer(stratName, "mclovins-container-1",
 			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
 		s.Boxer.Receive(Message{
@@ -373,19 +389,28 @@ func (s *BoxerSuite) TestRestart(c *C) {
 
 		AssertLxcState(c, "mclovins-container-1", "RUNNING")
 
-		DoesExist(c, []string{
+		containerPlace := []string{
 			"/var/lib/lxc/mclovins-container-1",
-			"/lxc/disk1/mclovins-container-1",
-			"/lxc/disk1/mclovins-container-1_delta",
-		})
+		}
+		switch stratName {
+		case "xfs", "ext4":
+			containerPlace = append(containerPlace, stratValue.SelectedDisk+
+				"/mclovins-container-1")
+			containerPlace = append(containerPlace, stratValue.SelectedDisk+
+				"/mclovins-container-1_delta")
+		case "lvm":
+			containerPlace = append(containerPlace, "/dev/"+stratValue.SelectedVG+
+				"/mclovins-container-1")
+		}
+		DoesExist(c, containerPlace)
 
 		s.assertBoxState(c, "mclovins-container-1", "running")
-	}
+	})
 }
 
 func (s *BoxerSuite) TestAddPublicKey(c *C) {
-	for stratName, stratValue := range strategies {
-		s.mergeProvisionStrategy(stratValue)
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
 		cleanContainer(stratName, "mclovins-container-1",
 			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
 		s.Boxer.Receive(Message{
@@ -416,7 +441,7 @@ func (s *BoxerSuite) TestAddPublicKey(c *C) {
 		c.Assert(message.BoxId, Equals, "1")
 		c.Assert(message.Success, Equals, true)
 
-		root := "/lxc/disk1/mclovins-container-1"
+		root := "/var/lib/lxc/mclovins-container-1"
 
 		var checkContainsContent = map[string][]string{
 			root + "/rootfs/etc/ssh/univ_public_keys": {
@@ -427,12 +452,12 @@ func (s *BoxerSuite) TestAddPublicKey(c *C) {
 		}
 
 		DoesContain(c, checkContainsContent)
-	}
+	})
 }
 
 func (s *BoxerSuite) TestRemovePublicKey(c *C) {
-	for stratName, stratValue := range strategies {
-		s.mergeProvisionStrategy(stratValue)
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
 		cleanContainer(stratName, "mclovins-container-1",
 			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
 		s.Boxer.Receive(Message{
@@ -463,19 +488,19 @@ func (s *BoxerSuite) TestRemovePublicKey(c *C) {
 		c.Assert(message.BoxId, Equals, "1")
 		c.Assert(message.Success, Equals, true)
 
-		root := "/lxc/disk1/mclovins-container-1"
+		root := "/var/lib/lxc/mclovins-container-1"
 		var checkContent = map[string][]string{
 			root + "/rootfs/etc/ssh/univ_public_keys": {
 				"ssh-rsa QWER",
 			},
 		}
 		DoesNotContain(c, checkContent)
-	}
+	})
 }
 
 func (s *BoxerSuite) TestChangeBoxSpecs(c *C) {
-	for stratName, stratValue := range strategies {
-		s.mergeProvisionStrategy(stratValue)
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
 		cleanContainer(stratName, "mclovins-container-1",
 			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
 		s.Boxer.Receive(Message{
@@ -520,7 +545,7 @@ func (s *BoxerSuite) TestChangeBoxSpecs(c *C) {
 		c.Assert(currentMemory, Equals, "512M")
 		c.Assert(currentDiskSpace, Equals, "2048M")
 
-		root := "/lxc/disk1/mclovins-container-1"
+		root := "/var/lib/lxc/mclovins-container-1"
 		var checkContent = map[string][]string{
 			root + "/config": {
 				"lxc.cgroup.memory.limit_in_bytes = 512M",
@@ -533,8 +558,7 @@ func (s *BoxerSuite) TestChangeBoxSpecs(c *C) {
 		c.Assert(newLimit.Limit, Equals, 2*1024*1024)
 
 		s.assertBoxState(c, "mclovins-container-1", "running")
-	}
-
+	})
 }
 
 func (s *BoxerSuite) TestNewAdvertiseMessage(c *C) {
@@ -551,8 +575,8 @@ func (s *BoxerSuite) TestNewAdvertiseMessage(c *C) {
 }
 
 func (s *BoxerSuite) TestStartAll(c *C) {
-	for stratName, stratValue := range strategies {
-		s.mergeProvisionStrategy(stratValue)
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
 		s.insertResource("192.168.254.3", "192.168.254.1", "br-lxc-254", "10003")
 
 		for _, id := range []string{"1", "2"} {
@@ -589,12 +613,12 @@ func (s *BoxerSuite) TestStartAll(c *C) {
 
 		s.assertBoxState(c, "mclovins-container-1", "running")
 		s.assertBoxState(c, "mclovins-container-2", "running")
-	}
+	})
 }
 
 func (s *BoxerSuite) TestInfo(c *C) {
-	for stratName, stratValue := range strategies {
-		s.mergeProvisionStrategy(stratValue)
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
 		cleanContainer(stratName, "mclovins-container-1",
 			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
 		s.Boxer.Receive(Message{
@@ -630,12 +654,12 @@ func (s *BoxerSuite) TestInfo(c *C) {
 		c.Assert(message.Success, Equals, true)
 
 		c.Assert(message.Info.LxcStatus, Equals, "RUNNING")
-	}
+	})
 }
 
 func (s *BoxerSuite) TestSetEnvVariables(c *C) {
-	for stratName, stratValue := range strategies {
-		s.mergeProvisionStrategy(stratValue)
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
 		cleanContainer(stratName, "mclovins-container-1",
 			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
 		s.Boxer.Receive(Message{
@@ -676,12 +700,12 @@ func (s *BoxerSuite) TestSetEnvVariables(c *C) {
 				"RDS_PASSWORD=mysql-insecure",
 			},
 		})
-	}
+	})
 }
 
 func (s *BoxerSuite) TestDoubleSetEnvVariables(c *C) {
-	for stratName, stratValue := range strategies {
-		s.mergeProvisionStrategy(stratValue)
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
 		cleanContainer(stratName, "mclovins-container-1",
 			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
 		defer cleanContainer(stratName, "mclovins-container-1",
@@ -733,12 +757,12 @@ func (s *BoxerSuite) TestDoubleSetEnvVariables(c *C) {
 				"RDS_HOST=mysql://insecure",
 			},
 		})
-	}
+	})
 }
 
 func (s *BoxerSuite) TestRemoveEnvVariables(c *C) {
-	for stratName, stratValue := range strategies {
-		s.mergeProvisionStrategy(stratValue)
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
 		cleanContainer(stratName, "mclovins-container-1",
 			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
 		defer cleanContainer(stratName, "mclovins-container-1",
@@ -792,12 +816,12 @@ func (s *BoxerSuite) TestRemoveEnvVariables(c *C) {
 				"RDS_PASSWORD=mysql-insecure",
 			},
 		})
-	}
+	})
 }
 
 func (s *BoxerSuite) TestInvalidConfigureDataDoesNotPanic(c *C) {
-	for stratName, stratValue := range strategies {
-		s.mergeProvisionStrategy(stratValue)
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
 		cleanContainer(stratName, "mclovins-container-1",
 			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
 		defer cleanContainer(stratName, "mclovins-container-1",
@@ -827,12 +851,12 @@ func (s *BoxerSuite) TestInvalidConfigureDataDoesNotPanic(c *C) {
 		})
 
 		c.Assert(message.Type, Equals, "aio:invalid:params")
-	}
+	})
 }
 
 func (s *BoxerSuite) TestChangeBoxSpecsFail(c *C) {
-	for stratName, stratValue := range strategies {
-		s.mergeProvisionStrategy(stratValue)
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
 		cleanContainer(stratName, "mclovins-container-1",
 			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
 		defer cleanContainer(stratName, "mclovins-container-1",
@@ -895,13 +919,12 @@ func (s *BoxerSuite) TestChangeBoxSpecsFail(c *C) {
 		// it cant set the new quota
 		newLimit, _ := quotaProvisioner.ViewLimit(arg)
 		c.Assert(newLimit.Limit, Equals, 1024*1024)
-	}
-
+	})
 }
 
 func (s *BoxerSuite) TestChangeBoxSpecsInvalidParams(c *C) {
-	for stratName, stratValue := range strategies {
-		s.mergeProvisionStrategy(stratValue)
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
 		cleanContainer(stratName, "mclovins-container-1",
 			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
 		defer cleanContainer(stratName, "mclovins-container-1",
@@ -936,5 +959,5 @@ func (s *BoxerSuite) TestChangeBoxSpecsInvalidParams(c *C) {
 		currentDiskSpace, _ := (data["diskSpace"]).(string)
 		c.Assert(currentMemory, Equals, "256M")
 		c.Assert(currentDiskSpace, Equals, "1024M")
-	}
+	})
 }
