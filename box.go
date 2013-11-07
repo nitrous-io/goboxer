@@ -131,9 +131,13 @@ func (b *Box) PublicKeysPath() string {
 	return path.Join(b.RootFS(), "etc", "ssh", "univ_public_keys")
 }
 
+func (b *Box) LxcPath() string {
+	return path.Join(b.boxer.Root, b.ContainerName())
+}
+
 func (b *Box) ContainerFS() string {
 	if b.GetMountMethod() == "lvm" {
-		return path.Join(b.boxer.Root, b.ContainerName())
+		return b.LxcPath()
 	} else {
 		return path.Join(b.Disk, b.ContainerName())
 	}
@@ -160,7 +164,10 @@ func (b *Box) TemplatePath() string {
 }
 
 func (b *Box) ContainerDeltaPath() string {
-	return b.ContainerFS() + "_delta"
+	if b.GetMountMethod() == "lvm" {
+		return b.ContainerFS() + "_delta"
+	}
+	return path.Join(b.Disk, b.ContainerName()+"_delta")
 }
 
 func (b *Box) Uid() string {
@@ -242,13 +249,8 @@ func (b *Box) Mount(root string) error {
 		fmt.Sprintf("%s:Mount", b.ContainerName()),
 	)(time.Now())
 
-	lxcBoxPath := path.Join(root, b.ContainerName())
-	if err := os.MkdirAll(lxcBoxPath, 0755); err != nil {
-		return err
-	}
-	if err := os.MkdirAll(b.ContainerFS(), 0755); err != nil {
-		return err
-	}
+	lxcBoxPath := b.LxcPath()
+	boxDeltaPath := b.ContainerDeltaPath()
 	switch b.GetMountMethod() {
 	case "overlayfs", "aufs":
 		// overlayfs or aufs strategy
@@ -257,9 +259,9 @@ func (b *Box) Mount(root string) error {
 		// union with the base container template in the same disk, and mount
 		// it over to root ( /var/lib/lxc )
 		boxPath := b.ContainerFS()
-		boxDeltaPath := b.ContainerDeltaPath()
 		baseContainerPath := path.Join(b.Disk, "base_container_template")
 		if err := mount.Union(b.GetMountMethod(), boxPath, boxDeltaPath, baseContainerPath); err != nil {
+			fmt.Println("failed to union")
 			return err
 		}
 		// FIXME: MountBind to make it similar to boxer. Ideally we probably
@@ -280,9 +282,6 @@ func (b *Box) Mount(root string) error {
 			return err
 		}
 		boxDeltaPath := lxcBoxPath + "_delta"
-		if err := os.MkdirAll(boxDeltaPath, 0755); err != nil {
-			return err
-		}
 		baseContainerPath := path.Join(root, "base_container_template")
 		if err := mount.Mount(deviceName, boxDeltaPath, "ext4"); err != nil {
 			return err
@@ -297,7 +296,7 @@ func (b *Box) Mount(root string) error {
 func (b *Box) Unmount(root string) error {
 	b.boxer.Lock()
 	defer b.boxer.Unlock()
-	lxcBoxPath := b.ContainerFS()
+	lxcBoxPath := b.LxcPath()
 	if err := mount.Unmount(lxcBoxPath); err != nil {
 		return err
 	}
@@ -320,13 +319,14 @@ func (b *Box) Unmount(root string) error {
 
 func (b *Box) DeleteContainerData() error {
 	if b.GetMountMethod() == "lvm" {
-		return lvm.DestroyVolume(b.SelectedVG, b.ContainerName())
-	} else {
-		if err := os.RemoveAll(b.ContainerDeltaPath()); err != nil {
+		if err := lvm.DestroyVolume(b.SelectedVG, b.ContainerName()); err != nil {
 			return err
 		}
-		return os.RemoveAll(b.ContainerFS())
 	}
+	if err := os.RemoveAll(b.ContainerDeltaPath()); err != nil {
+		return err
+	}
+	return os.RemoveAll(b.ContainerFS())
 }
 
 // Return current memory usage of the box as memory cgroup reported it
