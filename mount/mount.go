@@ -89,19 +89,28 @@ func Symlink(source, target string) error {
 	return os.Symlink(source, target)
 }
 
-func Unmount(target string) error {
-	// We'll just keep retrying until umount success
-	for retries := 0; retries < 1000; retries++ {
-		mounted, err := Mounted(target)
-		if err != nil {
-			return err
+func Unmount(mountType, target string) error {
+	if mountType == "aufs" {
+		if err := exec.Command("auplink", target, "flush").Run(); err != nil {
+			fmt.Printf("[warning]: couldn't run auplink before unmount: %s", err)
 		}
-		if !mounted {
+	}
+	if err := umount(target); err != nil {
+		return err
+	}
+	// Even though we just unmounted the filesystem, AUFS will prevent deleting the mntpoint
+	// for some time. We'll just keep retrying until it succeeds.
+	for retries := 0; retries < 1000; retries++ {
+		err := os.Remove(target)
+		if err == nil {
+			// rm mntpoint succeeded
 			return nil
 		}
-		if err := umount(target); err != nil {
-			return err
+		if os.IsNotExist(err) {
+			// mntpoint doesn't exist anymore. Success.
+			return nil
 		}
+		// fmt.Printf("(%v) Remove %v returned: %v\n", retries, target, err)
 		time.Sleep(10 * time.Millisecond)
 	}
 	return fmt.Errorf("Umount: Failed to umount %v", target)

@@ -15,14 +15,19 @@ import (
 	"time"
 )
 
-const UidStart = 15000
-const ThinVG = "boxes"
+const UID_START = 15000
+const THIN_VG = "boxes"
 
 type BoxSpec struct {
 	Memory    string `json:"memory,omitempty"`
 	DiskSpace string `json:"diskSpace,omitempty"`
 }
 
+// Return current box info.
+// StorageUsage: total storage in mb
+// MemoryUsage: total memory usage in mb
+// LxcStatus: It is the string that lxc used to annotate
+// container's state such as RUNNING, STOPPED
 type BoxInfo struct {
 	StorageUsage float64 `json:"storageUsage,omitempty"`
 	MemoryUsage  float64 `json:"memoryUsage,omitempty"`
@@ -63,15 +68,14 @@ func (b *Box) Create() error {
 	if err := b.setupContainer(); err != nil {
 		return err
 	}
+	// as the initial lvm volume is created in mount step, we dont need to
+	// reset quota here
 	if b.GetMountMethod() != "lvm" {
 		if err := b.SetQuota(); err != nil {
 			return err
 		}
 	}
-	if err := b.setPortForwarding(); err != nil {
-		return err
-	}
-	return nil
+	return b.setPortForwarding()
 }
 
 func (b *Box) Start() error {
@@ -117,10 +121,7 @@ func (b *Box) Destroy() error {
 	if err := b.UnsetQuota(); err != nil {
 		return err
 	}
-	if err := b.DeleteContainerData(); err != nil {
-		return err
-	}
-	return nil
+	return b.DeleteContainerData()
 }
 
 func (b *Box) ContainerName() string {
@@ -172,12 +173,12 @@ func (b *Box) ContainerDeltaPath() string {
 
 func (b *Box) Uid() string {
 	id, _ := strconv.Atoi(b.Id)
-	return strconv.Itoa(UidStart + id)
+	return strconv.Itoa(UID_START + id)
 }
 
 func (b *Box) Gid() string {
 	id, _ := strconv.Atoi(b.Id)
-	return strconv.Itoa(UidStart + id)
+	return strconv.Itoa(UID_START + id)
 }
 
 // http://www.funtoo.org/wiki/Linux_Containers
@@ -203,10 +204,6 @@ func (b *Box) AddPublicKey(keys ...string) error {
 
 func (b *Box) RemovePublicKey(key string) error {
 	return DeleteLineContains(b.PublicKeysPath(), key)
-}
-
-func (b *Box) HomePath() string {
-	return path.Join(b.Disk, b.ContainerName()+"_delta", "rootfs", "home", "action")
 }
 
 func (b *Box) SetQuota() error {
@@ -261,7 +258,6 @@ func (b *Box) Mount(root string) error {
 		boxPath := b.ContainerFS()
 		baseContainerPath := path.Join(b.Disk, "base_container_template")
 		if err := mount.Union(b.GetMountMethod(), boxPath, boxDeltaPath, baseContainerPath); err != nil {
-			fmt.Println("failed to union")
 			return err
 		}
 		// FIXME: MountBind to make it similar to boxer. Ideally we probably
@@ -273,17 +269,18 @@ func (b *Box) Mount(root string) error {
 		// we are going to create an independent thin pool lv with size equals
 		// to DiskSpace, format it as ext4 volume and mount the volume as the
 		// box delta folder
-		if err := lvm.CreateVolume(b.SelectedVG, ThinVG, b.DiskSpace,
+		if err := lvm.CreateVolume(b.SelectedVG, THIN_VG, b.DiskSpace,
 			b.ContainerName()); err != nil {
 			return err
 		}
 		deviceName := fmt.Sprintf("/dev/%s/%s", b.SelectedVG, b.ContainerName())
-		if err := fs.MkfsExt4(fs.Ext4Device{Name: deviceName, BytesPerInode: "8192"}); err != nil {
+		device := fs.Ext4Device{Name: deviceName, BytesPerInode: "8192"}
+		if err := fs.MkfsExt4(device); err != nil {
 			return err
 		}
-		boxDeltaPath := lxcBoxPath + "_delta"
 		baseContainerPath := path.Join(root, "base_container_template")
-		if err := mount.Mount(deviceName, boxDeltaPath, "ext4"); err != nil {
+		err := mount.Mount(deviceName, boxDeltaPath, "ext4")
+		if err != nil {
 			return err
 		}
 		return mount.Union("aufs", lxcBoxPath, boxDeltaPath, baseContainerPath)
@@ -296,25 +293,22 @@ func (b *Box) Mount(root string) error {
 func (b *Box) Unmount(root string) error {
 	b.boxer.Lock()
 	defer b.boxer.Unlock()
-	lxcBoxPath := b.LxcPath()
-	if err := mount.Unmount(lxcBoxPath); err != nil {
+	defer logger.LogDuration(
+		fmt.Sprintf("%s:Unmount", b.ContainerName()),
+	)(time.Now())
+	mountMethod := b.GetMountMethod()
+	if err := mount.Unmount(mountMethod, b.LxcPath()); err != nil {
 		return err
 	}
-	if err := os.RemoveAll(lxcBoxPath); err != nil {
-		return err
-	}
-	switch b.GetMountMethod() {
+	switch mountMethod {
 	case "overlayfs", "aufs":
-		boxPath := b.ContainerFS()
-		return mount.Unmount(boxPath)
+		return mount.Unmount(mountMethod, b.ContainerFS())
 	case "lvm":
-		boxDeltaPath := lxcBoxPath + "_delta"
-		return mount.Unmount(boxDeltaPath)
+		return mount.Unmount(mountMethod, b.ContainerDeltaPath())
 	default:
 		return fmt.Errorf("%s is not a supported unmount method",
-			b.GetMountMethod())
+			mountMethod)
 	}
-	return mount.Unmount(b.ContainerFS())
 }
 
 func (b *Box) DeleteContainerData() error {
@@ -347,24 +341,6 @@ func (b *Box) MemoryUsageInBytes() (int, error) {
 	return strconv.Atoi(scanner.Text())
 }
 
-// Return current state of the box. It is the string that lxc used to annotate
-// container's state such as
-// - RUNNING
-// - STOPPED
-func (b *Box) LxcState() (string, error) {
-	return lxc.Status(b.ContainerName())
-}
-
-// Return current storage usage in kb
-func (b *Box) StorageUsage() (int, error) {
-	quotaInfo, err := b.quota().ViewLimit(b.quotaArg())
-	if err != nil {
-		return 0, err
-	}
-	return quotaInfo.Used, nil
-}
-
-// Return BoxInfo with `MB` units
 func (b *Box) Info() (BoxInfo, error) {
 	var info BoxInfo
 	if memoryUsage, err := b.MemoryUsageInBytes(); err != nil {
@@ -372,15 +348,16 @@ func (b *Box) Info() (BoxInfo, error) {
 	} else {
 		info.MemoryUsage = float64(memoryUsage) / (1024 * 1024)
 	}
-	if state, err := b.LxcState(); err != nil {
+	if state, err := lxc.Status(b.ContainerName()); err != nil {
 		return info, err
 	} else {
 		info.LxcStatus = state
 	}
-	if storageUsage, err := b.StorageUsage(); err != nil {
+	quotaInfo, err := b.quota().ViewLimit(b.quotaArg())
+	if err != nil {
 		return info, err
 	} else {
-		info.StorageUsage = quota.ScaleUnit(storageUsage, "M")
+		info.StorageUsage = quota.ScaleUnit(quotaInfo.Used, "M")
 	}
 	return info, nil
 }
@@ -490,10 +467,7 @@ func (b *Box) setupContainer() error {
 		return err
 	}
 
-	if err := b.setPermission(); err != nil {
-		return err
-	}
-	return nil
+	return b.setPermission()
 }
 
 func (b *Box) quotaArg() quota.QuotaArg {
@@ -506,7 +480,7 @@ func (b *Box) quotaArg() quota.QuotaArg {
 	if b.GetQuotaMethod() == "lvm" {
 		arg.Path = b.ContainerDeltaPath()
 	} else {
-		arg.Path = b.HomePath()
+		arg.Path = path.Join(b.ContainerDeltaPath(), "rootfs", "home", "action")
 	}
 	return arg
 }

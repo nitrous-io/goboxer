@@ -27,6 +27,7 @@ if [ -d $box_path ]; then
   fi
 
   echo 'Deleting all remnants of the container'
+  rm -rf /var/lib/lxc/$name
   rm -rf ${box_path}
   rm -rf ${box_delta_path}
 

@@ -16,6 +16,7 @@ if [ -d $box_path ]; then
   umount /var/lib/lxc/$name
   umount $box_path
   setquota -u $uid 0 0 0 0 $disk
+  rm -rf /var/lib/lxc/$name
   rm -rf ${box_path}
   rm -rf ${box_delta_path}
   iptables -t nat -F
