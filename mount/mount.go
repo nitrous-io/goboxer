@@ -9,11 +9,23 @@ import (
 	"time"
 )
 
+func runCommand(cmd string, args ...string) error {
+	command := exec.Command(cmd, args...)
+	if stdout, err := command.CombinedOutput(); err != nil {
+		fmt.Printf("Command %v failed with output %s\n", command, string(stdout))
+		return err
+	}
+	return nil
+}
+
 func umount(target string) error {
 	return syscall.Unmount(target, 0)
 }
 
 func Mount(source, target, fstype string) (err error) {
+	if err := os.MkdirAll(target, 0755); err != nil {
+		return err
+	}
 	mounted, err := Mounted(target)
 	if err != nil {
 		return err
@@ -21,10 +33,19 @@ func Mount(source, target, fstype string) (err error) {
 	if mounted {
 		return nil
 	}
-	return exec.Command("mount", "-n", "-t", fstype, source, target).Run()
+	return runCommand("mount", "-n", "-t", fstype, source, target)
 }
 
 func Union(unionType, target, upper, lower string) (err error) {
+	if err := os.MkdirAll(target, 0755); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(upper, 0755); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(lower, 0755); err != nil {
+		return err
+	}
 	var mountOptions string
 	mounted, err := Mounted(target)
 	if err != nil {
@@ -40,12 +61,17 @@ func Union(unionType, target, upper, lower string) (err error) {
 	} else {
 		return fmt.Errorf("%s is not a supported union type", unionType)
 	}
-	cmd := exec.Command("mount", "-n", "-t", unionType, "-o", mountOptions,
+	return runCommand("mount", "-n", "-t", unionType, "-o", mountOptions,
 		"none", target)
-	return cmd.Run()
 }
 
 func MountBind(source, target string) error {
+	if err := os.MkdirAll(source, 0755); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(target, 0755); err != nil {
+		return err
+	}
 	mounted, err := Mounted(target)
 	if err != nil {
 		return err
@@ -53,8 +79,7 @@ func MountBind(source, target string) error {
 	if mounted {
 		return nil
 	}
-	cmd := exec.Command("mount", "--bind", source, target)
-	return cmd.Run()
+	return runCommand("mount", "--bind", source, target)
 }
 
 func Symlink(source, target string) error {
