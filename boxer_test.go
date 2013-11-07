@@ -33,24 +33,24 @@ type testProvisionStrategy struct {
 // for each strategies, we are going to run all operations to make sure that
 // everything works
 var strategies = map[string]testProvisionStrategy{
-	"xfs": testProvisionStrategy{
-		MountMethod:  "aufs",
-		QuotaMethod:  "prjquota",
-		SelectedDisk: "/lxc/disk1",
-		SelectedVG:   "",
-	},
-	"ext4": testProvisionStrategy{
-		MountMethod:  "aufs",
-		QuotaMethod:  "usrquota",
-		SelectedDisk: "/lxc/disk2",
-		SelectedVG:   "",
-	},
-	//"lvm": testProvisionStrategy{
-	//    MountMethod:  "lvm",
-	//    QuotaMethod:  "lvm",
-	//    SelectedDisk: "",
-	//    SelectedVG:   "aio_boxhost",
+	//"xfs": testProvisionStrategy{
+	//    MountMethod:  "aufs",
+	//    QuotaMethod:  "prjquota",
+	//    SelectedDisk: "/lxc/disk1",
+	//    SelectedVG:   "",
 	//},
+	//"ext4": testProvisionStrategy{
+	//    MountMethod:  "aufs",
+	//    QuotaMethod:  "usrquota",
+	//    SelectedDisk: "/lxc/disk2",
+	//    SelectedVG:   "",
+	//},
+	"lvm": testProvisionStrategy{
+		MountMethod:  "lvm",
+		QuotaMethod:  "lvm",
+		SelectedDisk: "",
+		SelectedVG:   "aio_boxhost",
+	},
 }
 
 func cleanContainer(containerType, containerName, disk, uid, selectedVG string) error {
@@ -517,9 +517,14 @@ func (s *BoxerSuite) TestChangeBoxSpecs(c *C) {
 			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
 
 		quotaProvisioner := quota.Provisioner.GetQuota(stratValue.QuotaMethod)
-		arg := quota.QuotaArg{Id: "1", Disk: stratValue.SelectedDisk}
+		root := "/var/lib/lxc/mclovins-container-1"
+		arg := quota.QuotaArg{
+			Id:   "1",
+			Disk: stratValue.SelectedDisk,
+			Path: root + "_delta",
+		}
 		limit, _ := quotaProvisioner.ViewLimit(arg)
-		c.Assert(limit.Limit, Equals, 1024*1024)
+		c.Assert(limit.Limit > 1000*1000, Equals, true)
 
 		message := s.Boxer.Receive(Message{
 			Id:       "testboxer",
@@ -545,7 +550,6 @@ func (s *BoxerSuite) TestChangeBoxSpecs(c *C) {
 		c.Assert(currentMemory, Equals, "512M")
 		c.Assert(currentDiskSpace, Equals, "2048M")
 
-		root := "/var/lib/lxc/mclovins-container-1"
 		var checkContent = map[string][]string{
 			root + "/config": {
 				"lxc.cgroup.memory.limit_in_bytes = 512M",
@@ -555,7 +559,7 @@ func (s *BoxerSuite) TestChangeBoxSpecs(c *C) {
 		DoesContain(c, checkContent)
 
 		newLimit, _ := quotaProvisioner.ViewLimit(arg)
-		c.Assert(newLimit.Limit, Equals, 2*1024*1024)
+		c.Assert(newLimit.Limit > 2*1000*1000, Equals, true)
 
 		s.assertBoxState(c, "mclovins-container-1", "running")
 	})
@@ -872,9 +876,16 @@ func (s *BoxerSuite) TestChangeBoxSpecsFail(c *C) {
 			PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
 		})
 		quotaProvisioner := quota.Provisioner.GetQuota(stratValue.QuotaMethod)
-		arg := quota.QuotaArg{Id: "1", Disk: stratValue.SelectedDisk}
+		root := "/var/lib/lxc/mclovins-container-1"
+		arg := quota.QuotaArg{
+			Id:   "1",
+			Disk: stratValue.SelectedDisk,
+			Path: root + "_delta",
+		}
 		limit, _ := quotaProvisioner.ViewLimit(arg)
-		c.Assert(limit.Limit, Equals, 1024*1024)
+		// approximate the limit as lvm strategy will not report the whole
+		// absolute size as per lvm volume size
+		c.Assert(limit.Limit > 1000*1000, Equals, true)
 
 		// swap Quota with FailQuota so all quota calls will return errors
 		quota.Provisioner = false
@@ -907,7 +918,6 @@ func (s *BoxerSuite) TestChangeBoxSpecsFail(c *C) {
 		quota.Provisioner = true
 
 		// it still sets the new memory
-		root := "/var/lib/lxc/mclovins-container-1"
 		var checkContent = map[string][]string{
 			root + "/config": {
 				"lxc.cgroup.memory.limit_in_bytes = 512M",
@@ -918,7 +928,7 @@ func (s *BoxerSuite) TestChangeBoxSpecsFail(c *C) {
 
 		// it cant set the new quota
 		newLimit, _ := quotaProvisioner.ViewLimit(arg)
-		c.Assert(newLimit.Limit, Equals, 1024*1024)
+		c.Assert(newLimit.Limit, Equals, limit.Limit)
 	})
 }
 

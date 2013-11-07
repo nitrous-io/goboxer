@@ -23,14 +23,8 @@ func (q LvmQuota) SetLimit(arg QuotaArg) error {
 		return fmt.Errorf("Current usage %d exceeded new limit %d",
 			quotaInfo.Used, newLimit)
 	}
-	if err := mount.Unmount(arg.Path); err != nil {
-		return err
-	}
 	lv := "/dev/aio_boxhost/" + arg.Name
 	exec.Command("lvresize", lv, "--size", arg.Limit, "--resizefs").Run()
-	if err := mount.Mount(lv, arg.Path, FS_TYPE); err != nil {
-		return err
-	}
 	return nil
 }
 

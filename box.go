@@ -3,6 +3,8 @@ package goboxer
 import (
 	"bufio"
 	"fmt"
+	"github.com/action-io/goboxer/fs"
+	"github.com/action-io/goboxer/lvm"
 	"github.com/action-io/goboxer/lxc"
 	"github.com/action-io/goboxer/mount"
 	"github.com/action-io/goboxer/quota"
@@ -14,6 +16,7 @@ import (
 )
 
 const UidStart = 15000
+const ThinVG = "boxes"
 
 type BoxSpec struct {
 	Memory    string `json:"memory,omitempty"`
@@ -60,10 +63,12 @@ func (b *Box) Create() error {
 	if err := b.setupContainer(); err != nil {
 		return err
 	}
-	if err := b.SetQuota(); err != nil {
-		return err
+	if b.GetMountMethod() != "lvm" {
+		if err := b.SetQuota(); err != nil {
+			return err
+		}
 	}
-	if err := b.SetPortForwarding(); err != nil {
+	if err := b.setPortForwarding(); err != nil {
 		return err
 	}
 	return nil
@@ -106,7 +111,7 @@ func (b *Box) Destroy() error {
 	if err := b.Stop(); err != nil {
 		return err
 	}
-	if err := b.UnsetPortForwarding(); err != nil {
+	if err := b.unsetPortForwarding(); err != nil {
 		return err
 	}
 	if err := b.UnsetQuota(); err != nil {
@@ -118,17 +123,44 @@ func (b *Box) Destroy() error {
 	return nil
 }
 
-func (b *Box) ContainerName() string  { return fmt.Sprintf("%s-%s", b.Name, b.Id) }
-func (b *Box) TemplatePath() string   { return b.Template + ".tar.gz" }
-func (b *Box) SetPublicKeys() error   { return b.AddPublicKey(b.PublicKeys...) }
-func (b *Box) PublicKeysPath() string { return path.Join(b.RootFS(), "etc", "ssh", "univ_public_keys") }
-func (b *Box) PrivateKeyPath() string { return path.Join("home", "action", ".ssh", "id_rsa") }
-func (b *Box) RootFS() string         { return path.Join(b.Disk, b.ContainerName(), "rootfs") }
-func (b *Box) ContainerFS() string    { return path.Join(b.Disk, b.ContainerName()) }
-func (b *Box) EnvPath() string        { return path.Join(b.RootFS(), "etc", "environment") }
+func (b *Box) ContainerName() string {
+	return b.Name + "-" + b.Id
+}
+
+func (b *Box) PublicKeysPath() string {
+	return path.Join(b.RootFS(), "etc", "ssh", "univ_public_keys")
+}
+
+func (b *Box) ContainerFS() string {
+	if b.GetMountMethod() == "lvm" {
+		return path.Join(b.boxer.Root, b.ContainerName())
+	} else {
+		return path.Join(b.Disk, b.ContainerName())
+	}
+}
+
+func (b *Box) EnvPath() string {
+	return path.Join(b.RootFS(), "etc", "environment")
+}
+
+// rootfs of the container. This is the root after unionized so its typically
+// will be in boxer.Root i.e /var/lib/lxc
+func (b *Box) RootFS() string {
+	return path.Join(b.boxer.Root, b.ContainerName(), "rootfs")
+}
+
+// path of the box's templates.  (i.e. ruby_template.tar.gz,
+// python_template.tar.gz etc)
+func (b *Box) TemplatePath() string {
+	templateName := b.Template + ".tar.gz"
+	if b.GetMountMethod() == "lvm" {
+		return path.Join(b.boxer.Root, templateName)
+	}
+	return path.Join(b.Disk, templateName)
+}
 
 func (b *Box) ContainerDeltaPath() string {
-	return path.Join(b.Disk, b.ContainerName()+"_delta")
+	return b.ContainerFS() + "_delta"
 }
 
 func (b *Box) Uid() string {
@@ -188,7 +220,7 @@ func (b *Box) UnsetQuota() error {
 func (b *Box) ChangeSpec(spec *BoxSpec) error {
 	if spec.Memory != b.Memory {
 		b.Memory = spec.Memory
-		if err := b.WriteConfig(); err != nil {
+		if err := b.writeConfig(); err != nil {
 			return err
 		}
 	}
@@ -200,127 +232,7 @@ func (b *Box) ChangeSpec(spec *BoxSpec) error {
 			return err
 		}
 	}
-	return nil
-}
-
-func (b *Box) WriteConfig() error {
-	lxcConfigPath := path.Join(b.Disk, b.ContainerName(), "config")
-	lxcConfig, err := os.Create(lxcConfigPath)
-	if err != nil {
-		return err
-	}
-	defer lxcConfig.Close()
-	return LxcTemplateCompiled.Execute(lxcConfig, b)
-}
-
-func (b *Box) SetPermission() error {
-	defer logger.LogDuration(
-		fmt.Sprintf("%s:SetPermission", b.ContainerName()),
-	)(time.Now())
-	uid := b.Uid()
-	gid := b.Gid()
-	permission := fmt.Sprintf("%s:%s", b.Uid(), b.Gid())
-	if err := RunCommand("chroot", b.RootFS(), "usermod", "-u", uid, "action"); err != nil {
-		return err
-	}
-	if err := RunCommand("chroot", b.RootFS(), "groupmod", "-g", gid, "action"); err != nil {
-		return err
-	}
-	return RunCommand("chroot", b.RootFS(), "chown", "-R", permission, "/home/action")
-}
-
-func (b *Box) SetWorkspace() error {
-	workspacePath := path.Join(b.RootFS(), "home", "action", "workspace")
-	if err := os.MkdirAll(workspacePath, 0755); err != nil {
-		return err
-	}
-	permission := fmt.Sprintf("%s:%s", b.Uid(), b.Gid())
-	return RunCommand("chroot", b.RootFS(), "chown", "-R", permission,
-		"/home/action/workspace")
-}
-
-func (b *Box) SetBoxId() error {
-	actionPath := path.Join(b.RootFS(), "etc", "action")
-	boxIdPath := path.Join(actionPath, "box_id")
-	if err := os.MkdirAll(actionPath, 0755); err != nil {
-		return err
-	}
-	boxIdFile, err := os.Create(boxIdPath)
-	if err != nil {
-		return err
-	}
-	defer boxIdFile.Close()
-	_, err = boxIdFile.Write([]byte(b.Id))
-	return err
-}
-
-func (b *Box) SetNetworkConfig() error {
-	networkConfigPath := path.Join(b.RootFS(), "etc", "network", "interfaces")
-	networkConfig, err := os.Create(networkConfigPath)
-	if err != nil {
-		return err
-	}
-	defer networkConfig.Close()
-	return NetworkConfigCompiled.Execute(networkConfig, b)
-}
-
-func (b *Box) SetHostname() error {
-	hostNamePath := path.Join(b.RootFS(), "etc", "hostname")
-	hostName, err := os.Create(hostNamePath)
-	if err != nil {
-		return err
-	}
-	defer hostName.Close()
-	_, err = hostName.Write([]byte(b.ContainerName()))
-	return err
-}
-
-func (b *Box) ExtractTemplate() error {
-	defer logger.LogDuration(
-		fmt.Sprintf("%s:ExtractTemplate", b.ContainerName()),
-	)(time.Now())
-	boxDeltaPath := path.Join(b.Disk, b.ContainerName()+"_delta")
-	boxDeltaHomePath := path.Join(boxDeltaPath, "rootfs", "home", "action")
-	homeDataPath := path.Join(b.Disk, b.TemplatePath())
-	return Untar(homeDataPath, boxDeltaHomePath)
-}
-
-func (b *Box) SetPortForwarding() error {
-	b.boxer.Lock()
-	defer b.boxer.Unlock()
-	strPort := strconv.Itoa(b.Port)
-	return RunCommand("iptables", "-t", "nat", "-A", "PREROUTING", "-p", "tcp",
-		"--dport", strPort, "-j", "DNAT", "--to",
-		b.Ip+":22")
-}
-
-func (b *Box) UnsetPortForwarding() error {
-	b.boxer.Lock()
-	defer b.boxer.Unlock()
-	strPort := strconv.Itoa(b.Port)
-	return RunCommand("iptables", "-t", "nat", "-D", "PREROUTING", "-p", "tcp",
-		"--dport", strPort, "-j", "DNAT", "--to", b.Ip+":22")
-}
-
-func (b *Box) SetDefaultKeypair() error {
-	sshPath := path.Join(b.RootFS(), "home", "action", ".ssh")
-	sshKeyFile := path.Join(b.RootFS(), b.PrivateKeyPath())
-	if err := os.MkdirAll(sshPath, 0755); err != nil {
-		return err
-	}
-	if _, err := os.Stat(sshKeyFile); os.IsNotExist(err) {
-		sshKeygen := fmt.Sprintf("ssh-keygen -N '' -f %s -b 1024 -t rsa -q",
-			sshKeyFile)
-		if err := RunCommand("/bin/sh", "-c", sshKeygen); err != nil {
-			return err
-		}
-	} else {
-		return err
-	}
-
-	permission := fmt.Sprintf("%s:%s", b.Uid(), b.Gid())
-	return RunCommand("chroot", b.RootFS(), "chown", "-R", permission,
-		"/home/action/.ssh")
+	return b.Restart()
 }
 
 func (b *Box) Mount(root string) error {
@@ -330,24 +242,24 @@ func (b *Box) Mount(root string) error {
 		fmt.Sprintf("%s:Mount", b.ContainerName()),
 	)(time.Now())
 
-	boxPath := b.ContainerFS()
-	boxDeltaPath := b.ContainerDeltaPath()
-	boxDeltaHomePath := path.Join(boxDeltaPath, "rootfs", "home", "action")
-	baseContainerPath := path.Join(b.Disk, "base_container_template")
 	lxcBoxPath := path.Join(root, b.ContainerName())
-
-	if err := os.MkdirAll(b.ContainerFS(), 0755); err != nil {
+	if err := os.MkdirAll(lxcBoxPath, 0755); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(boxDeltaHomePath, 0755); err != nil {
+	if err := os.MkdirAll(b.ContainerFS(), 0755); err != nil {
 		return err
 	}
 	switch b.GetMountMethod() {
 	case "overlayfs", "aufs":
+		// overlayfs or aufs strategy
+		//
+		// we are going to create a delta folder which will hold user data,
+		// union with the base container template in the same disk, and mount
+		// it over to root ( /var/lib/lxc )
+		boxPath := b.ContainerFS()
+		boxDeltaPath := b.ContainerDeltaPath()
+		baseContainerPath := path.Join(b.Disk, "base_container_template")
 		if err := mount.Union(b.GetMountMethod(), boxPath, boxDeltaPath, baseContainerPath); err != nil {
-			return err
-		}
-		if err := os.MkdirAll(lxcBoxPath, 0755); err != nil {
 			return err
 		}
 		// FIXME: MountBind to make it similar to boxer. Ideally we probably
@@ -355,7 +267,27 @@ func (b *Box) Mount(root string) error {
 		// more stable. Less mountpoint is better
 		return mount.MountBind(boxPath, lxcBoxPath)
 	case "lvm":
-		return fmt.Errorf("%s is not yet supported", b.GetMountMethod())
+		// lvm strategy
+		// we are going to create an independent thin pool lv with size equals
+		// to DiskSpace, format it as ext4 volume and mount the volume as the
+		// box delta folder
+		if err := lvm.CreateVolume(b.SelectedVG, ThinVG, b.DiskSpace,
+			b.ContainerName()); err != nil {
+			return err
+		}
+		deviceName := fmt.Sprintf("/dev/%s/%s", b.SelectedVG, b.ContainerName())
+		if err := fs.MkfsExt4(fs.Ext4Device{Name: deviceName, BytesPerInode: "8192"}); err != nil {
+			return err
+		}
+		boxDeltaPath := lxcBoxPath + "_delta"
+		if err := os.MkdirAll(boxDeltaPath, 0755); err != nil {
+			return err
+		}
+		baseContainerPath := path.Join(root, "base_container_template")
+		if err := mount.Mount(deviceName, boxDeltaPath, "ext4"); err != nil {
+			return err
+		}
+		return mount.Union("aufs", lxcBoxPath, boxDeltaPath, baseContainerPath)
 	default:
 		return fmt.Errorf("%s is not a supported mount method",
 			b.GetMountMethod())
@@ -365,21 +297,36 @@ func (b *Box) Mount(root string) error {
 func (b *Box) Unmount(root string) error {
 	b.boxer.Lock()
 	defer b.boxer.Unlock()
-	lxcBoxPath := path.Join(root, b.ContainerName())
+	lxcBoxPath := b.ContainerFS()
 	if err := mount.Unmount(lxcBoxPath); err != nil {
 		return err
 	}
 	if err := os.RemoveAll(lxcBoxPath); err != nil {
 		return err
 	}
+	switch b.GetMountMethod() {
+	case "overlayfs", "aufs":
+		boxPath := b.ContainerFS()
+		return mount.Unmount(boxPath)
+	case "lvm":
+		boxDeltaPath := lxcBoxPath + "_delta"
+		return mount.Unmount(boxDeltaPath)
+	default:
+		return fmt.Errorf("%s is not a supported unmount method",
+			b.GetMountMethod())
+	}
 	return mount.Unmount(b.ContainerFS())
 }
 
 func (b *Box) DeleteContainerData() error {
-	if err := os.RemoveAll(b.ContainerDeltaPath()); err != nil {
-		return err
+	if b.GetMountMethod() == "lvm" {
+		return lvm.DestroyVolume(b.SelectedVG, b.ContainerName())
+	} else {
+		if err := os.RemoveAll(b.ContainerDeltaPath()); err != nil {
+			return err
+		}
+		return os.RemoveAll(b.ContainerFS())
 	}
-	return os.RemoveAll(b.ContainerFS())
 }
 
 // Return current memory usage of the box as memory cgroup reported it
@@ -410,7 +357,7 @@ func (b *Box) LxcState() (string, error) {
 
 // Return current storage usage in kb
 func (b *Box) StorageUsage() (int, error) {
-	quotaInfo, err := b.quota().ViewLimit(quota.QuotaArg{Id: b.Id, Disk: b.Disk})
+	quotaInfo, err := b.quota().ViewLimit(b.quotaArg())
 	if err != nil {
 		return 0, err
 	}
@@ -467,44 +414,101 @@ func (b *Box) RemoveEnv(data []string) (err error) {
 // container is mounted/unionized so we only works on the mount point and not
 // the delta storage.
 func (b *Box) setupContainer() error {
-	if err := b.ExtractTemplate(); err != nil {
+	// write lxc config of the box
+	if err := b.writeConfig(); err != nil {
 		return err
 	}
-	if err := b.WriteConfig(); err != nil {
+	root := b.RootFS()
+
+	// extract template
+	boxHomePath := path.Join(root, "home", "action")
+	if err := Untar(b.TemplatePath(), boxHomePath); err != nil {
 		return err
 	}
-	if err := b.SetHostname(); err != nil {
+
+	// set box's id
+	actionPath := path.Join(root, "etc", "action")
+	boxIdPath := path.Join(actionPath, "box_id")
+	if err := os.MkdirAll(actionPath, 0755); err != nil {
 		return err
 	}
-	if err := b.SetNetworkConfig(); err != nil {
+	boxIdFile, err := os.Create(boxIdPath)
+	if err != nil {
 		return err
 	}
-	if err := b.SetWorkspace(); err != nil {
+	defer boxIdFile.Close()
+	if _, err = boxIdFile.Write([]byte(b.Id)); err != nil {
 		return err
 	}
-	if err := b.SetDefaultKeypair(); err != nil {
+
+	// set public keys
+	if err := b.AddPublicKey(b.PublicKeys...); err != nil {
 		return err
 	}
-	if err := b.SetPermission(); err != nil {
+
+	// set box's /etc/hostname
+	hostNamePath := path.Join(root, "etc", "hostname")
+	hostName, err := os.Create(hostNamePath)
+	if err != nil {
 		return err
 	}
-	if err := b.SetBoxId(); err != nil {
+	defer hostName.Close()
+	if _, err := hostName.Write([]byte(b.ContainerName())); err != nil {
 		return err
 	}
-	if err := b.SetPublicKeys(); err != nil {
+
+	// set /etc/network/interfaces
+	networkConfigPath := path.Join(root, "etc", "network", "interfaces")
+	networkConfig, err := os.Create(networkConfigPath)
+	if err != nil {
+		return err
+	}
+	defer networkConfig.Close()
+	if err := NetworkConfigCompiled.Execute(networkConfig, b); err != nil {
+		return err
+	}
+
+	// set workspace
+	workspacePath := path.Join(root, "home", "action", "workspace")
+	if err := os.MkdirAll(workspacePath, 0755); err != nil {
+		return err
+	}
+
+	// set default key pair
+	sshPath := path.Join(root, "home", "action", ".ssh")
+	sshKeyFile := path.Join(sshPath, "id_rsa")
+	if err := os.MkdirAll(sshPath, 0755); err != nil {
+		return err
+	}
+	if _, err := os.Stat(sshKeyFile); os.IsNotExist(err) {
+		sshKeygen := fmt.Sprintf("ssh-keygen -N '' -f %s -b 1024 -t rsa -q",
+			sshKeyFile)
+		if err := RunCommand("/bin/sh", "-c", sshKeygen); err != nil {
+			return err
+		}
+	} else {
+		return err
+	}
+
+	if err := b.setPermission(); err != nil {
 		return err
 	}
 	return nil
 }
 
 func (b *Box) quotaArg() quota.QuotaArg {
-	return quota.QuotaArg{
+	arg := quota.QuotaArg{
 		Id:    b.Id,
 		Name:  b.ContainerName(),
-		Path:  b.HomePath(),
 		Disk:  b.Disk,
 		Limit: b.DiskSpace,
 	}
+	if b.GetQuotaMethod() == "lvm" {
+		arg.Path = b.ContainerDeltaPath()
+	} else {
+		arg.Path = b.HomePath()
+	}
+	return arg
 }
 
 func (b *Box) GetMountMethod() string {
@@ -532,4 +536,50 @@ func (b *Box) GetQuotaMethod() string {
 // an instance that supports quota.QuotaInterface interface
 func (b *Box) quota() quota.QuotaInterface {
 	return quota.Provisioner.GetQuota(b.GetQuotaMethod())
+}
+
+// rewrite lxc config of the box
+func (b *Box) writeConfig() error {
+	lxcConfigPath := path.Join(b.boxer.Root, b.ContainerName(), "config")
+	lxcConfig, err := os.Create(lxcConfigPath)
+	if err != nil {
+		return err
+	}
+	defer lxcConfig.Close()
+	return LxcTemplateCompiled.Execute(lxcConfig, b)
+}
+
+// set correct permission for user's home folder so he/she can write onto it
+func (b *Box) setPermission() error {
+	defer logger.LogDuration(
+		fmt.Sprintf("%s:SetPermission", b.ContainerName()),
+	)(time.Now())
+	uid := b.Uid()
+	gid := b.Gid()
+	permission := fmt.Sprintf("%s:%s", b.Uid(), b.Gid())
+	root := b.RootFS()
+	if err := RunCommand("chroot", root, "usermod", "-u", uid, "action"); err != nil {
+		return err
+	}
+	if err := RunCommand("chroot", root, "groupmod", "-g", gid, "action"); err != nil {
+		return err
+	}
+	return RunCommand("chroot", root, "chown", "-R", permission, "/home/action")
+}
+
+func (b *Box) setPortForwarding() error {
+	b.boxer.Lock()
+	defer b.boxer.Unlock()
+	strPort := strconv.Itoa(b.Port)
+	return RunCommand("iptables", "-t", "nat", "-A", "PREROUTING", "-p", "tcp",
+		"--dport", strPort, "-j", "DNAT", "--to",
+		b.Ip+":22")
+}
+
+func (b *Box) unsetPortForwarding() error {
+	b.boxer.Lock()
+	defer b.boxer.Unlock()
+	strPort := strconv.Itoa(b.Port)
+	return RunCommand("iptables", "-t", "nat", "-D", "PREROUTING", "-p", "tcp",
+		"--dport", strPort, "-j", "DNAT", "--to", b.Ip+":22")
 }

@@ -12,11 +12,6 @@ import (
 )
 
 var handlers map[string]MessageHandler
-var CreateStates []State
-var StartStates []State
-var StopStates []State
-var RestartStates []State
-var DestroyStates []State
 
 func init() {
 	handlers = map[string]MessageHandler{
@@ -329,10 +324,6 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 		}
 		if err != nil {
 			logger.Debugf("ChangeSpecs: %v\n", err)
-			message.Success = false
-			return message
-		}
-		if err := box.Restart(); err != nil {
 			message.Success = false
 			return message
 		}

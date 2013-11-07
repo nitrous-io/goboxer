@@ -21,7 +21,7 @@ func Mount(source, target, fstype string) (err error) {
 	if mounted {
 		return nil
 	}
-	return exec.Command("mount", "-t", fstype, source, target).Run()
+	return exec.Command("mount", "-n", "-t", fstype, source, target).Run()
 }
 
 func Union(unionType, target, upper, lower string) (err error) {
@@ -40,7 +40,7 @@ func Union(unionType, target, upper, lower string) (err error) {
 	} else {
 		return fmt.Errorf("%s is not a supported union type", unionType)
 	}
-	cmd := exec.Command("mount", "-t", unionType, "-o", mountOptions,
+	cmd := exec.Command("mount", "-n", "-t", unionType, "-o", mountOptions,
 		"none", target)
 	return cmd.Run()
 }
