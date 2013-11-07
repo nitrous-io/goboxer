@@ -6,7 +6,6 @@ import (
 	"github.com/action-io/goboxer/lxc"
 	"github.com/action-io/goboxer/mount"
 	"github.com/action-io/goboxer/quota"
-	"github.com/action-io/goboxer/quota/quotatest"
 	"os"
 	"path"
 	"strconv"
@@ -520,25 +519,17 @@ func (b *Box) GetMountMethod() string {
 }
 
 func (b *Box) GetQuotaMethod() string {
-	if b.QuotaMethod == "usrquota" {
-		return "usrquota"
+	if b.GetMountMethod() == "lvm" {
+		return "lvm"
 	}
-	return "prjquota"
+	if b.QuotaMethod == "" {
+		return "prjquota"
+	}
+	return b.QuotaMethod
 }
 
 // return the quota strategy that the box should use. The return object will be
 // an instance that supports quota.QuotaInterface interface
-//
-// We specifically supports MountMethod: "failed" here so we dont have to
-// inject special quota instance in test. This should never happens in
-// production
 func (b *Box) quota() quota.QuotaInterface {
-	if b.GetMountMethod() == "lvm" {
-		return quota.LvmQuota{}
-	} else if b.GetQuotaMethod() == "usrquota" {
-		return quota.UsrQuota{}
-	} else if b.GetQuotaMethod() == "failed" {
-		return quotatest.FailQuota{}
-	}
-	return quota.PrjQuota{}
+	return quota.Provisioner.GetQuota(b.GetQuotaMethod())
 }
