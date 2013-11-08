@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"github.com/action-io/goboxer/fs"
+	"github.com/action-io/goboxer/ip"
 	"github.com/action-io/goboxer/lvm"
 	"github.com/action-io/goboxer/lxc"
 	"github.com/action-io/goboxer/mount"
@@ -493,17 +494,14 @@ func (b *Box) setPortForwarding() error {
 	b.boxer.Lock()
 	defer b.boxer.Unlock()
 	strPort := strconv.Itoa(b.Port)
-	return RunCommand("iptables", "-t", "nat", "-A", "PREROUTING", "-p", "tcp",
-		"--dport", strPort, "-j", "DNAT", "--to",
-		b.Ip+":22")
+	return ip.Open(strPort, b.Ip, "22")
 }
 
 func (b *Box) unsetPortForwarding() error {
 	b.boxer.Lock()
 	defer b.boxer.Unlock()
 	strPort := strconv.Itoa(b.Port)
-	return RunCommand("iptables", "-t", "nat", "-D", "PREROUTING", "-p", "tcp",
-		"--dport", strPort, "-j", "DNAT", "--to", b.Ip+":22")
+	return ip.Close(strPort, b.Ip, "22")
 }
 
 func (b *Box) extractTemplate() error {
