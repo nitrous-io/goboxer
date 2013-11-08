@@ -70,7 +70,7 @@ func (b *Box) Create() error {
 	}
 	// as the initial lvm volume is created in mount step, we dont need to
 	// reset quota here
-	if b.GetMountMethod() != "lvm" {
+	if b.getMountMethod() != "lvm" {
 		if err := b.SetQuota(); err != nil {
 			return err
 		}
@@ -137,7 +137,7 @@ func (b *Box) LxcPath() string {
 }
 
 func (b *Box) ContainerFS() string {
-	if b.GetMountMethod() == "lvm" {
+	if b.getMountMethod() == "lvm" {
 		return b.LxcPath()
 	} else {
 		return path.Join(b.Disk, b.ContainerName())
@@ -158,14 +158,14 @@ func (b *Box) RootFS() string {
 // python_template.tar.gz etc)
 func (b *Box) TemplatePath() string {
 	templateName := b.Template + ".tar.gz"
-	if b.GetMountMethod() == "lvm" {
+	if b.getMountMethod() == "lvm" {
 		return path.Join(b.boxer.Root, templateName)
 	}
 	return path.Join(b.Disk, templateName)
 }
 
 func (b *Box) ContainerDeltaPath() string {
-	if b.GetMountMethod() == "lvm" {
+	if b.getMountMethod() == "lvm" {
 		return b.ContainerFS() + "_delta"
 	}
 	return path.Join(b.Disk, b.ContainerName()+"_delta")
@@ -248,7 +248,7 @@ func (b *Box) Mount(root string) error {
 
 	lxcBoxPath := b.LxcPath()
 	boxDeltaPath := b.ContainerDeltaPath()
-	switch b.GetMountMethod() {
+	switch b.getMountMethod() {
 	case "overlayfs", "aufs":
 		// overlayfs or aufs strategy
 		//
@@ -257,7 +257,7 @@ func (b *Box) Mount(root string) error {
 		// it over to root ( /var/lib/lxc )
 		boxPath := b.ContainerFS()
 		baseContainerPath := path.Join(b.Disk, "base_container_template")
-		if err := mount.Union(b.GetMountMethod(), boxPath, boxDeltaPath, baseContainerPath); err != nil {
+		if err := mount.Union(b.getMountMethod(), boxPath, boxDeltaPath, baseContainerPath); err != nil {
 			return err
 		}
 		// FIXME: MountBind to make it similar to boxer. Ideally we probably
@@ -286,7 +286,7 @@ func (b *Box) Mount(root string) error {
 		return mount.Union("aufs", lxcBoxPath, boxDeltaPath, baseContainerPath)
 	default:
 		return fmt.Errorf("%s is not a supported mount method",
-			b.GetMountMethod())
+			b.getMountMethod())
 	}
 }
 
@@ -296,7 +296,7 @@ func (b *Box) Unmount(root string) error {
 	defer logger.LogDuration(
 		fmt.Sprintf("%s:Unmount", b.ContainerName()),
 	)(time.Now())
-	mountMethod := b.GetMountMethod()
+	mountMethod := b.getMountMethod()
 	if err := mount.Unmount(mountMethod, b.LxcPath()); err != nil {
 		return err
 	}
@@ -312,7 +312,7 @@ func (b *Box) Unmount(root string) error {
 }
 
 func (b *Box) DeleteContainerData() error {
-	if b.GetMountMethod() == "lvm" {
+	if b.getMountMethod() == "lvm" {
 		if err := lvm.DestroyVolume(b.SelectedVG, b.ContainerName()); err != nil {
 			return err
 		}
@@ -477,7 +477,7 @@ func (b *Box) quotaArg() quota.QuotaArg {
 		Disk:  b.Disk,
 		Limit: b.DiskSpace,
 	}
-	if b.GetQuotaMethod() == "lvm" {
+	if b.getQuotaMethod() == "lvm" {
 		arg.Path = b.ContainerDeltaPath()
 	} else {
 		arg.Path = path.Join(b.ContainerDeltaPath(), "rootfs", "home", "action")
@@ -485,7 +485,7 @@ func (b *Box) quotaArg() quota.QuotaArg {
 	return arg
 }
 
-func (b *Box) GetMountMethod() string {
+func (b *Box) getMountMethod() string {
 	if b.MountMethod == "lvm" {
 		return "lvm"
 	} else if b.MountMethod == "aufs" || b.Aufs {
@@ -496,8 +496,8 @@ func (b *Box) GetMountMethod() string {
 	return "overlayfs"
 }
 
-func (b *Box) GetQuotaMethod() string {
-	if b.GetMountMethod() == "lvm" {
+func (b *Box) getQuotaMethod() string {
+	if b.getMountMethod() == "lvm" {
 		return "lvm"
 	}
 	if b.QuotaMethod == "" {
@@ -509,7 +509,7 @@ func (b *Box) GetQuotaMethod() string {
 // return the quota strategy that the box should use. The return object will be
 // an instance that supports quota.QuotaInterface interface
 func (b *Box) quota() quota.QuotaInterface {
-	return quota.Provisioner.GetQuota(b.GetQuotaMethod())
+	return quota.Provisioner.GetQuota(b.getQuotaMethod())
 }
 
 // rewrite lxc config of the box

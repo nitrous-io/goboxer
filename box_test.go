@@ -32,23 +32,23 @@ type testMountMethod struct {
 
 func (s *BoxSuite) TestMountMethod(c *C) {
 	b := &Box{}
-	c.Assert(b.GetMountMethod(), Equals, "overlayfs")
+	c.Assert(b.getMountMethod(), Equals, "overlayfs")
 
 	b.MountMethod = "aufs"
-	c.Assert(b.GetMountMethod(), Equals, "aufs")
+	c.Assert(b.getMountMethod(), Equals, "aufs")
 
 	b.MountMethod = ""
 	b.Aufs = true
-	c.Assert(b.GetMountMethod(), Equals, "aufs")
+	c.Assert(b.getMountMethod(), Equals, "aufs")
 
 	b.MountMethod = "lvm"
-	c.Assert(b.GetMountMethod(), Equals, "lvm")
+	c.Assert(b.getMountMethod(), Equals, "lvm")
 }
 
 func (s *BoxSuite) TestQuotaMethod(c *C) {
 	b := &Box{}
-	c.Assert(b.GetQuotaMethod(), Equals, "prjquota")
+	c.Assert(b.getQuotaMethod(), Equals, "prjquota")
 
 	b.QuotaMethod = "usrquota"
-	c.Assert(b.GetQuotaMethod(), Equals, "usrquota")
+	c.Assert(b.getQuotaMethod(), Equals, "usrquota")
 }
