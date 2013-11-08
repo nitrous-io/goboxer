@@ -5,9 +5,7 @@ import (
 	"fmt"
 	"github.com/action-io/goboxer"
 	"github.com/garyburd/redigo/redis"
-	"io/ioutil"
 	"os"
-	"path/filepath"
 	"time"
 )
 
@@ -45,15 +43,16 @@ func main() {
 		Pool: goboxer.NewRedisPool(config.RedisStoreAddr()),
 	}
 
-	boxer := goboxer.NewBoxer(
-		config.Id,
-		"/var/lib/lxc",
-		config.SelectedDisk,
-		config.Disks,
-		config.Runtimes,
-		resourcePool,
-		*flUseProjQuota,
-	)
+	boxer := &goboxer.Boxer{
+		Id:           config.Id,
+		Root:         "/var/lib/lxc",
+		SelectedDisk: config.SelectedDisk,
+		Disks:        config.Disks,
+		Runtimes:     config.Runtimes,
+		ResourcePool: resourcePool,
+		MountMethod:  config.MountMethod,
+		QuotaMethod:  config.QuotaMethod,
+	}
 
 	if *flStartAll {
 		fmt.Println("Starting all containers ...")

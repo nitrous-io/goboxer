@@ -2,10 +2,12 @@ package main
 
 import (
 	"encoding/json"
+	"io/ioutil"
+	"path/filepath"
 )
 
-const VALID_MOUNT = []string{"aufs", "lvm", "overlayfs"}
-const VALID_QUOTA = []string{"projquota", "usrquota"}
+var VALID_MOUNT = []string{"aufs", "lvm", "overlayfs"}
+var VALID_QUOTA = []string{"prjquota", "usrquota"}
 
 type Config struct {
 	Id             string            `json:"id"`
