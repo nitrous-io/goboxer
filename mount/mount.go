@@ -33,7 +33,7 @@ func Mount(source, target, fstype string) (err error) {
 	if mounted {
 		return nil
 	}
-	return runCommand("mount", "-n", "-t", fstype, source, target)
+	return runCommand("mount", "-t", fstype, source, target)
 }
 
 func Union(unionType, target, upper, lower string) (err error) {
@@ -61,7 +61,7 @@ func Union(unionType, target, upper, lower string) (err error) {
 	} else {
 		return fmt.Errorf("%s is not a supported union type", unionType)
 	}
-	return runCommand("mount", "-n", "-t", unionType, "-o", mountOptions,
+	return runCommand("mount", "-t", unionType, "-o", mountOptions,
 		"none", target)
 }
 
@@ -90,6 +90,7 @@ func Symlink(source, target string) error {
 }
 
 func Unmount(mountType, target string) error {
+	fmt.Printf("Unmount: %s with mount type %s\n", target, mountType)
 	if mountType == "aufs" {
 		if err := exec.Command("auplink", target, "flush").Run(); err != nil {
 			fmt.Printf("[warning]: couldn't run auplink before unmount: %s", err)
@@ -101,7 +102,7 @@ func Unmount(mountType, target string) error {
 	// Even though we just unmounted the filesystem, AUFS will prevent deleting the mntpoint
 	// for some time. We'll just keep retrying until it succeeds.
 	for retries := 0; retries < 1000; retries++ {
-		err := os.Remove(target)
+		err := os.RemoveAll(target)
 		if err == nil {
 			// rm mntpoint succeeded
 			return nil
@@ -110,7 +111,6 @@ func Unmount(mountType, target string) error {
 			// mntpoint doesn't exist anymore. Success.
 			return nil
 		}
-		// fmt.Printf("(%v) Remove %v returned: %v\n", retries, target, err)
 		time.Sleep(10 * time.Millisecond)
 	}
 	return fmt.Errorf("Umount: Failed to umount %v", target)
