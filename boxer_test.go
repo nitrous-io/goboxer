@@ -33,18 +33,18 @@ type testProvisionStrategy struct {
 // for each strategies, we are going to run all operations to make sure that
 // everything works
 var strategies = map[string]testProvisionStrategy{
-	//"xfs": testProvisionStrategy{
-	//    MountMethod:  "aufs",
-	//    QuotaMethod:  "prjquota",
-	//    SelectedDisk: "/lxc/disk1",
-	//    SelectedVG:   "",
-	//},
-	// "ext4": testProvisionStrategy{
-	// 	MountMethod:  "aufs",
-	// 	QuotaMethod:  "usrquota",
-	// 	SelectedDisk: "/lxc/disk2",
-	// 	SelectedVG:   "",
-	// },
+	"xfs": testProvisionStrategy{
+		MountMethod:  "aufs",
+		QuotaMethod:  "prjquota",
+		SelectedDisk: "/lxc/disk1",
+		SelectedVG:   "",
+	},
+	"ext4": testProvisionStrategy{
+		MountMethod:  "aufs",
+		QuotaMethod:  "usrquota",
+		SelectedDisk: "/lxc/disk2",
+		SelectedVG:   "",
+	},
 	"lvm": testProvisionStrategy{
 		MountMethod:  "lvm",
 		QuotaMethod:  "lvm",
