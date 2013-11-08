@@ -58,10 +58,10 @@ lxc.cgroup.devices.allow = c 10:232 rwm
 
 lxc.utsname = {{.ContainerName}}
 
-{{$CONTAINERFS := .ContainerFS }}
+{{$LXCPATH := .LxcPath}}
 {{$ROOTFS := .RootFS}}
 lxc.rootfs = {{$ROOTFS}}
-lxc.mount  = {{$CONTAINERFS}}/fstab
+lxc.mount  = {{$LXCPATH}}/fstab
 `
 const NetworkConfigTemplate = `
 auto lo

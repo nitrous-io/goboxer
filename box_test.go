@@ -24,3 +24,31 @@ func (s *BoxSuite) TestMarshal(c *C) {
 	json.Unmarshal([]byte(b), box)
 	c.Assert(box.Port, Equals, 10000)
 }
+
+type testMountMethod struct {
+	name     string
+	expected string
+}
+
+func (s *BoxSuite) TestMountMethod(c *C) {
+	b := &Box{}
+	c.Assert(b.GetMountMethod(), Equals, "overlayfs")
+
+	b.MountMethod = "aufs"
+	c.Assert(b.GetMountMethod(), Equals, "aufs")
+
+	b.MountMethod = ""
+	b.Aufs = true
+	c.Assert(b.GetMountMethod(), Equals, "aufs")
+
+	b.MountMethod = "lvm"
+	c.Assert(b.GetMountMethod(), Equals, "lvm")
+}
+
+func (s *BoxSuite) TestQuotaMethod(c *C) {
+	b := &Box{}
+	c.Assert(b.GetQuotaMethod(), Equals, "prjquota")
+
+	b.QuotaMethod = "usrquota"
+	c.Assert(b.GetQuotaMethod(), Equals, "usrquota")
+}
