@@ -10,6 +10,8 @@
   "redisStorePort": "6379",
   "pingHost": "127.0.0.1",
   "pingPort": "1339",
+  "mountMethod": "aufs",
+  "quotaMethod": "usrquota",
   "runtimes": {
     "rails": "ruby_template",
     "nodejs": "nodejs_template",
