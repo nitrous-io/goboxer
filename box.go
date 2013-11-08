@@ -1,7 +1,6 @@
 package goboxer
 
 import (
-	"bufio"
 	"fmt"
 	"github.com/action-io/goboxer/fs"
 	"github.com/action-io/goboxer/ip"
@@ -9,6 +8,7 @@ import (
 	"github.com/action-io/goboxer/lxc"
 	"github.com/action-io/goboxer/mount"
 	"github.com/action-io/goboxer/quota"
+	"io/ioutil"
 	"os"
 	"path"
 	"strconv"
@@ -359,18 +359,32 @@ func (b *Box) DeleteContainerData() error {
 // the unit if B, so if we want to convert to MB, it needs to be divided with
 // 1024 * 1024
 func (b *Box) MemoryUsageInBytes() (int, error) {
-	filename := fmt.Sprintf("/sys/fs/cgroup/memory/lxc/%s/memory.usage_in_bytes",
-		b.ContainerName())
-	file, err := os.Open(filename)
+	containerName := b.ContainerName()
+	filename := fmt.Sprintf(
+		"/sys/fs/cgroup/memory/lxc/%s/memory.usage_in_bytes",
+		containerName)
+	_, err := os.Stat(filename)
 	if err != nil {
+		if os.IsNotExist(err) {
+			alternate := fmt.Sprintf(
+				"/sys/fs/cgroup/memory/sysdefault/lxc/%s/memory.usage_in_bytes",
+				containerName)
+			content, err := ioutil.ReadFile(alternate)
+			if err == nil {
+				return strconv.Atoi(string(content))
+			}
+		}
+		logger.Printf("%s: Failed to read memory usage, err: %v",
+			containerName, err)
 		return 0, err
 	}
-	scanner := bufio.NewScanner(file)
-	scanner.Scan()
-	if err := scanner.Err(); err != nil {
+	content, err := ioutil.ReadFile(filename)
+	if err != nil {
+		logger.Printf("%s: Failed to read memory usage, err: %v\n",
+			containerName, err)
 		return 0, err
 	}
-	return strconv.Atoi(scanner.Text())
+	return strconv.Atoi(strings.TrimSpace(string(content)))
 }
 
 func (b *Box) Info() (BoxInfo, error) {
