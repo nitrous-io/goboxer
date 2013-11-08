@@ -10,7 +10,7 @@ import (
 
 // append string content to a file
 func Appendln(location, content string) error {
-	f, err := os.OpenFile(location, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(location, os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		return err
 	}
