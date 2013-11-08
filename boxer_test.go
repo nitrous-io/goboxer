@@ -525,7 +525,7 @@ func (s *BoxerSuite) TestChangeBoxSpecs(c *C) {
 			Path: root + "_delta",
 		}
 		limit, _ := quotaProvisioner.ViewLimit(arg)
-		c.Assert(limit.Limit > 1000*1000, Equals, true)
+		c.Assert(limit.Limit > 900*1000, Equals, true)
 
 		message := s.Boxer.Receive(Message{
 			Id:       "testboxer",
@@ -560,7 +560,7 @@ func (s *BoxerSuite) TestChangeBoxSpecs(c *C) {
 		DoesContain(c, checkContent)
 
 		newLimit, _ := quotaProvisioner.ViewLimit(arg)
-		c.Assert(newLimit.Limit > 2*1000*1000, Equals, true)
+		c.Assert(newLimit.Limit > 2*900*1000, Equals, true)
 
 		s.assertBoxState(c, "mclovins-container-1", "running")
 	})
@@ -886,7 +886,7 @@ func (s *BoxerSuite) TestChangeBoxSpecsFail(c *C) {
 		limit, _ := quotaProvisioner.ViewLimit(arg)
 		// approximate the limit as lvm strategy will not report the whole
 		// absolute size as per lvm volume size
-		c.Assert(limit.Limit > 1000*1000, Equals, true)
+		c.Assert(limit.Limit > 900*1000, Equals, true)
 
 		// swap Quota with FailQuota so all quota calls will return errors
 		quota.Provisioner = false
