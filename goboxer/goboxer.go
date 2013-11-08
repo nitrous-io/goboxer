@@ -1,14 +1,11 @@
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"github.com/action-io/goboxer"
 	"github.com/garyburd/redigo/redis"
-	"io/ioutil"
 	"os"
-	"path/filepath"
 	"time"
 )
 
@@ -16,59 +13,10 @@ var version string
 
 const ADVERTISE_INTERVAL = 5001
 
-type Config struct {
-	Id             string            `json:"id"`
-	BoxerChannel   string            `json:"boxerChannel"`
-	CoachChannel   string            `json:"coachChannel"`
-	RedisMQHost    string            `json:"redisMQHost"`
-	RedisMQPort    string            `json:"redisMQPort"`
-	RedisStoreHost string            `json:"redisStoreHost"`
-	RedisStorePort string            `json:"redisStorePort"`
-	SelectedDisk   string            `json:"selectedDisk"`
-	Disks          []string          `json:"disks"`
-	Runtimes       map[string]string `json:"runtimes"`
-	PingHost       string            `json:"pingHost"`
-	PingPort       string            `json:"pingPort"`
-}
-
-func (c Config) RedisMQAddr() string {
-	return c.RedisMQHost + ":" + c.RedisMQPort
-}
-
-func (c Config) RedisStoreAddr() string {
-	return c.RedisStoreHost + ":" + c.RedisStorePort
-}
-
-func (c Config) HasValidPingSettings() bool {
-	return len(c.PingHost) > 0 && len(c.PingPort) > 0
-}
-
-// reads a json config file and returns back `Config` instance
-// configPath - path to json config file
-func parseConfig(configPath string) (config Config, err error) {
-	filePath, err := filepath.Abs(configPath)
-	if err != nil {
-		return config, err
-	}
-	content, err := ioutil.ReadFile(filePath)
-	if err != nil {
-		return config, err
-	}
-	err = json.Unmarshal(content, &config)
-	if err != nil {
-		return config, err
-	}
-	return config, nil
-}
-
 func main() {
 	flConfigPath := flag.String("c", "", "Set config path of the program")
 	flVersion := flag.Bool("v", false, "Show current version")
 	flStartAll := flag.Bool("start-all", false, "Start all containers")
-	flBenchmark := flag.Bool("benchmark", false, "Start benchmark mode")
-	flBenchmarkStartAll := flag.Bool("benchmark-start-all", false, "Start benchmark mode for start all")
-	flNumBox := flag.Int("num", 10, "Number of box that will be created in benchmark mode")
-	flUseProjQuota := flag.Bool("use-projquota", false, "Use project quota instead of user quota")
 	flag.Parse()
 	if *flVersion {
 		fmt.Println(version)
@@ -79,7 +27,7 @@ func main() {
 		return
 	}
 
-	config, err := parseConfig(*flConfigPath)
+	config, err := ParseConfig(*flConfigPath)
 	if err != nil {
 		panic("Cannot parse config file " + *flConfigPath)
 		os.Exit(1)
@@ -95,15 +43,16 @@ func main() {
 		Pool: goboxer.NewRedisPool(config.RedisStoreAddr()),
 	}
 
-	boxer := goboxer.NewBoxer(
-		config.Id,
-		"/var/lib/lxc",
-		config.SelectedDisk,
-		config.Disks,
-		config.Runtimes,
-		resourcePool,
-		*flUseProjQuota,
-	)
+	boxer := &goboxer.Boxer{
+		Id:           config.Id,
+		Root:         "/var/lib/lxc",
+		SelectedDisk: config.SelectedDisk,
+		Disks:        config.Disks,
+		Runtimes:     config.Runtimes,
+		ResourcePool: resourcePool,
+		MountMethod:  config.MountMethod,
+		QuotaMethod:  config.QuotaMethod,
+	}
 
 	if *flStartAll {
 		fmt.Println("Starting all containers ...")
@@ -113,27 +62,6 @@ func main() {
 			return
 		}
 		os.Exit(0)
-		return
-	}
-
-	if *flBenchmarkStartAll {
-		if *flNumBox > 0 {
-			goboxer.StartBenchmarkAll(boxer, *flNumBox)
-		} else {
-			fmt.Println("Required -num option in benchmark mode")
-			os.Exit(0)
-		}
-		return
-	}
-
-	if *flBenchmark {
-		fmt.Println("Benchmarking ...")
-		if *flNumBox > 0 {
-			goboxer.StartBenchmark(boxer, *flNumBox)
-		} else {
-			fmt.Println("Required -num option in benchmark mode")
-			os.Exit(0)
-		}
 		return
 	}
 
