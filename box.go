@@ -84,6 +84,9 @@ func (b *Box) Create() error {
 	if err := b.setHostname(); err != nil {
 		return err
 	}
+	if err := b.setHosts(); err != nil {
+		return err
+	}
 	if err := b.setNetworkInterface(); err != nil {
 		return err
 	}
@@ -532,6 +535,16 @@ func (b *Box) setHostname() error {
 	defer hostName.Close()
 	_, err = hostName.Write([]byte(b.ContainerName()))
 	return err
+}
+
+func (b *Box) setHosts() error {
+	hostsPath := path.Join(b.RootFS(), "etc", "hosts")
+	hosts, err := os.Create(hostsPath)
+	if err != nil {
+		return err
+	}
+	defer hosts.Close()
+	return HostsTemplateCompiled.Execute(hosts, b)
 }
 
 func (b *Box) setNetworkInterface() error {

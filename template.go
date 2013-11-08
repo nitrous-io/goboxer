@@ -74,11 +74,27 @@ iface eth0 inet static
     gateway {{.Gateway}}
 `
 
+const HostsTemplate = `
+127.0.0.1 localhost
+127.0.1.1 {{.ContainerName}}
+# The following lines are desirable for IPv6 capable hosts
+::1 ip6-localhost ip6-loopback
+fe00::0 ip6-localnet
+ff00::0 ip6-mcastprefix
+ff02::1 ip6-allnodes
+ff02::2 ip6-allrouters
+`
+
 var NetworkConfigCompiled *template.Template
 var LxcTemplateCompiled *template.Template
+var HostsTemplateCompiled *template.Template
 
 func init() {
 	var err error
+	HostsTemplateCompiled, err = template.New("hosts").Parse(HostsTemplate)
+	if err != nil {
+		panic(err)
+	}
 	NetworkConfigCompiled, err = template.New("network").Parse(NetworkConfigTemplate)
 	if err != nil {
 		panic(err)

@@ -179,6 +179,7 @@ func (s *BoxerSuite) TestCreateBox(c *C) {
 			root + "/rootfs/etc/passwd":        {"action:x:15001:15001"},
 			root + "/rootfs/etc/action/box_id": {"1"},
 			root + "/rootfs/etc/hostname":      {"mclovins-container-1"},
+			root + "/rootfs/etc/hosts":         {"mclovins-container-1"},
 			root + "/rootfs/etc/ssh/univ_public_keys": {
 				"ssh-key QWER",
 				"ssh-key ASDF",
