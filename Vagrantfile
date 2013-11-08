@@ -10,9 +10,15 @@ $script = <<SCRIPT
   add-apt-repository http://ppa.launchpad.net/brightbox/experimental/ubuntu
 
   apt-get update
+  # install a newer kernel
+  apt-get install -q -y linux-image-generic-lts-raring linux-headers-generic-lts-raring
   apt-get install -yy build-essential
   apt-get install -yy git-core lxc bridge-utils curl redis-server build-essential xfsprogs lvm2 iptables aufs-tools mercurial
   apt-get install -yy quotatool thin-provisioning-tools
+
+  # support for cgroup
+  sed -i "s/GRUB_CMDLINE_LINUX=\"\"/GRUB_CMDLINE_LINUX=\"cgroup_enable=memory swapaccount=1\"/g" /etc/default/grub
+  update-grub
 
   if [[ ! -f /usr/local/go/bin/go ]]; then
     # install go
