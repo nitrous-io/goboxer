@@ -11,7 +11,7 @@ var _ = Suite(&BoxSuite{})
 
 func (s *BoxSuite) TestTotalMemory(c *C) {
 	b := &Box{Memory: "384M"}
-	c.Assert(b.TotalMemory(), Equals, "1152M")
+	c.Assert(b.TotalMemory(), Equals, "768M")
 }
 
 func (s *BoxSuite) TestMarshal(c *C) {

@@ -225,9 +225,12 @@ func (b *Box) MacAddress() string {
 	return fmt.Sprintf("02:00:%x:%x:%x:%x", ipList...)
 }
 
+// memory + swap size
+// so for 256M, the swap memory allocated will be 256M,
+// making the total memory allocated to the box 512M
 func (b *Box) TotalMemory() string {
 	m := quota.ParseValueUnit(b.Memory)
-	return fmt.Sprintf("%d%s", int(m.Value)*3, m.Unit)
+	return fmt.Sprintf("%d%s", int(m.Value)*2, m.Unit)
 }
 
 func (b *Box) AddPublicKey(keys ...string) error {

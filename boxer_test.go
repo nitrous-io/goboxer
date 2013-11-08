@@ -190,7 +190,7 @@ func (s *BoxerSuite) TestCreateBox(c *C) {
 			},
 			root + "/config": {
 				"lxc.cgroup.memory.limit_in_bytes = 256M",
-				"lxc.cgroup.memory.memsw.limit_in_bytes = 768M",
+				"lxc.cgroup.memory.memsw.limit_in_bytes = 512M",
 				"lxc.network.hwaddr = 02:00",
 			},
 		}
@@ -554,7 +554,7 @@ func (s *BoxerSuite) TestChangeBoxSpecs(c *C) {
 		var checkContent = map[string][]string{
 			root + "/config": {
 				"lxc.cgroup.memory.limit_in_bytes = 512M",
-				"lxc.cgroup.memory.memsw.limit_in_bytes = 1536M",
+				"lxc.cgroup.memory.memsw.limit_in_bytes = 1024M",
 			},
 		}
 		DoesContain(c, checkContent)
@@ -922,7 +922,7 @@ func (s *BoxerSuite) TestChangeBoxSpecsFail(c *C) {
 		var checkContent = map[string][]string{
 			root + "/config": {
 				"lxc.cgroup.memory.limit_in_bytes = 512M",
-				"lxc.cgroup.memory.memsw.limit_in_bytes = 1536M",
+				"lxc.cgroup.memory.memsw.limit_in_bytes = 1024M",
 			},
 		}
 		DoesContain(c, checkContent)
