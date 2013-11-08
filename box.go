@@ -58,6 +58,10 @@ type Box struct {
 	boxer *Boxer
 }
 
+// Create a new box
+//
+// This create a new box. The chosen provisioning scheme will depend on
+// `MountMethod` and `QuotaMethod`.
 func (b *Box) Create() error {
 	defer logger.LogDuration(
 		fmt.Sprintf("%s:Create", b.ContainerName()),
@@ -65,7 +69,31 @@ func (b *Box) Create() error {
 	if err := b.Mount(b.boxer.Root); err != nil {
 		return err
 	}
-	if err := b.setupContainer(); err != nil {
+	if err := b.writeConfig(); err != nil {
+		return err
+	}
+	if err := b.extractTemplate(); err != nil {
+		return err
+	}
+	if err := b.setBoxId(); err != nil {
+		return err
+	}
+	if err := b.AddPublicKey(b.PublicKeys...); err != nil {
+		return err
+	}
+	if err := b.setHostname(); err != nil {
+		return err
+	}
+	if err := b.setNetworkInterface(); err != nil {
+		return err
+	}
+	if err := b.setWorkspace(); err != nil {
+		return err
+	}
+	if err := b.setDefaultKeyPair(); err != nil {
+		return err
+	}
+	if err := b.setPermission(); err != nil {
 		return err
 	}
 	// as the initial lvm volume is created in mount step, we dont need to
@@ -387,89 +415,6 @@ func (b *Box) RemoveEnv(data []string) (err error) {
 	return
 }
 
-// Populate the contents of user's container. This should be done after the
-// container is mounted/unionized so we only works on the mount point and not
-// the delta storage.
-func (b *Box) setupContainer() error {
-	// write lxc config of the box
-	if err := b.writeConfig(); err != nil {
-		return err
-	}
-	root := b.RootFS()
-
-	// extract template
-	boxHomePath := path.Join(root, "home", "action")
-	if err := Untar(b.TemplatePath(), boxHomePath); err != nil {
-		return err
-	}
-
-	// set box's id
-	actionPath := path.Join(root, "etc", "action")
-	boxIdPath := path.Join(actionPath, "box_id")
-	if err := os.MkdirAll(actionPath, 0755); err != nil {
-		return err
-	}
-	boxIdFile, err := os.Create(boxIdPath)
-	if err != nil {
-		return err
-	}
-	defer boxIdFile.Close()
-	if _, err = boxIdFile.Write([]byte(b.Id)); err != nil {
-		return err
-	}
-
-	// set public keys
-	if err := b.AddPublicKey(b.PublicKeys...); err != nil {
-		return err
-	}
-
-	// set box's /etc/hostname
-	hostNamePath := path.Join(root, "etc", "hostname")
-	hostName, err := os.Create(hostNamePath)
-	if err != nil {
-		return err
-	}
-	defer hostName.Close()
-	if _, err := hostName.Write([]byte(b.ContainerName())); err != nil {
-		return err
-	}
-
-	// set /etc/network/interfaces
-	networkConfigPath := path.Join(root, "etc", "network", "interfaces")
-	networkConfig, err := os.Create(networkConfigPath)
-	if err != nil {
-		return err
-	}
-	defer networkConfig.Close()
-	if err := NetworkConfigCompiled.Execute(networkConfig, b); err != nil {
-		return err
-	}
-
-	// set workspace
-	workspacePath := path.Join(root, "home", "action", "workspace")
-	if err := os.MkdirAll(workspacePath, 0755); err != nil {
-		return err
-	}
-
-	// set default key pair
-	sshPath := path.Join(root, "home", "action", ".ssh")
-	sshKeyFile := path.Join(sshPath, "id_rsa")
-	if err := os.MkdirAll(sshPath, 0755); err != nil {
-		return err
-	}
-	if _, err := os.Stat(sshKeyFile); os.IsNotExist(err) {
-		sshKeygen := fmt.Sprintf("ssh-keygen -N '' -f %s -b 1024 -t rsa -q",
-			sshKeyFile)
-		if err := RunCommand("/bin/sh", "-c", sshKeygen); err != nil {
-			return err
-		}
-	} else {
-		return err
-	}
-
-	return b.setPermission()
-}
-
 func (b *Box) quotaArg() quota.QuotaArg {
 	arg := quota.QuotaArg{
 		Id:    b.Id,
@@ -556,4 +501,68 @@ func (b *Box) unsetPortForwarding() error {
 	strPort := strconv.Itoa(b.Port)
 	return RunCommand("iptables", "-t", "nat", "-D", "PREROUTING", "-p", "tcp",
 		"--dport", strPort, "-j", "DNAT", "--to", b.Ip+":22")
+}
+
+func (b *Box) extractTemplate() error {
+	boxHomePath := path.Join(b.RootFS(), "home", "action")
+	return Untar(b.TemplatePath(), boxHomePath)
+}
+
+func (b *Box) setBoxId() error {
+	actionPath := path.Join(b.RootFS(), "etc", "action")
+	boxIdPath := path.Join(actionPath, "box_id")
+	if err := os.MkdirAll(actionPath, 0755); err != nil {
+		return err
+	}
+	boxIdFile, err := os.Create(boxIdPath)
+	if err != nil {
+		return err
+	}
+	defer boxIdFile.Close()
+	_, err = boxIdFile.Write([]byte(b.Id))
+	return err
+}
+
+func (b *Box) setHostname() error {
+	hostNamePath := path.Join(b.RootFS(), "etc", "hostname")
+	hostName, err := os.Create(hostNamePath)
+	if err != nil {
+		return err
+	}
+	defer hostName.Close()
+	_, err = hostName.Write([]byte(b.ContainerName()))
+	return err
+}
+
+func (b *Box) setNetworkInterface() error {
+	networkConfigPath := path.Join(b.RootFS(), "etc", "network", "interfaces")
+	networkConfig, err := os.Create(networkConfigPath)
+	if err != nil {
+		return err
+	}
+	defer networkConfig.Close()
+	return NetworkConfigCompiled.Execute(networkConfig, b)
+}
+
+func (b *Box) setWorkspace() error {
+	workspacePath := path.Join(b.RootFS(), "home", "action", "workspace")
+	return os.MkdirAll(workspacePath, 0755)
+}
+
+func (b *Box) setDefaultKeyPair() error {
+	sshPath := path.Join(b.RootFS(), "home", "action", ".ssh")
+	sshKeyFile := path.Join(sshPath, "id_rsa")
+	if err := os.MkdirAll(sshPath, 0755); err != nil {
+		return err
+	}
+	if _, err := os.Stat(sshKeyFile); os.IsNotExist(err) {
+		sshKeygen := fmt.Sprintf("ssh-keygen -N '' -f %s -b 1024 -t rsa -q",
+			sshKeyFile)
+		if err := RunCommand("/bin/sh", "-c", sshKeygen); err != nil {
+			return err
+		}
+	} else {
+		return err
+	}
+	return nil
 }
