@@ -8,6 +8,7 @@ import (
 	"github.com/action-io/goboxer/lxc"
 	"github.com/action-io/goboxer/mount"
 	"github.com/action-io/goboxer/quota"
+	"io"
 	"io/ioutil"
 	"os"
 	"path"
@@ -77,6 +78,9 @@ func (b *Box) Create() error {
 		return err
 	}
 	if err := b.setBoxId(); err != nil {
+		return err
+	}
+	if err := b.setBoxUser(); err != nil {
 		return err
 	}
 	if err := b.AddPublicKey(b.PublicKeys...); err != nil {
@@ -538,6 +542,21 @@ func (b *Box) setBoxId() error {
 	}
 	defer boxIdFile.Close()
 	_, err = boxIdFile.Write([]byte(b.Id))
+	return err
+}
+
+func (b *Box) setBoxUser() error {
+	actionPath := path.Join(b.RootFS(), "etc", "action")
+	boxUserPath := path.Join(actionPath, "box_user")
+	if err := os.MkdirAll(actionPath, 0755); err != nil {
+		return err
+	}
+	boxUserFile, err := os.Create(boxUserPath)
+	if err != nil {
+		return err
+	}
+	defer boxUserFile.Close()
+	_, err = io.WriteString(boxUserFile, "action")
 	return err
 }
 
