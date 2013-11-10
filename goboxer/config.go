@@ -24,6 +24,8 @@ type Config struct {
 	PingPort       string            `json:"pingPort"`
 	MountMethod    string            `json:"mountMethod"`
 	QuotaMethod    string            `json:"quotaMethod"`
+	CartmanHost    string            `json:"cartmanHost"`
+	CartmanPort    string            `json:"cartmanPort"`
 }
 
 func (c Config) RedisMQAddr() string {
@@ -36,6 +38,10 @@ func (c Config) RedisStoreAddr() string {
 
 func (c Config) HasValidPingSettings() bool {
 	return len(c.PingHost) > 0 && len(c.PingPort) > 0
+}
+
+func (c Config) HasValidCartmanSettings() bool {
+	return len(c.CartmanHost) > 0 && len(c.CartmanPort) > 0
 }
 
 func (c Config) HasValidMountSettings() bool {

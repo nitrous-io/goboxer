@@ -8,10 +8,14 @@ package goboxer
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/action-io/goboxer/cartman"
 	"github.com/action-io/goboxer/mount"
 	"github.com/action-io/goboxer/quota"
 	"github.com/garyburd/redigo/redis"
 	. "launchpad.net/gocheck"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -975,6 +979,15 @@ func (s *BoxerSuite) TestChangeBoxSpecsInvalidParams(c *C) {
 }
 
 func (s *BoxerSuite) TestUpdateAuth(c *C) {
+	// simulate response from cartman server
+	ts := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			fmt.Fprintln(w, "Hello, boxer")
+		}))
+	defer ts.Close()
+	cartmanURL, _ := url.Parse(ts.URL)
+	s.Boxer.Cartman = &cartman.Cartman{Host: cartmanURL.Host}
+
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
 		cleanContainer(stratName, "mclovins-container-1",

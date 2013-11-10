@@ -7,6 +7,7 @@ package goboxer
 
 import (
 	"fmt"
+	"github.com/action-io/goboxer/cartman"
 	"github.com/action-io/goboxer/host"
 	"sync"
 )
@@ -42,6 +43,7 @@ type Boxer struct {
 	MountMethod  string
 	QuotaMethod  string
 	SelectedVG   string
+	Cartman      *cartman.Cartman
 }
 
 func (boxer *Boxer) Configure() {

@@ -174,7 +174,10 @@ func (b *Box) Destroy() error {
 func (b *Box) UpdateAuth(auth BoxAuth) error {
 	b.AuthUsername = auth.Username
 	b.AuthPassword = auth.Password
-	return b.boxer.ResourcePool.SaveBox(b)
+	if err := b.boxer.ResourcePool.SaveBox(b); err != nil {
+		return err
+	}
+	return b.boxer.Cartman.InvalidateCache(b.ContainerName())
 }
 
 func (b *Box) ContainerName() string {

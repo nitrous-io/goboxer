@@ -12,6 +12,8 @@
   "pingPort": "1339",
   "mountMethod": "aufs",
   "quotaMethod": "usrquota",
+  "cartmanHost": "127.0.0.1",
+  "cartmanPort": "65202",
   "runtimes": {
     "rails": "ruby_template",
     "nodejs": "nodejs_template",

@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/action-io/goboxer"
+	"github.com/action-io/goboxer/cartman"
 	"github.com/garyburd/redigo/redis"
 	"os"
 	"time"
@@ -43,6 +44,14 @@ func main() {
 		Pool: goboxer.NewRedisPool(config.RedisStoreAddr()),
 	}
 
+	cartman := &cartman.Cartman{
+		Host: config.CartmanHost + ":" + config.CartmanPort,
+	}
+	if !cartman.IsValid() {
+		panic("missing cartman configuration")
+		os.Exit(1)
+	}
+
 	boxer := &goboxer.Boxer{
 		Id:           config.Id,
 		Root:         "/var/lib/lxc",
@@ -52,6 +61,7 @@ func main() {
 		ResourcePool: resourcePool,
 		MountMethod:  config.MountMethod,
 		QuotaMethod:  config.QuotaMethod,
+		Cartman:      cartman,
 	}
 
 	if *flStartAll {
