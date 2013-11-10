@@ -973,3 +973,62 @@ func (s *BoxerSuite) TestChangeBoxSpecsInvalidParams(c *C) {
 		c.Assert(currentDiskSpace, Equals, "1024M")
 	})
 }
+
+func (s *BoxerSuite) TestUpdateAuth(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+		cleanContainer(stratName, "mclovins-container-1",
+			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
+		defer cleanContainer(stratName, "mclovins-container-1",
+			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
+
+		s.Boxer.Receive(Message{
+			Id:         "testboxer",
+			BoxId:      "1",
+			Type:       "aio:create",
+			Name:       "mclovins-container",
+			Runtime:    "test",
+			Memory:     "256M",
+			DiskSpace:  "1024M",
+			PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
+		})
+
+		message := s.Boxer.Receive(Message{
+			Id:       "testboxer",
+			BoxId:    "1",
+			Type:     "aio:configure",
+			DataType: "aio:configure:update_auth",
+			Data: map[string]interface{}{
+				"auth_username": "action",
+				"auth_password": "password",
+			},
+			Name: "mclovins-container-1",
+		})
+
+		c.Assert(message.Success, Equals, true)
+
+		// check redis
+		box, _ := s.ResourcePool.FindBox("mclovins-container-1")
+		c.Assert(box.AuthUsername, Equals, "action")
+		c.Assert(box.AuthPassword, Equals, "password")
+
+		message = s.Boxer.Receive(Message{
+			Id:       "testboxer",
+			BoxId:    "1",
+			Type:     "aio:configure",
+			DataType: "aio:configure:update_auth",
+			Data: map[string]interface{}{
+				"auth_username": "invalid_user",
+			},
+			Name: "mclovins-container-1",
+		})
+
+		c.Assert(message.Success, Equals, false)
+		c.Assert(message.Type, Equals, "aio:invalid:params")
+
+		// check redis
+		box, _ = s.ResourcePool.FindBox("mclovins-container-1")
+		c.Assert(box.AuthUsername, Equals, "action")
+		c.Assert(box.AuthPassword, Equals, "password")
+	})
+}

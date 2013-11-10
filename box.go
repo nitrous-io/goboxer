@@ -20,6 +20,15 @@ import (
 const UID_START = 15000
 const THIN_VG = "boxes"
 
+type BoxAuth struct {
+	Username string
+	Password string
+}
+
+func (a BoxAuth) IsValid() bool {
+	return len(a.Username) > 0 && len(a.Password) > 0
+}
+
 type BoxSpec struct {
 	Memory    string `json:"memory,omitempty"`
 	DiskSpace string `json:"diskSpace,omitempty"`
@@ -53,6 +62,8 @@ type Box struct {
 	MountMethod      string   `json:"mount"`
 	QuotaMethod      string   `json:"quotaMethod"`
 	SelectedVG       string   `json:"selectedVG"`
+	AuthUsername     string   `json:"authUsername"`
+	AuthPassword     string   `json:"authPassword"`
 	Runtime          string   `json:"-"`
 	SnapshotURL      string   `json:"-"`
 	PublicKeys       []string `json:"-"`
@@ -158,6 +169,12 @@ func (b *Box) Destroy() error {
 		return err
 	}
 	return b.DeleteContainerData()
+}
+
+func (b *Box) UpdateAuth(auth BoxAuth) error {
+	b.AuthUsername = auth.Username
+	b.AuthPassword = auth.Password
+	return b.boxer.ResourcePool.SaveBox(b)
 }
 
 func (b *Box) ContainerName() string {
