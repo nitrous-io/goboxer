@@ -28,9 +28,9 @@ func Start(name string) error {
 }
 
 func Stop(name string) error {
-	if err := run("lxc-stop", "-n", name); err != nil {
-		return err
-	}
+	// FIXME: once lxc-shutdown is upgraded to a new version, restore the error
+	// checking here
+	run("lxc-shutdown", "-n", name, "-t", "30")
 	return waitLxc(name, "STOPPED")
 }
 
