@@ -8,7 +8,6 @@ import (
 	"github.com/action-io/goboxer/lxc"
 	"github.com/action-io/goboxer/mount"
 	"github.com/action-io/goboxer/quota"
-	"io"
 	"io/ioutil"
 	"os"
 	"path"
@@ -561,7 +560,7 @@ func (b *Box) setBoxId() error {
 		return err
 	}
 	defer boxIdFile.Close()
-	_, err = boxIdFile.Write([]byte(b.Id))
+	_, err = boxIdFile.WriteString(b.Id)
 	return err
 }
 
@@ -576,7 +575,7 @@ func (b *Box) setBoxUser() error {
 		return err
 	}
 	defer boxUserFile.Close()
-	_, err = io.WriteString(boxUserFile, "action")
+	_, err = boxUserFile.WriteString("action")
 	return err
 }
 
@@ -587,7 +586,7 @@ func (b *Box) setHostname() error {
 		return err
 	}
 	defer hostName.Close()
-	_, err = hostName.Write([]byte(b.ContainerName()))
+	_, err = hostName.WriteString(b.ContainerName())
 	return err
 }
 
