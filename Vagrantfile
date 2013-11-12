@@ -1,7 +1,7 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 #
-IP = ENV['VAGRANT_INTERFACE'] || "33.33.33.10"
+IP = ENV['GOBOXER_INTERFACE'] || ENV['VAGRANT_INTERFACE'] || "33.33.33.10"
 
 $script = <<SCRIPT
   export HOME=/home/vagrant
