@@ -63,6 +63,7 @@ func main() {
 		QuotaMethod:  config.QuotaMethod,
 		Cartman:      cartman,
 	}
+	boxer.Configure()
 
 	if *flStartAll {
 		fmt.Println("Starting all containers ...")
