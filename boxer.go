@@ -66,6 +66,14 @@ func (boxer *Boxer) runtimeKeys() []string {
 	return keys
 }
 
+func (boxer *Boxer) ReceiveAsync(message Message) MessageChannel {
+	c := make(MessageChannel, 1)
+	go func() {
+		c <- boxer.Receive(message)
+	}()
+	return c
+}
+
 // This is the main logical entry point for a boxer program. It accepts an
 // incoming `Message` ( from Coach via Redis ) and return back a `Message`
 // which we can used to reply back to Coach

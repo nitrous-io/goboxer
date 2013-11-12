@@ -35,3 +35,5 @@ type Message struct {
 	// For info message
 	Info BoxInfo `json:"info,omitempty"`
 }
+
+type MessageChannel chan Message
