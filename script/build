@@ -24,3 +24,5 @@ cd $DIR
 
 echo -e "${OK_COLOR}--> GO BOXER $GIT_COMMIT!............${NO_COLOR}"
 go install -ldflags "-X main.version ${GIT_COMMIT}" -v $PACKAGE/...
+mkdir -p bin
+cp $GOBIN/goboxer bin/goboxer
