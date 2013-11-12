@@ -87,10 +87,7 @@ func (b *Box) Create() error {
 	if err := b.extractTemplate(); err != nil {
 		return err
 	}
-	if err := b.setBoxId(); err != nil {
-		return err
-	}
-	if err := b.setBoxUser(); err != nil {
+	if err := b.setEtcAction(); err != nil {
 		return err
 	}
 	if err := b.AddPublicKey(b.PublicKeys...); err != nil {
@@ -549,28 +546,22 @@ func (b *Box) extractTemplate() error {
 	return Untar(b.TemplatePath(), boxHomePath)
 }
 
-func (b *Box) setBoxId() error {
+func (b *Box) setEtcAction() error {
 	actionPath := path.Join(b.RootFS(), "etc", "action")
-	boxIdPath := path.Join(actionPath, "box_id")
 	if err := os.MkdirAll(actionPath, 0755); err != nil {
 		return err
 	}
-	boxIdFile, err := os.Create(boxIdPath)
+	// set box_id
+	boxIdFile, err := os.Create(path.Join(actionPath, "box_id"))
 	if err != nil {
 		return err
 	}
 	defer boxIdFile.Close()
-	_, err = boxIdFile.WriteString(b.Id)
-	return err
-}
-
-func (b *Box) setBoxUser() error {
-	actionPath := path.Join(b.RootFS(), "etc", "action")
-	boxUserPath := path.Join(actionPath, "box_user")
-	if err := os.MkdirAll(actionPath, 0755); err != nil {
+	if _, err = boxIdFile.WriteString(b.Id); err != nil {
 		return err
 	}
-	boxUserFile, err := os.Create(boxUserPath)
+	// set box_user
+	boxUserFile, err := os.Create(path.Join(actionPath, "box_user"))
 	if err != nil {
 		return err
 	}
