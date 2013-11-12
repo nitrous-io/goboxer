@@ -44,25 +44,21 @@ func main() {
 		idsMap = append(idsMap, id)
 	}
 
-	pubConn, err := redis.Dial("tcp", ":6379")
-	if err != nil {
-		panic("Failed to initialize redis publish connection")
-	}
+	redisPool := goboxer.NewRedisPool(":6379")
+	pubConn := redisPool.Get()
 	defer pubConn.Close()
 	insertResource(idsMap, pubConn)
 
-	subConn, err := redis.Dial("tcp", ":6379")
-	if err != nil {
-		panic("Failed to initialize redis subscribe connection")
-	}
+	subConn := redisPool.Get()
 	defer subConn.Close()
+
 	psc := redis.PubSubConn{subConn}
 	psc.Subscribe(COACH_CHANNEL)
 
 	start := time.Now()
 	var wg sync.WaitGroup
 	// subscribe to coach
-	go func(psc redis.PubSubConn) {
+	go func() {
 		for {
 			switch v := psc.Receive().(type) {
 			case redis.Message:
@@ -71,15 +67,23 @@ func main() {
 					fmt.Println("Failed to decode redis message", string(v.Data))
 				}
 				if message.Type == "aio:created" {
-					pubConn.Do("PUBLISH", BOXER_CHANNEL,
-						destroyMessage(message.BoxId))
+					dm := destroyMessage(message.BoxId)
+					_, err := pubConn.Do("PUBLISH", BOXER_CHANNEL, dm)
+					if err != nil {
+						fmt.Println("Err", err)
+						panic(`cleanup with
+						umount /var/lib/lxc/mclovins-container-{1..20}
+						umount /lxc/disk2/mclovins-container-{1..20}
+						rm -rf /var/lib/lxc/mclovins-container*
+						rm -rf /lxc/disk2/mclovins-container*`)
+					}
 				} else if message.Type == "aio:destroyed" {
 					// mark the sequence for this box as finished
 					wg.Done()
 				}
 			}
 		}
-	}(psc)
+	}()
 
 	// publish creation message via redis
 	for _, id := range idsMap {
