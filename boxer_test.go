@@ -229,6 +229,34 @@ func (s *BoxerSuite) TestCreateBox(c *C) {
 	})
 }
 
+func (s *BoxerSuite) TestCreateWithDefaultCpuShares(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+		cleanContainer(stratName, "mclovins-container-1",
+			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
+		s.Boxer.Receive(Message{
+			Id:         "testboxer",
+			BoxId:      "1",
+			Type:       "aio:create",
+			Name:       "mclovins-container",
+			Runtime:    "test",
+			Memory:     "256M",
+			DiskSpace:  "1G",
+			PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
+		})
+		defer cleanContainer(stratName, "mclovins-container-1",
+			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
+
+		root := "/var/lib/lxc/mclovins-container-1"
+		var checkContent = map[string][]string{
+			root + "/config": {
+				"lxc.cgroup.cpu.shares = 512",
+			},
+		}
+		DoesContain(c, checkContent)
+	})
+}
+
 func (s *BoxerSuite) TestStop(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
@@ -543,6 +571,7 @@ func (s *BoxerSuite) TestChangeBoxSpecs(c *C) {
 			Data: map[string]interface{}{
 				"memory":    "512M",
 				"diskSpace": "2048M",
+				"cpuShares": "2048",
 			},
 			Name: "mclovins-container-1",
 		})
@@ -563,6 +592,7 @@ func (s *BoxerSuite) TestChangeBoxSpecs(c *C) {
 			root + "/config": {
 				"lxc.cgroup.memory.limit_in_bytes = 512M",
 				"lxc.cgroup.memory.memsw.limit_in_bytes = 1024M",
+				"lxc.cgroup.cpu.shares = 2048",
 			},
 		}
 		DoesContain(c, checkContent)
