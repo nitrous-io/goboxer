@@ -26,6 +26,8 @@ lxc.network.hwaddr = {{.MacAddress}}
 
 lxc.cgroup.memory.limit_in_bytes = {{.Memory}}
 lxc.cgroup.memory.memsw.limit_in_bytes = {{.TotalMemory}}
+lxc.cgroup.memory.swappiness = {{.Swappiness}}
+lxc.cgroup.cpu.shares = {{.CpuShares}}
 lxc.cgroup.devices.deny = a
 # Allow any mknod (but not using the node)
 lxc.cgroup.devices.allow = c *:* m
@@ -58,10 +60,10 @@ lxc.cgroup.devices.allow = c 10:232 rwm
 
 lxc.utsname = {{.ContainerName}}
 
-{{$CONTAINERFS := .ContainerFS }}
+{{$LXCPATH := .LxcPath}}
 {{$ROOTFS := .RootFS}}
 lxc.rootfs = {{$ROOTFS}}
-lxc.mount  = {{$CONTAINERFS}}/fstab
+lxc.mount  = {{$LXCPATH}}/fstab
 `
 const NetworkConfigTemplate = `
 auto lo
@@ -74,11 +76,27 @@ iface eth0 inet static
     gateway {{.Gateway}}
 `
 
+const HostsTemplate = `
+127.0.0.1 localhost
+127.0.1.1 {{.ContainerName}}
+# The following lines are desirable for IPv6 capable hosts
+::1 ip6-localhost ip6-loopback
+fe00::0 ip6-localnet
+ff00::0 ip6-mcastprefix
+ff02::1 ip6-allnodes
+ff02::2 ip6-allrouters
+`
+
 var NetworkConfigCompiled *template.Template
 var LxcTemplateCompiled *template.Template
+var HostsTemplateCompiled *template.Template
 
 func init() {
 	var err error
+	HostsTemplateCompiled, err = template.New("hosts").Parse(HostsTemplate)
+	if err != nil {
+		panic(err)
+	}
 	NetworkConfigCompiled, err = template.New("network").Parse(NetworkConfigTemplate)
 	if err != nil {
 		panic(err)

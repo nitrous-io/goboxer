@@ -48,6 +48,7 @@ fi
 
 echo -e "${OK_COLOR}--> GO BOXER!............${NO_COLOR}"
 go install -ldflags "-X main.version ${GIT_COMMIT}" -v $PACKAGE/...
+mkdir -p bin
 cp $GOBIN/goboxer bin/goboxer
 
 BINRELEASE="goboxer_${TAG}.tgz"

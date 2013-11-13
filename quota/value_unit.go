@@ -22,7 +22,7 @@ func ParseValueUnit(s string) ValueUnit {
 	return ValueUnit{i, u}
 }
 
-// Scale value unit to a number
+// Scale value unit to a number. This will return the value in KB
 //
 // ConvertValueUnitToByte(ValueUnit(1, "M"))
 // >> 1024
@@ -42,6 +42,7 @@ var VALUE_UNIT_SCALE map[string]float64
 
 func init() {
 	VALUE_UNIT_SCALE = map[string]float64{
+		"K": 1.0,
 		"M": 1024.0,
 		"G": 1024.0 * 1024.0,
 	}

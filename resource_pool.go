@@ -5,7 +5,6 @@
 package goboxer
 
 import (
-	"encoding/json"
 	"github.com/garyburd/redigo/redis"
 	"strconv"
 )
@@ -121,13 +120,9 @@ func getBoxNames(conn redis.Conn) ([]string, error) {
 }
 
 func findBox(containerName string, conn redis.Conn) (*Box, error) {
-	box := &Box{}
 	boxjson, err := redis.Bytes(conn.Do("HGET", "aio:boxes", containerName))
 	if err != nil {
 		return nil, err
 	}
-	if err := json.Unmarshal([]byte(boxjson), box); err != nil {
-		return nil, err
-	}
-	return box, nil
+	return BoxFromJSON([]byte(boxjson))
 }
