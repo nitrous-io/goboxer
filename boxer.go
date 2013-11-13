@@ -12,6 +12,8 @@ import (
 	"sync"
 )
 
+const DEFAULT_SWAPPINESS = "60"
+
 var handlers map[string]MessageHandler
 
 func init() {
@@ -159,6 +161,7 @@ func CreateBoxHandler(m Message, boxer *Boxer) Message {
 		MountMethod:      boxer.MountMethod,
 		QuotaMethod:      boxer.QuotaMethod,
 		SelectedVG:       boxer.SelectedVG,
+		Swappiness:       DEFAULT_SWAPPINESS, // swappiness is not configurable yet
 	}
 	box.boxer = boxer
 	if err := box.Create(); err != nil {

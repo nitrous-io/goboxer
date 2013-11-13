@@ -63,6 +63,7 @@ type Box struct {
 	SelectedVG       string   `json:"selectedVG"`
 	AuthUsername     string   `json:"authUsername"`
 	AuthPassword     string   `json:"authPassword"`
+	Swappiness       string   `json:"swappiness"`
 	Runtime          string   `json:"-"`
 	SnapshotURL      string   `json:"-"`
 	PublicKeys       []string `json:"-"`
