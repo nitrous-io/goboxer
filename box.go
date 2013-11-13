@@ -64,6 +64,7 @@ type Box struct {
 	AuthUsername     string   `json:"authUsername"`
 	AuthPassword     string   `json:"authPassword"`
 	Swappiness       string   `json:"swappiness"`
+	CpuShares        string   `json:"cpuShares"`
 	Runtime          string   `json:"-"`
 	SnapshotURL      string   `json:"-"`
 	PublicKeys       []string `json:"-"`

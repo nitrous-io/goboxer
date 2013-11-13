@@ -13,6 +13,7 @@ import (
 )
 
 const DEFAULT_SWAPPINESS = "60"
+const DEFAULT_CPU_SHARES = "512"
 
 var handlers map[string]MessageHandler
 
@@ -162,6 +163,11 @@ func CreateBoxHandler(m Message, boxer *Boxer) Message {
 		QuotaMethod:      boxer.QuotaMethod,
 		SelectedVG:       boxer.SelectedVG,
 		Swappiness:       DEFAULT_SWAPPINESS, // swappiness is not configurable yet
+	}
+	if len(m.CpuShares) > 0 {
+		box.CpuShares = m.CpuShares
+	} else {
+		box.CpuShares = DEFAULT_CPU_SHARES
 	}
 	box.boxer = boxer
 	if err := box.Create(); err != nil {

@@ -159,6 +159,7 @@ func (s *BoxerSuite) TestCreateBox(c *C) {
 			Memory:     "256M",
 			DiskSpace:  "1G",
 			PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
+			CpuShares:  "2048",
 		})
 		defer cleanContainer(stratName, "mclovins-container-1",
 			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
@@ -198,6 +199,7 @@ func (s *BoxerSuite) TestCreateBox(c *C) {
 				"lxc.cgroup.memory.memsw.limit_in_bytes = 512M",
 				"lxc.cgroup.memory.swappiness = 60",
 				"lxc.network.hwaddr = 02:00",
+				"lxc.cgroup.cpu.shares = 2048",
 			},
 		}
 
