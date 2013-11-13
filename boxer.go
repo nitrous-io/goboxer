@@ -12,8 +12,6 @@ import (
 	"sync"
 )
 
-const DEFAULT_SWAPPINESS = "60"
-
 var handlers map[string]MessageHandler
 
 func init() {
@@ -161,9 +159,10 @@ func CreateBoxHandler(m Message, boxer *Boxer) Message {
 		MountMethod:      boxer.MountMethod,
 		QuotaMethod:      boxer.QuotaMethod,
 		SelectedVG:       boxer.SelectedVG,
-		Swappiness:       DEFAULT_SWAPPINESS, // swappiness is not configurable yet
+		CpuShares:        m.CpuShares,
 	}
 	box.boxer = boxer
+	box.Prepare()
 	if err := box.Create(); err != nil {
 		logger.Printf("ERROR: Fail to create %v, err: %v\n", box, err)
 		boxer.ResourcePool.Release(resource.Ip)
@@ -313,6 +312,7 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 		message.Data = map[string]interface{}{
 			"memory":    box.Memory,
 			"diskSpace": box.DiskSpace,
+			"cpuShares": box.CpuShares,
 		}
 		data, ok := (m.Data).(map[string]interface{})
 		if !ok {
@@ -320,16 +320,30 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 			return message
 		}
 		spec := &BoxSpec{}
-		spec.Memory, ok = (data["memory"]).(string)
-		if !ok {
-			message.Success = false
-			return message
+		if data["memory"] != nil {
+			spec.Memory, ok = (data["memory"]).(string)
+			if !ok {
+				message.Success = false
+				return message
+			}
 		}
-		spec.DiskSpace, ok = (data["diskSpace"]).(string)
-		if !ok {
-			message.Success = false
-			return message
+
+		if data["diskSpace"] != nil {
+			spec.DiskSpace, ok = (data["diskSpace"]).(string)
+			if !ok {
+				message.Success = false
+				return message
+			}
 		}
+
+		if data["cpuShares"] != nil {
+			spec.CpuShares, ok = (data["cpuShares"]).(string)
+			if !ok {
+				message.Success = false
+				return message
+			}
+		}
+
 		err := box.ChangeSpec(spec)
 		message.Data = map[string]interface{}{
 			"memory":    box.Memory,

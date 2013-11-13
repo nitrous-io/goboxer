@@ -1,6 +1,7 @@
 package goboxer
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/action-io/goboxer/fs"
 	"github.com/action-io/goboxer/ip"
@@ -18,6 +19,8 @@ import (
 
 const UID_START = 15000
 const THIN_VG = "boxes"
+const DEFAULT_SWAPPINESS = "60"
+const DEFAULT_CPU_SHARES = "512"
 
 type BoxAuth struct {
 	Username string
@@ -31,6 +34,7 @@ func (a BoxAuth) IsValid() bool {
 type BoxSpec struct {
 	Memory    string `json:"memory,omitempty"`
 	DiskSpace string `json:"diskSpace,omitempty"`
+	CpuShares string `json:"cpuShares,omitempty"`
 }
 
 // Return current box info.
@@ -64,11 +68,32 @@ type Box struct {
 	AuthUsername     string   `json:"authUsername"`
 	AuthPassword     string   `json:"authPassword"`
 	Swappiness       string   `json:"swappiness"`
+	CpuShares        string   `json:"cpuShares"`
 	Runtime          string   `json:"-"`
 	SnapshotURL      string   `json:"-"`
 	PublicKeys       []string `json:"-"`
 	// hold a reference to boxer so that we can access mutex capabilities
 	boxer *Boxer
+}
+
+// Given a []byte representation of json, convert it into a box instance
+func BoxFromJSON(boxJSON []byte) (*Box, error) {
+	box := &Box{}
+	if err := json.Unmarshal(boxJSON, box); err != nil {
+		return nil, err
+	}
+	box.Prepare()
+	return box, nil
+}
+
+// Prepare the box with useful default value
+func (b *Box) Prepare() {
+	if b.Swappiness == "" {
+		b.Swappiness = DEFAULT_SWAPPINESS
+	}
+	if b.CpuShares == "" {
+		b.CpuShares = DEFAULT_CPU_SHARES
+	}
 }
 
 // Create a new box
@@ -278,8 +303,16 @@ func (b *Box) UnsetQuota() error {
 }
 
 func (b *Box) ChangeSpec(spec *BoxSpec) error {
+	willWriteConfig := false
 	if spec.Memory != b.Memory {
 		b.Memory = spec.Memory
+		willWriteConfig = true
+	}
+	if spec.CpuShares != b.CpuShares {
+		b.CpuShares = spec.CpuShares
+		willWriteConfig = true
+	}
+	if willWriteConfig {
 		if err := b.writeConfig(); err != nil {
 			return err
 		}
@@ -501,6 +534,9 @@ func (b *Box) quota() quota.QuotaInterface {
 
 // rewrite lxc config of the box
 func (b *Box) writeConfig() error {
+	// we want to re-check the box values here to make sure that only valid lxc
+	// config value will be saved
+	b.Prepare()
 	lxcConfigPath := path.Join(b.boxer.Root, b.ContainerName(), "config")
 	lxcConfig, err := os.Create(lxcConfigPath)
 	if err != nil {
