@@ -2,12 +2,9 @@
 package quota
 
 import (
-	"fmt"
-	"github.com/action-io/goboxer/utils"
 	. "launchpad.net/gocheck"
 	"math"
 	"os"
-	"os/exec"
 )
 
 type LvmQuotaSuite struct{}
@@ -15,20 +12,20 @@ type LvmQuotaSuite struct{}
 var _ = Suite(&LvmQuotaSuite{})
 
 func (s *LvmQuotaSuite) SetUpTest(c *C) {
-	utils.RunCommand("umount", "/var/lib/lxc/test_quota")
-	utils.RunCommand("lvremove", "-f", "aio_boxhost/test-1")
-	utils.RunCommand("lvcreate", "-T", "aio_boxhost/boxes", "-V", "10M", "-n",
+	run("umount", "/var/lib/lxc/test_quota")
+	run("lvremove", "-f", "aio_boxhost/test-1")
+	run("lvcreate", "-T", "aio_boxhost/boxes", "-V", "10M", "-n",
 		"test-1")
 	os.RemoveAll("/var/lib/lxc/test_quota")
 	os.MkdirAll("/var/lib/lxc/test_quota", 0644)
-	utils.RunCommand("mkfs.ext4", "/dev/aio_boxhost/test-1")
-	utils.RunCommand("mount", "-t", "ext4", "/dev/aio_boxhost/test-1",
+	run("mkfs.ext4", "/dev/aio_boxhost/test-1")
+	run("mount", "-t", "ext4", "/dev/aio_boxhost/test-1",
 		"/var/lib/lxc/test_quota")
 }
 
 func (s *LvmQuotaSuite) TearDownTest(c *C) {
-	utils.RunCommand("umount", "/var/lib/lxc/test_quota")
-	utils.RunCommand("lvremove", "-f", "aio_boxhost/test-1")
+	run("umount", "/var/lib/lxc/test_quota")
+	run("lvremove", "-f", "aio_boxhost/test-1")
 	os.RemoveAll("/var/lib/lxc/test_quota")
 }
 
@@ -41,7 +38,6 @@ func (s *LvmQuotaSuite) TestSetLimit(c *C) {
 	info, _ := q.ViewLimit(arg)
 	c.Assert(info.Used, NotNil)
 	// size of lvm is approximate
-	fmt.Println(info.Limit)
 	c.Assert(math.Abs(float64(info.Limit-15*1024)) <= 1024, Equals, true)
 }
 
@@ -60,7 +56,7 @@ func (s *LvmQuotaSuite) TestSetLimitMultipleTimes(c *C) {
 
 func (s *LvmQuotaSuite) TestRemoveQuotaLimit(c *C) {
 	q := LvmQuota{}
-	arg := QuotaArg{Id: "1", Name: "test-1", Path: "/var/lib/lxc/test_quota"}
+	arg := QuotaArg{Id: "1", Name: "test-1", Path: "/var/lib/lxc/test_quota", Limit: "15M"}
 	q.SetLimit(arg)
 	err := q.RemoveLimit(arg)
 	c.Assert(err, IsNil)

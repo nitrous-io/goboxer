@@ -1,7 +1,6 @@
 package quota
 
 import (
-	"github.com/action-io/goboxer/utils"
 	"io/ioutil"
 	. "launchpad.net/gocheck"
 	"os"
@@ -16,14 +15,14 @@ var _ = Suite(&PrjQuotaSuite{})
 func (s *PrjQuotaSuite) SetUpTest(c *C) {
 	os.RemoveAll("/lxc/disk1/test_quota")
 	os.MkdirAll("/lxc/disk1/test_quota", 0644)
-	utils.RunCommand("mv", "/etc/projid", "/etc/projid.bk")
-	utils.RunCommand("mv", "/etc/projects", "/etc/projects.bk")
+	run("mv", "/etc/projid", "/etc/projid.bk")
+	run("mv", "/etc/projects", "/etc/projects.bk")
 }
 
 func (s *PrjQuotaSuite) TearDownTest(c *C) {
 	os.RemoveAll("/lxc/disk1/test_quota")
-	utils.RunCommand("mv", "/etc/projid.bk", "/etc/projid")
-	utils.RunCommand("mv", "/etc/projects.bk", "/etc/projects")
+	run("mv", "/etc/projid.bk", "/etc/projid")
+	run("mv", "/etc/projects.bk", "/etc/projects")
 }
 
 func (s *PrjQuotaSuite) TestSetQuotaLimit(c *C) {

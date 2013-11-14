@@ -2,7 +2,6 @@
 package quota
 
 import (
-	"github.com/action-io/goboxer/utils"
 	. "launchpad.net/gocheck"
 	"os"
 	"os/exec"
@@ -13,13 +12,13 @@ type UsrQuotaSuite struct{}
 var _ = Suite(&UsrQuotaSuite{})
 
 func (s *UsrQuotaSuite) SetUpTest(c *C) {
-	utils.RunCommand("useradd", "-u", "15999", "-r", "userquotatest")
+	run("useradd", "-u", "15999", "-r", "userquotatest")
 	os.MkdirAll("/lxc/disk2/test_quota", 0644)
-	utils.RunCommand("chown", "15999", "/lxc/disk2/test_quota")
+	run("chown", "15999", "/lxc/disk2/test_quota")
 }
 
 func (s *UsrQuotaSuite) TearDownTest(c *C) {
-	utils.RunCommand("userdel", "userquotatest")
+	run("userdel", "userquotatest")
 	os.RemoveAll("/lxc/disk2/test_quota")
 }
 
