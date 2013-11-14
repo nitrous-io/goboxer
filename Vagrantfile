@@ -15,6 +15,7 @@ $script = <<SCRIPT
   apt-get install -yy build-essential
   apt-get install -yy git-core lxc bridge-utils curl redis-server build-essential xfsprogs lvm2 iptables aufs-tools mercurial
   apt-get install -yy quotatool thin-provisioning-tools
+  apt-get install -yy s3cmd
 
   # support for cgroup
   sed -i "s/GRUB_CMDLINE_LINUX=\"\"/GRUB_CMDLINE_LINUX=\"cgroup_enable=memory swapaccount=1\"/g" /etc/default/grub
