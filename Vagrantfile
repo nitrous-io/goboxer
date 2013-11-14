@@ -34,6 +34,8 @@ $script = <<SCRIPT
 
   cd $HOME/gocode/src/github.com/action-io/goboxer
   ./script/setup
+
+  echo 'To deploy, you need to setup s3cmd credentials. Run `s3cmd --configure` inside the box to start'
 SCRIPT
 
 Vagrant.configure("2") do |config|
