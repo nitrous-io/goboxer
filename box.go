@@ -185,7 +185,8 @@ func (b *Box) Destroy() error {
 		return err
 	}
 	if err := b.unsetPortForwarding(); err != nil {
-		return err
+		// ignore error from unset port forwarding here as its not harmful
+		logger.Printf("%s:Destroy - unsetPortForwarding %v \n", err)
 	}
 	if err := b.UnsetQuota(); err != nil {
 		return err
