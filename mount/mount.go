@@ -93,13 +93,13 @@ func Unmount(mountType, target string) error {
 	// if the target is not mounted, do not perform unmount here
 	mounted, err := Mounted(target)
 	if err != nil {
-		return err
+		return fmt.Errorf("%s failed to check mount status: %v", target, err)
 	}
 	if !mounted {
 		return remove(target)
 	}
 	if err := umount(target); err != nil {
-		return err
+		return fmt.Errorf("%s failed to umount: %v", target, err)
 	}
 	// Even though we just unmounted the filesystem, AUFS will prevent deleting the mntpoint
 	// for some time. We'll just keep retrying until it succeeds.
