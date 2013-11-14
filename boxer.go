@@ -337,7 +337,7 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 		}
 
 		if data["cpuShares"] != nil {
-			spec.CpuShares, ok = (data["cpuShares"]).(string)
+			spec.CpuShares, ok = (data["cpuShares"]).(int)
 			if !ok {
 				message.Success = false
 				return message

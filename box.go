@@ -19,8 +19,8 @@ import (
 
 const UID_START = 15000
 const THIN_VG = "boxes"
-const DEFAULT_SWAPPINESS = "60"
-const DEFAULT_CPU_SHARES = "512"
+const DEFAULT_SWAPPINESS = 60
+const DEFAULT_CPU_SHARES = 512
 
 type BoxAuth struct {
 	Username string
@@ -34,7 +34,7 @@ func (a BoxAuth) IsValid() bool {
 type BoxSpec struct {
 	Memory    string `json:"memory,omitempty"`
 	DiskSpace string `json:"diskSpace,omitempty"`
-	CpuShares string `json:"cpuShares,omitempty"`
+	CpuShares int    `json:"cpuShares,omitempty"`
 }
 
 // Return current box info.
@@ -67,8 +67,8 @@ type Box struct {
 	SelectedVG       string   `json:"selectedVG"`
 	AuthUsername     string   `json:"authUsername"`
 	AuthPassword     string   `json:"authPassword"`
-	Swappiness       string   `json:"swappiness"`
-	CpuShares        string   `json:"cpuShares"`
+	Swappiness       int      `json:"swappiness"`
+	CpuShares        int      `json:"cpuShares"`
 	Runtime          string   `json:"-"`
 	SnapshotURL      string   `json:"-"`
 	PublicKeys       []string `json:"-"`
@@ -88,10 +88,10 @@ func BoxFromJSON(boxJSON []byte) (*Box, error) {
 
 // Prepare the box with useful default value
 func (b *Box) Prepare() {
-	if b.Swappiness == "" {
+	if b.Swappiness == 0 {
 		b.Swappiness = DEFAULT_SWAPPINESS
 	}
-	if b.CpuShares == "" {
+	if b.CpuShares == 0 {
 		b.CpuShares = DEFAULT_CPU_SHARES
 	}
 }

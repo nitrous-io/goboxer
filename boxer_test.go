@@ -159,7 +159,7 @@ func (s *BoxerSuite) TestCreateBox(c *C) {
 			Memory:     "256M",
 			DiskSpace:  "1G",
 			PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
-			CpuShares:  "2048",
+			CpuShares:  2048,
 		})
 		defer cleanContainer(stratName, "mclovins-container-1",
 			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
@@ -571,7 +571,7 @@ func (s *BoxerSuite) TestChangeBoxSpecsPass(c *C) {
 			Data: map[string]interface{}{
 				"memory":    "512M",
 				"diskSpace": "2048M",
-				"cpuShares": "2048",
+				"cpuShares": 2048,
 			},
 			Name: "mclovins-container-1",
 		})
