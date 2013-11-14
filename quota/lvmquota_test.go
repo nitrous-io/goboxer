@@ -78,23 +78,3 @@ func (s *LvmQuotaSuite) TestChangeQuotaLimit(c *C) {
 	c.Assert(info.Used, NotNil)
 	c.Assert((32*1024-info.Limit) >= 0, Equals, true)
 }
-
-func (s *LvmQuotaSuite) TestChangeInvalidLimit(c *C) {
-	q := LvmQuota{}
-	oldArg := QuotaArg{Id: "1", Name: "test-1", Path: "/var/lib/lxc/test_quota", Limit: "30M"}
-	newArg := QuotaArg{Id: "1", Name: "test-1", Path: "/var/lib/lxc/test_quota", Limit: "15M"}
-	q.SetLimit(oldArg)
-	defer q.RemoveLimit(oldArg)
-
-	// write 16M to test
-	exec.Command("dd", "if=/dev/zero", "of=/var/lib/lxc/test_quota/test_file",
-		"bs=1024", "count=16384").Run()
-
-	err := q.SetLimit(newArg)
-	c.Assert(err, NotNil)
-
-	info, _ := q.ViewLimit(oldArg)
-	c.Assert((info.Used-16*1024) > 0, Equals, true)
-	c.Assert((32*1024-info.Limit) >= 0, Equals, true)
-	c.Assert((16*1024-info.Limit) >= 0, Equals, false)
-}

@@ -972,6 +972,61 @@ func (s *BoxerSuite) TestChangeBoxSpecsFail(c *C) {
 	})
 }
 
+func (s *BoxerSuite) TestChangeBoxSpecsLvmFail(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+		if stratName != "lvm" {
+			return
+		}
+		cleanContainer(stratName, "mclovins-container-1",
+			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
+		defer cleanContainer(stratName, "mclovins-container-1",
+			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
+		s.Boxer.Receive(Message{
+			Id:         "testboxer",
+			BoxId:      "1",
+			Type:       "aio:create",
+			Name:       "mclovins-container",
+			Runtime:    "test",
+			Memory:     "256M",
+			DiskSpace:  "30M",
+			PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
+		})
+		quotaProvisioner := quota.Provisioner.GetQuota(stratValue.QuotaMethod)
+		root := "/var/lib/lxc/mclovins-container-1"
+		arg := quota.QuotaArg{
+			Id:   "1",
+			Disk: stratValue.SelectedDisk,
+			Path: root + "_delta",
+		}
+		limit, _ := quotaProvisioner.ViewLimit(arg)
+
+		// write 16M to test
+		exec.Command("dd", "if=/dev/zero",
+			"of=/var/lib/lxc/mclovins-container-1/test_file",
+			"bs=1024", "count=16384").Run()
+
+		message := s.Boxer.Receive(Message{
+			Id:       "testboxer",
+			BoxId:    "1",
+			Type:     "aio:configure",
+			DataType: "aio:configure:change_specs",
+			Data: map[string]interface{}{
+				"memory":    "512M",
+				"diskSpace": "15M",
+			},
+			Name: "mclovins-container-1",
+		})
+
+		c.Assert(message.Type, Equals, "aio:configured")
+		c.Assert(message.Success, Equals, false)
+
+		// it cant set the new quota
+		newLimit, _ := quotaProvisioner.ViewLimit(arg)
+		c.Assert(newLimit.Limit, Equals, limit.Limit)
+	})
+}
+
 func (s *BoxerSuite) TestChangeBoxSpecsInvalidParams(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
