@@ -2,8 +2,10 @@
 package quota
 
 import (
+	"fmt"
 	"github.com/action-io/goboxer/utils"
 	. "launchpad.net/gocheck"
+	"math"
 	"os"
 	"os/exec"
 )
@@ -39,7 +41,8 @@ func (s *LvmQuotaSuite) TestSetLimit(c *C) {
 	info, _ := q.ViewLimit(arg)
 	c.Assert(info.Used, NotNil)
 	// size of lvm is approximate
-	c.Assert((info.Limit-15*1024) >= 0, Equals, true)
+	fmt.Println(info.Limit)
+	c.Assert(math.Abs(float64(info.Limit-15*1024)) <= 1024, Equals, true)
 }
 
 func (s *LvmQuotaSuite) TestSetLimitMultipleTimes(c *C) {
@@ -51,7 +54,8 @@ func (s *LvmQuotaSuite) TestSetLimitMultipleTimes(c *C) {
 	defer q.RemoveLimit(arg)
 
 	info, _ := q.ViewLimit(arg)
-	c.Assert((info.Limit-15*1024) >= 0, Equals, true)
+	//c.Assert((info.Limit-15*1024) >= 0, Equals, true)
+	c.Assert(math.Abs(float64(info.Limit-15*1024)) <= 1024, Equals, true)
 }
 
 func (s *LvmQuotaSuite) TestRemoveQuotaLimit(c *C) {
