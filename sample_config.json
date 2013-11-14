@@ -1,7 +1,7 @@
 {
   "id": "46.137.252.155",
-  "disks": ["/lxc/disk1"],
-  "selectedDisk": "/lxc/disk1",
+  "disks": ["/lxc/disk2"],
+  "selectedDisk": "/lxc/disk2",
   "boxerChannel": "aio-boxer-channel",
   "coachChannel": "aio-coach-channel",
   "redisMQHost": "127.0.0.1",
@@ -10,10 +10,15 @@
   "redisStorePort": "6379",
   "pingHost": "127.0.0.1",
   "pingPort": "1339",
+  "mountMethod": "aufs",
+  "quotaMethod": "usrquota",
+  "cartmanHost": "127.0.0.1",
+  "cartmanPort": "65202",
   "runtimes": {
     "rails": "ruby_template",
     "nodejs": "nodejs_template",
     "django": "python_template",
-    "golang": "golang_template"
+    "golang": "golang_template",
+    "test": "test_container_template"
   }
 }

@@ -1,0 +1,47 @@
+#!/bin/bash
+
+[ -n "$DEBUG" ] && set -o xtrace
+set -o nounset
+# dont exit when there are some errors. Keep cleaning the test setup
+# set -o errexit
+shopt -s nullglob
+
+name=${1}
+disk=${2}
+uid=${3}
+vg=${4}
+lxc_root='/var/lib/lxc'
+quoted_lxc_root='\/var\/lib\/lxc\/'
+box_path=${lxc_root}/${name}
+box_delta_path=${lxc_root}/${name}_delta
+
+# use % as delimiter for sed so we dont have to escape /
+# we umount twice to remove the mount in /var/lib/lxc and /etc/fstab
+if [ -e "/dev/$vg/$name" ]; then
+  echo "Stopping the container ${name}"
+  lxc-stop -n ${name}
+  lxc-wait -n ${name} -s STOPPED
+
+  if [[ `cat /proc/mounts | grep "${box_path}\s\+"` ]]; then
+    echo 'Unmounting the container in cleanup tests'
+    umount ${box_path}
+  fi
+
+  if [[ `cat /proc/mounts | grep "${box_delta_path}\s\+"` ]]; then
+    echo 'Unmounting the container in cleanup tests'
+    umount ${box_delta_path}
+  fi
+
+  echo 'Deleting all remnants of the container'
+  rm -rf ${box_path}
+  rm -rf ${box_delta_path}
+
+  echo 'Flushing IPTables'
+  iptables -t nat -F
+
+  # remove the logical volume
+  echo 'Removing the logical volume'
+  lvchange -a n /dev/$vg/$name
+  # it may be removed before, so we ignore the errors here
+  lvremove -f /dev/$vg/$name || true
+fi

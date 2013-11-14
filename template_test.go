@@ -34,3 +34,27 @@ func (s *TemplateSuite) TestNetworkTemplate(c *C) {
 	}
 	DoesContain(c, checkContainsContent)
 }
+
+func (s *TemplateSuite) TestHostsTemplate(c *C) {
+	box := &Box{
+		Id:               "1",
+		Name:             "mclovins-container",
+		Runtime:          "test",
+		Template:         "test_container_template",
+		Memory:           "256M",
+		DiskSpace:        "1G",
+		Ip:               "192.168.254.2",
+		Gateway:          "192.168.254.1",
+		NetworkInterface: "br-lxc-254",
+		Port:             10000,
+	}
+	tmpFile, _ := ioutil.TempFile("/tmp", "hosts")
+	defer os.Remove(tmpFile.Name())
+	HostsTemplateCompiled.Execute(tmpFile, box)
+
+	checkContainsContent := map[string][]string{}
+	checkContainsContent[tmpFile.Name()] = []string{
+		"127.0.1.1 mclovins-container-1",
+	}
+	DoesContain(c, checkContainsContent)
+}

@@ -4,6 +4,7 @@ import (
 	"io/ioutil"
 	. "launchpad.net/gocheck"
 	"os"
+	"os/exec"
 	"strings"
 	"testing"
 )
@@ -58,4 +59,9 @@ func DoesNotContain(c *C, checkNotContainsContent map[string][]string) {
 					fileContent))
 		}
 	}
+}
+
+func run(cmd string, args ...string) error {
+	command := exec.Command(cmd, args...)
+	return command.Run()
 }

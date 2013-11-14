@@ -5,7 +5,7 @@
 package goboxer
 
 import (
-	"encoding/json"
+	"github.com/action-io/goboxer/utils"
 	"github.com/garyburd/redigo/redis"
 	"strconv"
 )
@@ -70,7 +70,7 @@ func (rp *ResourcePool) UpdateState(box *Box, state string) error {
 func (rp *ResourcePool) SaveBox(box *Box) error {
 	conn := rp.Pool.Get()
 	defer conn.Close()
-	json, err := ToJSON(box)
+	json, err := utils.ToJSON(box)
 	if err != nil {
 		return err
 	}
@@ -121,13 +121,9 @@ func getBoxNames(conn redis.Conn) ([]string, error) {
 }
 
 func findBox(containerName string, conn redis.Conn) (*Box, error) {
-	box := &Box{}
 	boxjson, err := redis.Bytes(conn.Do("HGET", "aio:boxes", containerName))
 	if err != nil {
 		return nil, err
 	}
-	if err := json.Unmarshal([]byte(boxjson), box); err != nil {
-		return nil, err
-	}
-	return box, nil
+	return BoxFromJSON([]byte(boxjson))
 }

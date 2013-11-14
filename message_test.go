@@ -2,8 +2,8 @@ package goboxer
 
 import (
 	"encoding/json"
+	"github.com/action-io/goboxer/utils"
 	. "launchpad.net/gocheck"
-	//"reflect"
 	"strings"
 )
 
@@ -13,7 +13,7 @@ var _ = Suite(&MessageSuite{})
 
 func (s *MessageSuite) TestToJSONOmitEmpty(c *C) {
 	m := Message{Id: "1"}
-	json, _ := ToJSON(m)
+	json, _ := utils.ToJSON(m)
 	res := map[string]bool{
 		"id":          true,
 		"boxId":       false,

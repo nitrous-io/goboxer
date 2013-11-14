@@ -1,4 +1,4 @@
-package goboxer
+package utils
 
 import (
 	"bufio"
@@ -9,10 +9,6 @@ import (
 	"os/exec"
 	"strings"
 )
-
-func Debug(a ...interface{}) {
-	fmt.Println(a...)
-}
 
 // Convert a struct to its json string representation
 func ToJSON(obj interface{}) (string, error) {
@@ -29,6 +25,32 @@ func Appendln(location, content string) error {
 	defer f.Close()
 	_, err = f.WriteString("\n" + content)
 	return err
+}
+
+// Append the content to location unless the location file already had the
+// content
+func AppendlnUnlessContain(location, content string) error {
+	isContain, err := FileContains(location, content)
+	if os.IsNotExist(err) {
+		if _, err = os.Create(location); err != nil {
+			return err
+		}
+		return Appendln(location, content)
+	} else if err != nil {
+		return err
+	} else if !isContain {
+		return Appendln(location, content)
+	}
+	return nil
+}
+
+// check if content of the file as the current content
+func FileContains(location, content string) (bool, error) {
+	fileContent, err := ioutil.ReadFile(location)
+	if err != nil {
+		return false, err
+	}
+	return strings.Contains(string(fileContent), content), nil
 }
 
 func DeleteLineContains(file, pattern string) error {
@@ -54,7 +76,7 @@ func DeleteLineContains(file, pattern string) error {
 func RunCommand(cmd string, args ...string) error {
 	command := exec.Command(cmd, args...)
 	if stdout, err := command.CombinedOutput(); err != nil {
-		logger.Printf("Command %v failed with output %s", command, string(stdout))
+		fmt.Printf("Command %v failed with output %s\n", command, string(stdout))
 		return err
 	}
 	return nil

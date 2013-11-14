@@ -26,6 +26,7 @@ type Message struct {
 	DiskSpace   string   `json:"diskSpace,omitempty"`
 	PublicKeys  []string `json:"publicKeys,omitempty"`
 	SshKeyPair  []string `json:"sshKeyPair,omitempty"`
+	CpuShares   int      `json:"cpuShares,omitempty"`
 
 	// for normal message
 	DataType string      `json:"dataType,omitempty"`
@@ -35,3 +36,5 @@ type Message struct {
 	// For info message
 	Info BoxInfo `json:"info,omitempty"`
 }
+
+type MessageChannel chan Message

@@ -1,6 +1,7 @@
 package goboxer
 
 import (
+	"github.com/action-io/goboxer/utils"
 	. "launchpad.net/gocheck"
 )
 
@@ -17,7 +18,7 @@ func (s *CoachListenerSuite) TestDispatchIgnoreBoxer(c *C) {
 		BoxId: "1",
 		Type:  "aio:invalid_message",
 	}
-	json, _ := ToJSON(message)
+	json, _ := utils.ToJSON(message)
 	_, err := listener.Dispatch([]byte(json))
 	c.Assert(err, NotNil)
 	c.Assert(err.Error(), Equals, "NotHandle")
