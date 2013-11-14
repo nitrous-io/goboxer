@@ -9,13 +9,8 @@ import (
 	"time"
 )
 
-func runCommand(cmd string, args ...string) error {
-	command := exec.Command(cmd, args...)
-	if stdout, err := command.CombinedOutput(); err != nil {
-		fmt.Printf("Command %v failed with output %s\n", command, string(stdout))
-		return err
-	}
-	return nil
+func mount(source string, target string, fstype string, flags uintptr, data string) (err error) {
+	return syscall.Mount(source, target, fstype, flags, data)
 }
 
 func umount(target string) error {
@@ -33,7 +28,7 @@ func Mount(source, target, fstype string) (err error) {
 	if mounted {
 		return nil
 	}
-	return runCommand("mount", "-t", fstype, source, target)
+	return mount(source, target, fstype, 0, "")
 }
 
 func Union(unionType, target, upper, lower string) (err error) {
@@ -61,8 +56,7 @@ func Union(unionType, target, upper, lower string) (err error) {
 	} else {
 		return fmt.Errorf("%s is not a supported union type", unionType)
 	}
-	return runCommand("mount", "-t", unionType, "-o", mountOptions,
-		"none", target)
+	return mount("none", target, unionType, 0, mountOptions)
 }
 
 func MountBind(source, target string) error {
@@ -79,7 +73,7 @@ func MountBind(source, target string) error {
 	if mounted {
 		return nil
 	}
-	return runCommand("mount", "--bind", source, target)
+	return mount(source, target, "", syscall.MS_BIND, "")
 }
 
 func Symlink(source, target string) error {
