@@ -1,32 +1,11 @@
 ## Vagrant setup
-- Requires 'vagrant-vbguest'
-```
-vagrant plugin install vagrant-vbguest
-```
+- Requires 'vagrant-vbguest': `vagrant plugin install vagrant-vbguest`
 
 ## Setup development environment
 
-- Get go1.1.1 from golang.org as ubuntu oneiric version seems to be outdated
-  ```
-  mkdir -p ~/golang-src
-
-  cd ~/golang-src
-
-  wget https://go.googlecode.com/files/go1.1.1.linux-amd64.tar.gz
-
-  tar -xzf go1.1.1.linux-amd64.tar.gz
-
-  sudo mv go /usr/local
-  ```
-- add /usr/local/go/bin into your PATH
-  ```
-  export PATH=$PATH:/usr/local/go/bin
-  ```
-- go get -v github.com/action-io/goboxer/...
-
-## Dependencies
-
-- go version go1.1.1 linux/amd64
-- lxc
-- redigo
-- gocheck
+- setup `GOBOXER_INTERFACE` env to a different ip than 33.33.33.10
+- setup the vagrant machine: `vagrant up`
+- glare at the screen angrily as the provisioning will take some time
+- Login to the box: `vagrant up`
+- If you havent setup s3cmd, now is a good time to do that
+- change to goboxer directory and run `make test`. *Ideally* it should pass !!!
