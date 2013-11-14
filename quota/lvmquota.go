@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"github.com/action-io/goboxer/mount"
+	"github.com/action-io/goboxer/utils"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -15,13 +16,7 @@ type LvmQuota struct{}
 
 func (q LvmQuota) SetLimit(arg QuotaArg) error {
 	lv := "/dev/aio_boxhost/" + arg.Name
-	stdout, err := exec.Command("lvresize", lv, "--size", arg.Limit,
-		"--resizefs").CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("LvmQuota: failed to set limit: %v, %v",
-			string(stdout), err)
-	}
-	return nil
+	return utils.RunCommand("lvresize", lv, "--size", arg.Limit, "--resizefs")
 }
 
 // just assume success here as we want to remove entire lvm volume

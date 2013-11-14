@@ -5,6 +5,7 @@
 package goboxer
 
 import (
+	"github.com/action-io/goboxer/utils"
 	"github.com/garyburd/redigo/redis"
 	"strconv"
 )
@@ -69,7 +70,7 @@ func (rp *ResourcePool) UpdateState(box *Box, state string) error {
 func (rp *ResourcePool) SaveBox(box *Box) error {
 	conn := rp.Pool.Get()
 	defer conn.Close()
-	json, err := ToJSON(box)
+	json, err := utils.ToJSON(box)
 	if err != nil {
 		return err
 	}

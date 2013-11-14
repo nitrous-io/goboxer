@@ -2,6 +2,7 @@ package goboxer
 
 import (
 	"encoding/json"
+	"github.com/action-io/goboxer/utils"
 	. "launchpad.net/gocheck"
 )
 
@@ -19,7 +20,7 @@ func (s *BoxSuite) TestMarshal(c *C) {
 		Id   string `json:"id"`
 		Port int    `json:"port"`
 	}{"1", 10000}
-	b, _ := ToJSON(testData)
+	b, _ := utils.ToJSON(testData)
 	box := &Box{}
 	json.Unmarshal([]byte(b), box)
 	c.Assert(box.Port, Equals, 10000)

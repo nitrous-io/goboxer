@@ -2,6 +2,7 @@ package quota
 
 import (
 	"fmt"
+	"github.com/action-io/goboxer/utils"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -19,10 +20,10 @@ func (q PrjQuota) SetLimit(arg QuotaArg) error {
 		return fmt.Errorf("Current usage %d exceeded new limit %d",
 			quotaInfo.Used, newLimit)
 	}
-	if err := AppendlnUnlessContain("/etc/projid", arg.Name+":"+arg.Id); err != nil {
+	if err := utils.AppendlnUnlessContain("/etc/projid", arg.Name+":"+arg.Id); err != nil {
 		return err
 	}
-	if err := AppendlnUnlessContain("/etc/projects", arg.Id+":"+arg.Path); err != nil {
+	if err := utils.AppendlnUnlessContain("/etc/projects", arg.Id+":"+arg.Path); err != nil {
 		return err
 	}
 	// assume that xfs_quota works here
@@ -34,10 +35,10 @@ func (q PrjQuota) SetLimit(arg QuotaArg) error {
 }
 
 func (q PrjQuota) RemoveLimit(arg QuotaArg) error {
-	if err := DeleteLineContains("/etc/projid", arg.Name+":"+arg.Id); err != nil {
+	if err := utils.DeleteLineContains("/etc/projid", arg.Name+":"+arg.Id); err != nil {
 		return err
 	}
-	if err := DeleteLineContains("/etc/projects", arg.Path); err != nil {
+	if err := utils.DeleteLineContains("/etc/projects", arg.Path); err != nil {
 		return err
 	}
 	xfsquota("limit -p bhard=0 "+arg.Id, arg.Disk)

@@ -2,6 +2,7 @@
 package quota
 
 import (
+	"github.com/action-io/goboxer/utils"
 	. "launchpad.net/gocheck"
 	"os"
 	"os/exec"
@@ -12,20 +13,20 @@ type LvmQuotaSuite struct{}
 var _ = Suite(&LvmQuotaSuite{})
 
 func (s *LvmQuotaSuite) SetUpTest(c *C) {
-	RunCommand("umount", "/var/lib/lxc/test_quota")
-	RunCommand("lvremove", "-f", "aio_boxhost/test-1")
-	RunCommand("lvcreate", "-T", "aio_boxhost/boxes", "-V", "10M", "-n",
+	utils.RunCommand("umount", "/var/lib/lxc/test_quota")
+	utils.RunCommand("lvremove", "-f", "aio_boxhost/test-1")
+	utils.RunCommand("lvcreate", "-T", "aio_boxhost/boxes", "-V", "10M", "-n",
 		"test-1")
 	os.RemoveAll("/var/lib/lxc/test_quota")
 	os.MkdirAll("/var/lib/lxc/test_quota", 0644)
-	RunCommand("mkfs.ext4", "/dev/aio_boxhost/test-1")
-	RunCommand("mount", "-t", "ext4", "/dev/aio_boxhost/test-1",
+	utils.RunCommand("mkfs.ext4", "/dev/aio_boxhost/test-1")
+	utils.RunCommand("mount", "-t", "ext4", "/dev/aio_boxhost/test-1",
 		"/var/lib/lxc/test_quota")
 }
 
 func (s *LvmQuotaSuite) TearDownTest(c *C) {
-	RunCommand("umount", "/var/lib/lxc/test_quota")
-	RunCommand("lvremove", "-f", "aio_boxhost/test-1")
+	utils.RunCommand("umount", "/var/lib/lxc/test_quota")
+	utils.RunCommand("lvremove", "-f", "aio_boxhost/test-1")
 	os.RemoveAll("/var/lib/lxc/test_quota")
 }
 

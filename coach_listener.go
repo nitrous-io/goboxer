@@ -2,6 +2,7 @@ package goboxer
 
 import (
 	"encoding/json"
+	"github.com/action-io/goboxer/utils"
 	"github.com/garyburd/redigo/redis"
 )
 
@@ -33,7 +34,7 @@ func (c *CoachListener) Listen() {
 					return
 				}
 			}
-			if messageJSON, err = ToJSON(returnedMessage); err != nil {
+			if messageJSON, err = utils.ToJSON(returnedMessage); err != nil {
 				logger.Println("ERROR: ToJSON ", err)
 				c.SendInvalidParam()
 				return
@@ -67,7 +68,7 @@ func (c *CoachListener) Dispatch(data []byte) (message Message, err error) {
 // Advertise itself to Coach
 func (c *CoachListener) Advertise() {
 	message := c.Boxer.NewAdvertiseMessage()
-	messageJSON, err := ToJSON(message)
+	messageJSON, err := utils.ToJSON(message)
 	if err != nil {
 		c.SendInvalidParam()
 		return
@@ -77,7 +78,7 @@ func (c *CoachListener) Advertise() {
 
 func (c *CoachListener) SendInvalidParam() {
 	message := c.Boxer.NewInvalidParamMessage()
-	messageJSON, err := ToJSON(message)
+	messageJSON, err := utils.ToJSON(message)
 	if err != nil {
 		c.replyCoach("{\"success\":false}")
 		return

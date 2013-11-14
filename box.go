@@ -9,6 +9,7 @@ import (
 	"github.com/action-io/goboxer/lxc"
 	"github.com/action-io/goboxer/mount"
 	"github.com/action-io/goboxer/quota"
+	"github.com/action-io/goboxer/utils"
 	"io/ioutil"
 	"os"
 	"path"
@@ -281,11 +282,11 @@ func (b *Box) TotalMemory() string {
 }
 
 func (b *Box) AddPublicKey(keys ...string) error {
-	return Appendln(b.PublicKeysPath(), strings.Join(keys, "\n"))
+	return utils.Appendln(b.PublicKeysPath(), strings.Join(keys, "\n"))
 }
 
 func (b *Box) RemovePublicKey(key string) error {
-	return DeleteLineContains(b.PublicKeysPath(), key)
+	return utils.DeleteLineContains(b.PublicKeysPath(), key)
 }
 
 func (b *Box) SetQuota() error {
@@ -495,18 +496,18 @@ func (b *Box) SetEnv(data map[string]interface{}) error {
 	newEnv := []string{}
 	for key, value := range data {
 		// FIXME: probably going through the file once and remove all is faster
-		if err := DeleteLineContains(b.EnvPath(), key+"="); err != nil {
+		if err := utils.DeleteLineContains(b.EnvPath(), key+"="); err != nil {
 			return err
 		}
 		newEnv = append(newEnv, fmt.Sprintf("%s=%s", key, value.(string)))
 	}
-	return Appendln(b.EnvPath(), strings.Join(newEnv, "\n"))
+	return utils.Appendln(b.EnvPath(), strings.Join(newEnv, "\n"))
 }
 
 // Remove env variables from the box
 func (b *Box) RemoveEnv(data []string) (err error) {
 	for _, value := range data {
-		if err = DeleteLineContains(b.EnvPath(), value+"="); err != nil {
+		if err = utils.DeleteLineContains(b.EnvPath(), value+"="); err != nil {
 			return err
 		}
 	}
@@ -578,13 +579,13 @@ func (b *Box) setPermission() error {
 	gid := b.Gid()
 	permission := fmt.Sprintf("%s:%s", b.Uid(), b.Gid())
 	root := b.RootFS()
-	if err := RunCommand("chroot", root, "usermod", "-u", uid, "action"); err != nil {
+	if err := utils.RunCommand("chroot", root, "usermod", "-u", uid, "action"); err != nil {
 		return err
 	}
-	if err := RunCommand("chroot", root, "groupmod", "-g", gid, "action"); err != nil {
+	if err := utils.RunCommand("chroot", root, "groupmod", "-g", gid, "action"); err != nil {
 		return err
 	}
-	return RunCommand("chroot", root, "chown", "-R", permission, "/home/action")
+	return utils.RunCommand("chroot", root, "chown", "-R", permission, "/home/action")
 }
 
 func (b *Box) setPortForwarding() error {
@@ -675,7 +676,7 @@ func (b *Box) setDefaultKeyPair() error {
 	if _, err := os.Stat(sshKeyFile); os.IsNotExist(err) {
 		sshKeygen := fmt.Sprintf("ssh-keygen -N '' -f %s -b 1024 -t rsa -q",
 			sshKeyFile)
-		if err := RunCommand("/bin/sh", "-c", sshKeygen); err != nil {
+		if err := utils.RunCommand("/bin/sh", "-c", sshKeygen); err != nil {
 			return err
 		}
 	} else {

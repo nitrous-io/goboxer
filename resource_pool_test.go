@@ -1,6 +1,7 @@
 package goboxer
 
 import (
+	"github.com/action-io/goboxer/utils"
 	"github.com/garyburd/redigo/redis"
 	. "launchpad.net/gocheck"
 	"time"
@@ -97,9 +98,9 @@ func makeTestBox(id, state string) *Box {
 func (s *ResourcePoolSuite) TestFindRunningBoxes(c *C) {
 	conn := s.pool.Get()
 	defer conn.Close()
-	box1json, _ := ToJSON(makeTestBox("1", "running"))
-	box2json, _ := ToJSON(makeTestBox("2", "stopped"))
-	box3json, _ := ToJSON(makeTestBox("3", "running"))
+	box1json, _ := utils.ToJSON(makeTestBox("1", "running"))
+	box2json, _ := utils.ToJSON(makeTestBox("2", "stopped"))
+	box3json, _ := utils.ToJSON(makeTestBox("3", "running"))
 	conn.Do("HSET", "aio:boxes", "test-1", box1json)
 	conn.Do("HSET", "aio:boxes", "test-2", box2json)
 	conn.Do("HSET", "aio:boxes", "test-3", box3json)
