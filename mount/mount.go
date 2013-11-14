@@ -90,19 +90,22 @@ func Unmount(mountType, target string) error {
 			fmt.Printf("[warning]: couldn't run auplink before unmount: %s", err)
 		}
 	}
+	// if the target is not mounted, do not perform unmount here
+	mounted, err := Mounted(target)
+	if err != nil {
+		return err
+	}
+	if !mounted {
+		return remove(target)
+	}
 	if err := umount(target); err != nil {
 		return err
 	}
 	// Even though we just unmounted the filesystem, AUFS will prevent deleting the mntpoint
 	// for some time. We'll just keep retrying until it succeeds.
 	for retries := 0; retries < 1000; retries++ {
-		err := os.RemoveAll(target)
+		err := remove(target)
 		if err == nil {
-			// rm mntpoint succeeded
-			return nil
-		}
-		if os.IsNotExist(err) {
-			// mntpoint doesn't exist anymore. Success.
 			return nil
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -125,4 +128,17 @@ func Mounted(mountpoint string) (bool, error) {
 	mntpointSt := mntpoint.Sys().(*syscall.Stat_t)
 	parentSt := parent.Sys().(*syscall.Stat_t)
 	return mntpointSt.Dev != parentSt.Dev, nil
+}
+
+func remove(target string) error {
+	err := os.RemoveAll(target)
+	if err == nil {
+		// rm mntpoint succeeded
+		return nil
+	}
+	if os.IsNotExist(err) {
+		// mntpoint doesn't exist anymore. Success.
+		return nil
+	}
+	return err
 }

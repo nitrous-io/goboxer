@@ -14,17 +14,13 @@ const FS_TYPE = "ext4"
 type LvmQuota struct{}
 
 func (q LvmQuota) SetLimit(arg QuotaArg) error {
-	quotaInfo, err := q.ViewLimit(arg)
-	if err != nil {
-		return err
-	}
-	newLimit := ConvertValueUnitToByte(ParseValueUnit(arg.Limit))
-	if quotaInfo.Used >= newLimit {
-		return fmt.Errorf("Current usage %d exceeded new limit %d",
-			quotaInfo.Used, newLimit)
-	}
 	lv := "/dev/aio_boxhost/" + arg.Name
-	exec.Command("lvresize", lv, "--size", arg.Limit, "--resizefs").Run()
+	stdout, err := exec.Command("lvresize", lv, "--size", arg.Limit,
+		"--resizefs").CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("LvmQuota: failed to set limit: %v, %v",
+			string(stdout), err)
+	}
 	return nil
 }
 

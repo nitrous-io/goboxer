@@ -535,7 +535,7 @@ func (s *BoxerSuite) TestRemovePublicKey(c *C) {
 	})
 }
 
-func (s *BoxerSuite) TestChangeBoxSpecs(c *C) {
+func (s *BoxerSuite) TestChangeBoxSpecsPass(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
 		cleanContainer(stratName, "mclovins-container-1",
@@ -945,6 +945,7 @@ func (s *BoxerSuite) TestChangeBoxSpecsFail(c *C) {
 		c.Assert(message.Success, Equals, false)
 		c.Assert(message.DataType, Equals, "aio:configured:change_specs")
 		data := (message.Data).(map[string]interface{})
+
 		currentMemory, _ := (data["memory"]).(string)
 		currentDiskSpace, _ := (data["diskSpace"]).(string)
 		// memory is set successfully

@@ -288,12 +288,34 @@ func (b *Box) RemovePublicKey(key string) error {
 }
 
 func (b *Box) SetQuota() error {
-	b.boxer.Lock()
-	defer b.boxer.Unlock()
 	defer logger.LogDuration(
 		fmt.Sprintf("%s:SetQuota", b.ContainerName()),
 	)(time.Now())
-	return b.quota().SetLimit(b.quotaArg())
+	arg := b.quotaArg()
+	q := b.quota()
+	if b.getMountMethod() == "lvm" {
+		// for lvm, we will check free space outside of the quota methods because
+		// we need the volume to be mounted to check limit, and then unmounted to
+		// resize
+		// FIXME: we assume that the box is running at this point
+		quotaInfo, err := q.ViewLimit(arg)
+		if err != nil {
+			return err
+		}
+		newLimit := quota.ConvertValueUnitToByte(quota.ParseValueUnit(arg.Limit))
+		logger.Println(quotaInfo, newLimit)
+		if quotaInfo.Used >= newLimit {
+			return fmt.Errorf("Current usage %d exceeded new limit %d",
+				quotaInfo.Used, newLimit)
+		}
+		if err := b.Stop(); err != nil {
+			return fmt.Errorf("%s:SetQuota failed to stop %v",
+				b.ContainerName(), err)
+		}
+	}
+	b.boxer.Lock()
+	defer b.boxer.Unlock()
+	return q.SetLimit(arg)
 }
 
 func (b *Box) UnsetQuota() error {

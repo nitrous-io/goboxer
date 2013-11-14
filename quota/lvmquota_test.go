@@ -24,8 +24,9 @@ func (s *LvmQuotaSuite) SetUpTest(c *C) {
 }
 
 func (s *LvmQuotaSuite) TearDownTest(c *C) {
-	// RunCommand("umount", "/var/lib/lxc/test_quota")
-	// RunCommand("lvremove", "-f", "aio_boxhost/test-1")
+	RunCommand("umount", "/var/lib/lxc/test_quota")
+	RunCommand("lvremove", "-f", "aio_boxhost/test-1")
+	os.RemoveAll("/var/lib/lxc/test_quota")
 }
 
 func (s *LvmQuotaSuite) TestSetLimit(c *C) {
@@ -36,7 +37,8 @@ func (s *LvmQuotaSuite) TestSetLimit(c *C) {
 	defer q.RemoveLimit(arg)
 	info, _ := q.ViewLimit(arg)
 	c.Assert(info.Used, NotNil)
-	c.Assert((16*1024-info.Limit) >= 0, Equals, true)
+	// size of lvm is approximate
+	c.Assert((info.Limit-15*1024) >= 0, Equals, true)
 }
 
 func (s *LvmQuotaSuite) TestSetLimitMultipleTimes(c *C) {
@@ -48,7 +50,7 @@ func (s *LvmQuotaSuite) TestSetLimitMultipleTimes(c *C) {
 	defer q.RemoveLimit(arg)
 
 	info, _ := q.ViewLimit(arg)
-	c.Assert((16*1024-info.Limit) >= 0, Equals, true)
+	c.Assert((info.Limit-15*1024) >= 0, Equals, true)
 }
 
 func (s *LvmQuotaSuite) TestRemoveQuotaLimit(c *C) {
