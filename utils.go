@@ -3,16 +3,11 @@ package goboxer
 import (
 	"bufio"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"strings"
 )
-
-func Debug(a ...interface{}) {
-	fmt.Println(a...)
-}
 
 // Convert a struct to its json string representation
 func ToJSON(obj interface{}) (string, error) {

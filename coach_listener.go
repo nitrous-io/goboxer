@@ -42,7 +42,7 @@ func (c *CoachListener) Listen() {
 			c.replyCoach(messageJSON)
 		}()
 	case redis.Subscription:
-		Debug("ok. subscribed")
+		logger.Println("ok. subscribed")
 		if msg.Count == 0 {
 			return
 		}
