@@ -165,6 +165,11 @@ func CreateBoxHandler(m Message, boxer *Boxer) Message {
 	box.Prepare()
 	if err := box.Create(); err != nil {
 		logger.Printf("ERROR: Fail to create %v, err: %v\n", box, err)
+		// tries to destroy the box
+		if err = box.Destroy(); err != nil {
+			logger.Printf("ERROR: Fail to destroy %v, err: %v\n", box, err)
+		}
+		logger.Printf("%s")
 		boxer.ResourcePool.Release(resource.Ip)
 		msg.Success = false
 		return msg
