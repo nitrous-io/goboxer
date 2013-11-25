@@ -12,7 +12,7 @@ var _ = Suite(&TemplateSuite{})
 
 func (s *TemplateSuite) TestNetworkTemplate(c *C) {
 	box := &Box{
-		Id:               "1",
+		Id:               1,
 		Name:             "mclovins-container",
 		Runtime:          "test",
 		Template:         "test_container_template",
@@ -37,7 +37,7 @@ func (s *TemplateSuite) TestNetworkTemplate(c *C) {
 
 func (s *TemplateSuite) TestHostsTemplate(c *C) {
 	box := &Box{
-		Id:               "1",
+		Id:               1,
 		Name:             "mclovins-container",
 		Runtime:          "test",
 		Template:         "test_container_template",

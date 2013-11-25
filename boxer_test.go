@@ -18,6 +18,7 @@ import (
 	"net/url"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -115,12 +116,12 @@ func (s *BoxerSuite) testEachStrategy(c *C, test testFunction) {
 	}
 }
 
-func (s *BoxerSuite) deleteBox(id, name string) Message {
+func (s *BoxerSuite) deleteBox(id int, name string) Message {
 	message := s.Boxer.Receive(Message{
 		Type:  "aio:destroy",
 		Id:    "testboxer",
 		BoxId: id,
-		Name:  name + "-" + id,
+		Name:  name + "-" + strconv.Itoa(id),
 	})
 	return message
 }
@@ -152,7 +153,7 @@ func (s *BoxerSuite) TestCreateBox(c *C) {
 			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
 		message := s.Boxer.Receive(Message{
 			Id:         "testboxer",
-			BoxId:      "1",
+			BoxId:      1,
 			Type:       "aio:create",
 			Name:       "mclovins-container",
 			Runtime:    "test",
@@ -166,7 +167,7 @@ func (s *BoxerSuite) TestCreateBox(c *C) {
 
 		c.Assert(message.Type, Equals, "aio:created")
 		c.Assert(message.Id, Equals, "testboxer")
-		c.Assert(message.BoxId, Equals, "1")
+		c.Assert(message.BoxId, Equals, 1)
 		c.Assert(message.Port, Equals, 10002)
 		c.Assert(message.Success, Equals, true)
 
@@ -236,7 +237,7 @@ func (s *BoxerSuite) TestCreateWithDefaultCpuShares(c *C) {
 			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
 		s.Boxer.Receive(Message{
 			Id:         "testboxer",
-			BoxId:      "1",
+			BoxId:      1,
 			Type:       "aio:create",
 			Name:       "mclovins-container",
 			Runtime:    "test",
@@ -264,7 +265,7 @@ func (s *BoxerSuite) TestStop(c *C) {
 			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
 		s.Boxer.Receive(Message{
 			Id:         "testboxer",
-			BoxId:      "1",
+			BoxId:      1,
 			Type:       "aio:create",
 			Name:       "mclovins-container",
 			Runtime:    "test",
@@ -274,7 +275,7 @@ func (s *BoxerSuite) TestStop(c *C) {
 		})
 		message := s.Boxer.Receive(Message{
 			Id:    "testboxer",
-			BoxId: "1",
+			BoxId: 1,
 			Type:  "aio:stop",
 			Name:  "mclovins-container-1",
 		})
@@ -283,7 +284,7 @@ func (s *BoxerSuite) TestStop(c *C) {
 
 		c.Assert(message.Type, Equals, "aio:stopped")
 		c.Assert(message.Id, Equals, "testboxer")
-		c.Assert(message.BoxId, Equals, "1")
+		c.Assert(message.BoxId, Equals, 1)
 		c.Assert(message.Success, Equals, true)
 
 		AssertLxcState(c, "mclovins-container-1", "STOPPED")
@@ -303,7 +304,7 @@ func (s *BoxerSuite) TestStart(c *C) {
 			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
 		s.Boxer.Receive(Message{
 			Id:         "testboxer",
-			BoxId:      "1",
+			BoxId:      1,
 			Type:       "aio:create",
 			Name:       "mclovins-container",
 			Runtime:    "test",
@@ -315,14 +316,14 @@ func (s *BoxerSuite) TestStart(c *C) {
 			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
 		message := s.Boxer.Receive(Message{
 			Id:    "testboxer",
-			BoxId: "1",
+			BoxId: 1,
 			Type:  "aio:start",
 			Name:  "mclovins-container-1",
 		})
 
 		c.Assert(message.Type, Equals, "aio:started")
 		c.Assert(message.Id, Equals, "testboxer")
-		c.Assert(message.BoxId, Equals, "1")
+		c.Assert(message.BoxId, Equals, 1)
 		c.Assert(message.Success, Equals, true)
 
 		AssertLxcState(c, "mclovins-container-1", "RUNNING")
@@ -342,7 +343,7 @@ func (s *BoxerSuite) TestDestroy(c *C) {
 			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
 		s.Boxer.Receive(Message{
 			Id:         "testboxer",
-			BoxId:      "1",
+			BoxId:      1,
 			Type:       "aio:create",
 			Name:       "mclovins-container",
 			Runtime:    "test",
@@ -354,14 +355,14 @@ func (s *BoxerSuite) TestDestroy(c *C) {
 			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
 		message := s.Boxer.Receive(Message{
 			Id:    "testboxer",
-			BoxId: "1",
+			BoxId: 1,
 			Type:  "aio:destroy",
 			Name:  "mclovins-container-1",
 		})
 
 		c.Assert(message.Type, Equals, "aio:destroyed")
 		c.Assert(message.Id, Equals, "testboxer")
-		c.Assert(message.BoxId, Equals, "1")
+		c.Assert(message.BoxId, Equals, 1)
 		c.Assert(message.Success, Equals, true)
 
 		AssertLxcState(c, "mclovins-container-1", "STOPPED")
@@ -402,7 +403,7 @@ func (s *BoxerSuite) TestRestart(c *C) {
 			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
 		s.Boxer.Receive(Message{
 			Id:         "testboxer",
-			BoxId:      "1",
+			BoxId:      1,
 			Type:       "aio:create",
 			Name:       "mclovins-container",
 			Runtime:    "test",
@@ -414,14 +415,14 @@ func (s *BoxerSuite) TestRestart(c *C) {
 			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
 		message := s.Boxer.Receive(Message{
 			Id:    "testboxer",
-			BoxId: "1",
+			BoxId: 1,
 			Type:  "aio:restart",
 			Name:  "mclovins-container-1",
 		})
 
 		c.Assert(message.Type, Equals, "aio:restarted")
 		c.Assert(message.Id, Equals, "testboxer")
-		c.Assert(message.BoxId, Equals, "1")
+		c.Assert(message.BoxId, Equals, 1)
 		c.Assert(message.Success, Equals, true)
 
 		AssertLxcState(c, "mclovins-container-1", "RUNNING")
@@ -452,7 +453,7 @@ func (s *BoxerSuite) TestAddPublicKey(c *C) {
 			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
 		s.Boxer.Receive(Message{
 			Id:         "testboxer",
-			BoxId:      "1",
+			BoxId:      1,
 			Type:       "aio:create",
 			Name:       "mclovins-container",
 			Runtime:    "test",
@@ -465,7 +466,7 @@ func (s *BoxerSuite) TestAddPublicKey(c *C) {
 
 		message := s.Boxer.Receive(Message{
 			Id:       "testboxer",
-			BoxId:    "1",
+			BoxId:    1,
 			Type:     "aio:configure",
 			DataType: "aio:configure:add_public_key",
 			Data:     "ssh-rsa publickey",
@@ -475,7 +476,7 @@ func (s *BoxerSuite) TestAddPublicKey(c *C) {
 		c.Assert(message.Type, Equals, "aio:configured")
 		c.Assert(message.DataType, Equals, "aio:configured:add_public_key")
 		c.Assert(message.Id, Equals, "testboxer")
-		c.Assert(message.BoxId, Equals, "1")
+		c.Assert(message.BoxId, Equals, 1)
 		c.Assert(message.Success, Equals, true)
 
 		root := "/var/lib/lxc/mclovins-container-1"
@@ -499,7 +500,7 @@ func (s *BoxerSuite) TestRemovePublicKey(c *C) {
 			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
 		s.Boxer.Receive(Message{
 			Id:         "testboxer",
-			BoxId:      "1",
+			BoxId:      1,
 			Type:       "aio:create",
 			Name:       "mclovins-container",
 			Runtime:    "test",
@@ -512,7 +513,7 @@ func (s *BoxerSuite) TestRemovePublicKey(c *C) {
 
 		message := s.Boxer.Receive(Message{
 			Id:       "testboxer",
-			BoxId:    "1",
+			BoxId:    1,
 			Type:     "aio:configure",
 			DataType: "aio:configure:remove_public_key",
 			Data:     "ssh-rsa QWER",
@@ -522,7 +523,7 @@ func (s *BoxerSuite) TestRemovePublicKey(c *C) {
 		c.Assert(message.Type, Equals, "aio:configured")
 		c.Assert(message.DataType, Equals, "aio:configured:remove_public_key")
 		c.Assert(message.Id, Equals, "testboxer")
-		c.Assert(message.BoxId, Equals, "1")
+		c.Assert(message.BoxId, Equals, 1)
 		c.Assert(message.Success, Equals, true)
 
 		root := "/var/lib/lxc/mclovins-container-1"
@@ -542,7 +543,7 @@ func (s *BoxerSuite) TestChangeBoxSpecsPass(c *C) {
 			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
 		s.Boxer.Receive(Message{
 			Id:         "testboxer",
-			BoxId:      "1",
+			BoxId:      1,
 			Type:       "aio:create",
 			Name:       "mclovins-container",
 			Runtime:    "test",
@@ -565,7 +566,7 @@ func (s *BoxerSuite) TestChangeBoxSpecsPass(c *C) {
 
 		message := s.Boxer.Receive(Message{
 			Id:       "testboxer",
-			BoxId:    "1",
+			BoxId:    1,
 			Type:     "aio:configure",
 			DataType: "aio:configure:change_specs",
 			Data: map[string]interface{}{
@@ -578,7 +579,7 @@ func (s *BoxerSuite) TestChangeBoxSpecsPass(c *C) {
 
 		c.Assert(message.Type, Equals, "aio:configured")
 		c.Assert(message.Id, Equals, "testboxer")
-		c.Assert(message.BoxId, Equals, "1")
+		c.Assert(message.BoxId, Equals, 1)
 		c.Assert(message.Success, Equals, true)
 		c.Assert(message.DataType, Equals, "aio:configured:change_specs")
 
@@ -622,8 +623,8 @@ func (s *BoxerSuite) TestStartAll(c *C) {
 		stratValue testProvisionStrategy) {
 		s.insertResource("192.168.254.3", "192.168.254.1", "br-lxc-254", "10003")
 
-		for _, id := range []string{"1", "2"} {
-			cleanContainer(stratName, "mclovins-container-"+id,
+		for _, id := range []int{1, 2} {
+			cleanContainer(stratName, "mclovins-container-"+strconv.Itoa(id),
 				stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
 			s.Boxer.Receive(Message{
 				Id:         "testboxer",
@@ -635,7 +636,8 @@ func (s *BoxerSuite) TestStartAll(c *C) {
 				DiskSpace:  "1G",
 				PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
 			})
-			defer cleanContainer(stratName, "mclovins-container-"+id,
+			defer cleanContainer(stratName,
+				"mclovins-container-"+strconv.Itoa(id),
 				stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
 		}
 
@@ -666,7 +668,7 @@ func (s *BoxerSuite) TestInfo(c *C) {
 			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
 		s.Boxer.Receive(Message{
 			Id:         "testboxer",
-			BoxId:      "1",
+			BoxId:      1,
 			Type:       "aio:create",
 			Name:       "mclovins-container",
 			Runtime:    "test",
@@ -679,21 +681,21 @@ func (s *BoxerSuite) TestInfo(c *C) {
 
 		s.Boxer.Receive(Message{
 			Id:    "testboxer",
-			BoxId: "1",
+			BoxId: 1,
 			Type:  "aio:start",
 			Name:  "mclovins-container-1",
 		})
 
 		message := s.Boxer.Receive(Message{
 			Id:    "testboxer",
-			BoxId: "1",
+			BoxId: 1,
 			Type:  "aio:info_request",
 			Name:  "mclovins-container-1",
 		})
 
 		c.Assert(message.Type, Equals, "aio:info_response")
 		c.Assert(message.Id, Equals, "testboxer")
-		c.Assert(message.BoxId, Equals, "1")
+		c.Assert(message.BoxId, Equals, 1)
 		c.Assert(message.Success, Equals, true)
 
 		c.Assert(message.Info.LxcStatus, Equals, "RUNNING")
@@ -707,7 +709,7 @@ func (s *BoxerSuite) TestSetEnvVariables(c *C) {
 			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
 		s.Boxer.Receive(Message{
 			Id:         "testboxer",
-			BoxId:      "1",
+			BoxId:      1,
 			Type:       "aio:create",
 			Name:       "mclovins-container",
 			Runtime:    "test",
@@ -720,7 +722,7 @@ func (s *BoxerSuite) TestSetEnvVariables(c *C) {
 
 		message := s.Boxer.Receive(Message{
 			Id:       "testboxer",
-			BoxId:    "1",
+			BoxId:    1,
 			Type:     "aio:configure",
 			Name:     "mclovins-container-1",
 			DataType: "aio:configure:set_env_variables",
@@ -733,7 +735,7 @@ func (s *BoxerSuite) TestSetEnvVariables(c *C) {
 		c.Assert(message.Type, Equals, "aio:configured")
 		c.Assert(message.DataType, Equals, "aio:configured:set_env_variables")
 		c.Assert(message.Id, Equals, "testboxer")
-		c.Assert(message.BoxId, Equals, "1")
+		c.Assert(message.BoxId, Equals, 1)
 		c.Assert(message.Success, Equals, true)
 
 		root := "/var/lib/lxc/mclovins-container-1"
@@ -755,7 +757,7 @@ func (s *BoxerSuite) TestDoubleSetEnvVariables(c *C) {
 			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
 		s.Boxer.Receive(Message{
 			Id:         "testboxer",
-			BoxId:      "1",
+			BoxId:      1,
 			Type:       "aio:create",
 			Name:       "mclovins-container",
 			Runtime:    "test",
@@ -766,7 +768,7 @@ func (s *BoxerSuite) TestDoubleSetEnvVariables(c *C) {
 
 		s.Boxer.Receive(Message{
 			Id:       "testboxer",
-			BoxId:    "1",
+			BoxId:    1,
 			Type:     "aio:configure",
 			Name:     "mclovins-container-1",
 			DataType: "aio:configure:set_env_variables",
@@ -778,7 +780,7 @@ func (s *BoxerSuite) TestDoubleSetEnvVariables(c *C) {
 
 		s.Boxer.Receive(Message{
 			Id:       "testboxer",
-			BoxId:    "1",
+			BoxId:    1,
 			Type:     "aio:configure",
 			Name:     "mclovins-container-1",
 			DataType: "aio:configure:set_env_variables",
@@ -812,7 +814,7 @@ func (s *BoxerSuite) TestRemoveEnvVariables(c *C) {
 			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
 		s.Boxer.Receive(Message{
 			Id:         "testboxer",
-			BoxId:      "1",
+			BoxId:      1,
 			Type:       "aio:create",
 			Name:       "mclovins-container",
 			Runtime:    "test",
@@ -823,7 +825,7 @@ func (s *BoxerSuite) TestRemoveEnvVariables(c *C) {
 
 		s.Boxer.Receive(Message{
 			Id:       "testboxer",
-			BoxId:    "1",
+			BoxId:    1,
 			Type:     "aio:configure",
 			Name:     "mclovins-container-1",
 			DataType: "aio:configure:set_env_variables",
@@ -844,7 +846,7 @@ func (s *BoxerSuite) TestRemoveEnvVariables(c *C) {
 		c.Assert(message.Type, Equals, "aio:configured")
 		c.Assert(message.DataType, Equals, "aio:configured:remove_env_variables")
 		c.Assert(message.Id, Equals, "testboxer")
-		c.Assert(message.BoxId, Equals, "1")
+		c.Assert(message.BoxId, Equals, 1)
 		c.Assert(message.Success, Equals, true)
 
 		root := "/var/lib/lxc/mclovins-container-1"
@@ -872,7 +874,7 @@ func (s *BoxerSuite) TestInvalidConfigureDataDoesNotPanic(c *C) {
 
 		s.Boxer.Receive(Message{
 			Id:         "testboxer",
-			BoxId:      "1",
+			BoxId:      1,
 			Type:       "aio:create",
 			Name:       "mclovins-container",
 			Runtime:    "test",
@@ -883,7 +885,7 @@ func (s *BoxerSuite) TestInvalidConfigureDataDoesNotPanic(c *C) {
 
 		message := s.Boxer.Receive(Message{
 			Id:       "testboxer",
-			BoxId:    "1",
+			BoxId:    1,
 			Type:     "aio:configure",
 			Name:     "mclovins-container-1",
 			DataType: "aio:configure:set_env_variables",
@@ -906,7 +908,7 @@ func (s *BoxerSuite) TestChangeBoxSpecsFail(c *C) {
 			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
 		s.Boxer.Receive(Message{
 			Id:         "testboxer",
-			BoxId:      "1",
+			BoxId:      1,
 			Type:       "aio:create",
 			Name:       "mclovins-container",
 			Runtime:    "test",
@@ -931,7 +933,7 @@ func (s *BoxerSuite) TestChangeBoxSpecsFail(c *C) {
 
 		message := s.Boxer.Receive(Message{
 			Id:       "testboxer",
-			BoxId:    "1",
+			BoxId:    1,
 			Type:     "aio:configure",
 			DataType: "aio:configure:change_specs",
 			Data: map[string]interface{}{
@@ -984,7 +986,7 @@ func (s *BoxerSuite) TestChangeBoxSpecsLvmFail(c *C) {
 			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
 		s.Boxer.Receive(Message{
 			Id:         "testboxer",
-			BoxId:      "1",
+			BoxId:      1,
 			Type:       "aio:create",
 			Name:       "mclovins-container",
 			Runtime:    "test",
@@ -1008,7 +1010,7 @@ func (s *BoxerSuite) TestChangeBoxSpecsLvmFail(c *C) {
 
 		message := s.Boxer.Receive(Message{
 			Id:       "testboxer",
-			BoxId:    "1",
+			BoxId:    1,
 			Type:     "aio:configure",
 			DataType: "aio:configure:change_specs",
 			Data: map[string]interface{}{
@@ -1037,7 +1039,7 @@ func (s *BoxerSuite) TestChangeBoxSpecsInvalidParams(c *C) {
 
 		s.Boxer.Receive(Message{
 			Id:         "testboxer",
-			BoxId:      "1",
+			BoxId:      1,
 			Type:       "aio:create",
 			Name:       "mclovins-container",
 			Runtime:    "test",
@@ -1048,7 +1050,7 @@ func (s *BoxerSuite) TestChangeBoxSpecsInvalidParams(c *C) {
 
 		message := s.Boxer.Receive(Message{
 			Id:       "testboxer",
-			BoxId:    "1",
+			BoxId:    1,
 			Type:     "aio:configure",
 			DataType: "aio:configure:change_specs",
 			Data: map[string]interface{}{
@@ -1086,7 +1088,7 @@ func (s *BoxerSuite) TestUpdateAuth(c *C) {
 
 		s.Boxer.Receive(Message{
 			Id:         "testboxer",
-			BoxId:      "1",
+			BoxId:      1,
 			Type:       "aio:create",
 			Name:       "mclovins-container",
 			Runtime:    "test",
@@ -1097,7 +1099,7 @@ func (s *BoxerSuite) TestUpdateAuth(c *C) {
 
 		message := s.Boxer.Receive(Message{
 			Id:       "testboxer",
-			BoxId:    "1",
+			BoxId:    1,
 			Type:     "aio:configure",
 			DataType: "aio:configure:update_auth",
 			Data: map[string]interface{}{
@@ -1116,7 +1118,7 @@ func (s *BoxerSuite) TestUpdateAuth(c *C) {
 
 		message = s.Boxer.Receive(Message{
 			Id:       "testboxer",
-			BoxId:    "1",
+			BoxId:    1,
 			Type:     "aio:configure",
 			DataType: "aio:configure:update_auth",
 			Data: map[string]interface{}{

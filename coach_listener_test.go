@@ -15,7 +15,7 @@ func (s *CoachListenerSuite) TestDispatchIgnoreBoxer(c *C) {
 	}
 	message := Message{
 		Id:    "test-boxer-1",
-		BoxId: "1",
+		BoxId: 1,
 		Type:  "aio:invalid_message",
 	}
 	json, _ := utils.ToJSON(message)
