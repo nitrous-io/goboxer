@@ -88,17 +88,17 @@ func main() {
 	// publish creation message via redis
 	for _, id := range idsMap {
 		wg.Add(1)
-		go func(id string) {
+		go func(id int) {
 			m := createMessage(id)
 			pubConn.Do("PUBLISH", BOXER_CHANNEL, m)
-		}(strconv.Itoa(id))
+		}(id)
 	}
 	wg.Wait()
 	fmt.Println("------> Complete: ", time.Since(start).Seconds())
 }
 
 // return json-formatted message to create a box
-func createMessage(id string) string {
+func createMessage(id int) string {
 	m := goboxer.Message{
 		Type:       "aio:create",
 		Id:         BOXER_ID,
@@ -114,12 +114,12 @@ func createMessage(id string) string {
 }
 
 // return json-formatted message to destroy a box
-func destroyMessage(id string) string {
+func destroyMessage(id int) string {
 	m := goboxer.Message{
 		Type:  "aio:destroy",
 		Id:    BOXER_ID,
 		BoxId: id,
-		Name:  BOX_NAME + "-" + id,
+		Name:  BOX_NAME + "-" + strconv.Itoa(id),
 	}
 	b, _ := json.Marshal(m)
 	return string(b)

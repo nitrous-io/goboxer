@@ -50,7 +50,7 @@ type BoxInfo struct {
 }
 
 type Box struct {
-	Id               string   `json:"id"`
+	Id               int      `json:"id,string"`
 	Name             string   `json:"name"`
 	Template         string   `json:"containerTemplate"`
 	Memory           string   `json:"memory"`
@@ -205,7 +205,7 @@ func (b *Box) UpdateAuth(auth BoxAuth) error {
 }
 
 func (b *Box) ContainerName() string {
-	return b.Name + "-" + b.Id
+	return b.Name + "-" + strconv.Itoa(b.Id)
 }
 
 func (b *Box) PublicKeysPath() string {
@@ -252,13 +252,11 @@ func (b *Box) ContainerDeltaPath() string {
 }
 
 func (b *Box) Uid() string {
-	id, _ := strconv.Atoi(b.Id)
-	return strconv.Itoa(UID_START + id)
+	return strconv.Itoa(UID_START + b.Id)
 }
 
 func (b *Box) Gid() string {
-	id, _ := strconv.Atoi(b.Id)
-	return strconv.Itoa(UID_START + id)
+	return strconv.Itoa(UID_START + b.Id)
 }
 
 // http://www.funtoo.org/wiki/Linux_Containers
@@ -371,7 +369,7 @@ func (b *Box) Mount(root string) error {
 		boxPath := b.ContainerFS()
 		baseContainerPath := path.Join(b.Disk, "base_container_template")
 		if err := mount.Union(b.getMountMethod(), boxPath, boxDeltaPath, baseContainerPath); err != nil {
-			return err
+			return fmt.Errorf("box:Mount failed %v", err)
 		}
 		// FIXME: MountBind to make it similar to boxer. Ideally we probably
 		// want to symlink as it doesnt make any difference and seems to be
@@ -516,7 +514,7 @@ func (b *Box) RemoveEnv(data []string) (err error) {
 
 func (b *Box) quotaArg() quota.QuotaArg {
 	arg := quota.QuotaArg{
-		Id:    b.Id,
+		Id:    strconv.Itoa(b.Id),
 		Name:  b.ContainerName(),
 		Disk:  b.Disk,
 		Limit: b.DiskSpace,
@@ -618,7 +616,7 @@ func (b *Box) setEtcAction() error {
 		return err
 	}
 	defer boxIdFile.Close()
-	if _, err = boxIdFile.WriteString(b.Id); err != nil {
+	if _, err = boxIdFile.WriteString(strconv.Itoa(b.Id)); err != nil {
 		return err
 	}
 	// set box_user
