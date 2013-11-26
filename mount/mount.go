@@ -10,6 +10,7 @@ import (
 )
 
 func mount(source string, target string, fstype string, flags uintptr, data string) (err error) {
+	fmt.Println(source, target, fstype, flags, data)
 	return syscall.Mount(source, target, fstype, flags, data)
 }
 
@@ -33,18 +34,18 @@ func Mount(source, target, fstype string) (err error) {
 
 func Union(unionType, target, upper, lower string) (err error) {
 	if err := os.MkdirAll(target, 0755); err != nil {
-		return err
+		return fmt.Errorf("mount:Union failed mkdir %v", target)
 	}
 	if err := os.MkdirAll(upper, 0755); err != nil {
-		return err
+		return fmt.Errorf("mount:Union failed mkdir %v", upper)
 	}
 	if err := os.MkdirAll(lower, 0755); err != nil {
-		return err
+		return fmt.Errorf("mount:Union failed mkdir %v", lower)
 	}
 	var mountOptions string
 	mounted, err := Mounted(target)
 	if err != nil {
-		return err
+		return fmt.Errorf("mount:Union failed check mounted %v", err)
 	}
 	if mounted {
 		return nil
@@ -52,11 +53,15 @@ func Union(unionType, target, upper, lower string) (err error) {
 	if unionType == "aufs" {
 		mountOptions = "br=" + upper + ":" + lower
 	} else if unionType == "overlayfs" {
-		mountOptions = "rw,upperdir=" + upper + ",lowerdir=" + lower
+		mountOptions = "upperdir=" + upper + ",lowerdir=" + lower
 	} else {
 		return fmt.Errorf("%s is not a supported union type", unionType)
 	}
-	return mount("none", target, unionType, 0, mountOptions)
+	err = mount("none", target, unionType, 0, mountOptions)
+	if err != nil {
+		return fmt.Errorf("mount:Union failed mount %v", err)
+	}
+	return nil
 }
 
 func MountBind(source, target string) error {

@@ -4,8 +4,10 @@
 package lxc
 
 import (
+	"bufio"
 	"fmt"
 	"os/exec"
+	"strings"
 )
 
 func run(cmd string, args ...string) error {
@@ -31,15 +33,35 @@ func Stop(name string) error {
 	// FIXME: once lxc-shutdown is upgraded to a new version, restore the error
 	// checking here
 	run("lxc-shutdown", "-n", name, "-t", "30")
-	return waitLxc(name, "STOPPED")
+	waitLxc(name, "STOPPED")
+	state, err := Status(name)
+	if err != nil || state != "STOPPED" {
+		return fmt.Errorf("lxc: stop failed %v %v %v", name, state, err)
+	}
+	return nil
 }
 
 func Status(name string) (string, error) {
-	var state, status string
-	info, err := output("lxc-info", "-n", name)
+	cmd := exec.Command("lxc-info", "-n", name)
+	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return "", err
 	}
-	_, err = fmt.Sscanln(string(info), &state, &status)
-	return status, err
+	if err := cmd.Start(); err != nil {
+		return "", err
+	}
+	scanner := bufio.NewScanner(stdout)
+	for scanner.Scan() {
+		line := scanner.Text()
+		fields := strings.Fields(line)
+		// found the current state of the container
+		// return immediately
+		if fields[0] == "state:" {
+			return fields[1], nil
+		}
+	}
+	if err := cmd.Wait(); err != nil {
+		return "", err
+	}
+	return "", fmt.Errorf("lxc: Status failed %v", name)
 }

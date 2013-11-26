@@ -79,7 +79,7 @@ func (s *ResourcePoolSuite) TestReleaseValidResource(c *C) {
 	c.Assert(availableIp, Equals, "192.168.2.2")
 }
 
-func makeTestBox(id, state string) *Box {
+func makeTestBox(id int, state string) *Box {
 	return &Box{
 		Id:               id,
 		State:            state,
@@ -98,9 +98,9 @@ func makeTestBox(id, state string) *Box {
 func (s *ResourcePoolSuite) TestFindRunningBoxes(c *C) {
 	conn := s.pool.Get()
 	defer conn.Close()
-	box1json, _ := utils.ToJSON(makeTestBox("1", "running"))
-	box2json, _ := utils.ToJSON(makeTestBox("2", "stopped"))
-	box3json, _ := utils.ToJSON(makeTestBox("3", "running"))
+	box1json, _ := utils.ToJSON(makeTestBox(1, "running"))
+	box2json, _ := utils.ToJSON(makeTestBox(2, "stopped"))
+	box3json, _ := utils.ToJSON(makeTestBox(3, "running"))
 	conn.Do("HSET", "aio:boxes", "test-1", box1json)
 	conn.Do("HSET", "aio:boxes", "test-2", box2json)
 	conn.Do("HSET", "aio:boxes", "test-3", box3json)
@@ -109,8 +109,8 @@ func (s *ResourcePoolSuite) TestFindRunningBoxes(c *C) {
 	b, _ := rs.FindRunningBoxes()
 
 	c.Assert(len(b), Equals, 2)
-	c.Assert(b[0].Id, Equals, "3")
+	c.Assert(b[0].Id, Equals, 3)
 	c.Assert(b[0].State, Equals, "running")
-	c.Assert(b[1].Id, Equals, "1")
+	c.Assert(b[1].Id, Equals, 1)
 	c.Assert(b[1].State, Equals, "running")
 }

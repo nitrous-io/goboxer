@@ -1,7 +1,7 @@
 {
-  "id": "46.137.252.155",
-  "disks": ["/lxc/disk2"],
-  "selectedDisk": "/lxc/disk2",
+  "id": "33.33.33.10",
+  "disks": ["/lxc/disk1"],
+  "selectedDisk": "/lxc/disk1",
   "boxerChannel": "aio-boxer-channel",
   "coachChannel": "aio-coach-channel",
   "redisMQHost": "127.0.0.1",
