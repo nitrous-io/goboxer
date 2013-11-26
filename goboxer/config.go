@@ -11,6 +11,7 @@ var VALID_QUOTA = []string{"prjquota", "usrquota"}
 
 type Config struct {
 	Id             string            `json:"id"`
+	Vagrant        bool              `json:"vagrant"`
 	BoxerChannel   string            `json:"boxerChannel"`
 	CoachChannel   string            `json:"coachChannel"`
 	RedisMQHost    string            `json:"redisMQHost"`

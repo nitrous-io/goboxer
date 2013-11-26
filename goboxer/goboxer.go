@@ -54,6 +54,7 @@ func main() {
 
 	boxer := &goboxer.Boxer{
 		Id:           config.Id,
+		Vagrant:      config.Vagrant,
 		Root:         "/var/lib/lxc",
 		SelectedDisk: config.SelectedDisk,
 		Disks:        config.Disks,
