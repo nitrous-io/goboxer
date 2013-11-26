@@ -16,28 +16,50 @@ func runCommand(cmd string, args ...string) error {
 	return nil
 }
 
-func Open(hostPort, containerIp, containerPort string) error {
+func forward(chain, port, dest string) error {
 	args := []string{
 		"-t", "nat", // use nat table
-		"-A", "PREROUTING", // append to PREROUTING chain
+		"-A", chain, // append to chain
 		"!", "-s", "192.168.1.0/16", // not forward traffic from internal
 		"-p", "tcp", // forward tcp protocol
-		"--dport", hostPort, // from hostport
+		"--dport", port, // from hostport
 		"-j", "DNAT", // forward packet
-		"--to", containerIp + ":" + containerPort, // to ip:port
+		"--to", dest, // to ip:port
 	}
 	return runCommand("iptables", args...)
 }
 
-func Close(hostPort, containerIp, containerPort string) error {
+func release(chain, port, dest string) error {
 	args := []string{
 		"-t", "nat", // use nat table
-		"-D", "PREROUTING", // delete from PREROUTING chain
+		"-D", chain, // delete from chain
 		"!", "-s", "192.168.1.0/16", // not forward traffic from internal
 		"-p", "tcp", // forward tcp protocol
-		"--dport", hostPort, // from hostport
+		"--dport", port, // from hostport
 		"-j", "DNAT", // forward packet
-		"--to", containerIp + ":" + containerPort, // to ip:port
+		"--to", dest, // to ip:port
 	}
 	return runCommand("iptables", args...)
+}
+
+func Open(hostPort, containerIp, containerPort string) error {
+	return forward("PREROUTING", hostPort, containerIp+":"+containerPort)
+}
+
+func OpenInVagrant(hostPort, containerIp, containerPort string) error {
+	if err := Open(hostPort, containerIp, containerPort); err != nil {
+		return err
+	}
+	return forward("OUTPUT", hostPort, containerIp+":"+containerPort)
+}
+
+func Close(hostPort, containerIp, containerPort string) error {
+	return release("PREROUTING", hostPort, containerIp+":"+containerPort)
+}
+
+func CloseInVagrant(hostPort, containerIp, containerPort string) error {
+	if err := Close(hostPort, containerIp, containerPort); err != nil {
+		return err
+	}
+	return release("OUTPUT", hostPort, containerIp+":"+containerPort)
 }

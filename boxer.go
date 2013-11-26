@@ -34,6 +34,7 @@ type MessageHandler func(m Message, boxer *Boxer) Message
 type Boxer struct {
 	sync.Mutex
 	Id           string
+	Vagrant      bool
 	Root         string
 	SelectedDisk string
 	Disks        []string

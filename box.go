@@ -590,14 +590,22 @@ func (b *Box) setPortForwarding() error {
 	b.boxer.Lock()
 	defer b.boxer.Unlock()
 	strPort := strconv.Itoa(b.Port)
-	return ip.Open(strPort, b.Ip, "22")
+	if b.boxer.Vagrant {
+		return ip.OpenInVagrant(strPort, b.Ip, "22")
+	} else {
+		return ip.Open(strPort, b.Ip, "22")
+	}
 }
 
 func (b *Box) unsetPortForwarding() error {
 	b.boxer.Lock()
 	defer b.boxer.Unlock()
 	strPort := strconv.Itoa(b.Port)
-	return ip.Close(strPort, b.Ip, "22")
+	if b.boxer.Vagrant {
+		return ip.CloseInVagrant(strPort, b.Ip, "22")
+	} else {
+		return ip.Close(strPort, b.Ip, "22")
+	}
 }
 
 func (b *Box) extractTemplate() error {

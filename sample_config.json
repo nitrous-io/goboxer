@@ -1,5 +1,6 @@
 {
   "id": "33.33.33.10",
+  "vagrant": true,
   "disks": ["/lxc/disk1"],
   "selectedDisk": "/lxc/disk1",
   "boxerChannel": "aio-boxer-channel",
@@ -11,7 +12,7 @@
   "pingHost": "127.0.0.1",
   "pingPort": "1339",
   "mountMethod": "aufs",
-  "quotaMethod": "usrquota",
+  "quotaMethod": "prjquota",
   "cartmanHost": "127.0.0.1",
   "cartmanPort": "65202",
   "runtimes": {
