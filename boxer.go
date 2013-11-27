@@ -93,9 +93,7 @@ func (boxer *Boxer) ReceiveAsync(message Message) MessageChannel {
 func (boxer *Boxer) Receive(msg Message) (message Message) {
 	defer func() {
 		if r := recover(); r != nil {
-			if err, ok := r.(error); !ok {
-				logger.Println("Error in Receive", msg, err)
-			}
+			logger.Println("PANIC", r)
 			message = boxer.NewInvalidParamMessage()
 		}
 	}()
@@ -435,6 +433,11 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 		}
 		if err := boxer.ResourcePool.SaveBox(box); err != nil {
 			logger.Printf("ERROR: save %v, err: %v\n", box, err)
+			message.Success = false
+			return message
+		}
+		if err := boxer.Cartman.InvalidateCache(box.ContainerName()); err != nil {
+			logger.Printf("ERROR: invalide cartman %v, err: %v\n", box, err)
 			message.Success = false
 			return message
 		}

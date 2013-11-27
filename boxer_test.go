@@ -518,6 +518,15 @@ func (s *BoxerSuite) TestRestart(c *C) {
 }
 
 func (s *BoxerSuite) TestUpdatePremium(c *C) {
+	ts := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			fmt.Fprintln(w, "Hello, boxer")
+		}))
+	defer ts.Close()
+	// simulate response from cartman server
+	cartmanURL, _ := url.Parse(ts.URL)
+	s.Boxer.Cartman = &cartman.Cartman{Host: cartmanURL.Host}
+
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
 		cleanContainer(stratName, "mclovins-container-1",
