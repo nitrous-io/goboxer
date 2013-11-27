@@ -415,6 +415,31 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 			message.Success = false
 		}
 		return message
+	case "aio:configure:update_premium":
+		message.DataType = "aio:configured:update_premium"
+		data, ok := (m.Data).(map[string]interface{})
+		if !ok {
+			logger.Printf("ERROR: convert data %v, err: %v\n", data, err)
+			return boxer.NewInvalidParamMessage()
+		}
+		premium, ok := data["premium"].(bool)
+		if !ok {
+			logger.Printf("ERROR: convert premium %v, err: %v\n", data, err)
+			return boxer.NewInvalidParamMessage()
+		}
+		box.Premium = premium
+		if err := box.UpdatePremiumStatus(); err != nil {
+			logger.Printf("ERROR: update premium %v, err: %v\n", box, err)
+			message.Success = false
+			return message
+		}
+		if err := boxer.ResourcePool.SaveBox(box); err != nil {
+			logger.Printf("ERROR: save %v, err: %v\n", box, err)
+			message.Success = false
+			return message
+		}
+		message.Success = true
+		return message
 	}
 	return boxer.NewInvalidParamMessage()
 }
