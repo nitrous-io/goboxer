@@ -162,6 +162,7 @@ func CreateBoxHandler(m Message, boxer *Boxer) Message {
 		SelectedVG:       boxer.SelectedVG,
 		CpuShares:        m.CpuShares,
 		VirtualMemory:    m.VirtualMemory,
+		Premium:          m.Premium,
 	}
 	box.boxer = boxer
 	box.Prepare()
