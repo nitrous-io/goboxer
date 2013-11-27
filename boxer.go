@@ -190,10 +190,6 @@ func StartBoxHandler(m Message, boxer *Boxer) Message {
 	if err != nil {
 		return boxer.NewInvalidParamMessage()
 	}
-	if err := box.Start(); err != nil {
-		logger.Printf("ERROR: Fail to start %v, err: %v\n", box, err)
-		return boxer.NewInvalidParamMessage()
-	}
 	msg := Message{
 		Type:       "aio:started",
 		Id:         boxer.Id,
@@ -201,9 +197,34 @@ func StartBoxHandler(m Message, boxer *Boxer) Message {
 		ReturnVars: m.ReturnVars,
 		Success:    true,
 	}
+	spec := box.CurrentSpec()
+
+	if data, ok := (m.Data).(map[string]interface{}); ok {
+		if memory, ok := (data["memory"]).(string); ok {
+			spec.Memory = memory
+		}
+		if virtualMemory, ok := (data["virtualMemory"]).(string); ok {
+			spec.VirtualMemory = virtualMemory
+		}
+		if cpuShares, ok := (data["cpuShares"]).(int); ok {
+			spec.CpuShares = cpuShares
+		}
+	}
+
+	if err := box.Start(spec); err != nil {
+		logger.Printf("ERROR: Fail to start %v, err: %v\n", box, err)
+		return boxer.NewInvalidParamMessage()
+	}
 	if err := boxer.ResourcePool.UpdateState(box, "running"); err != nil {
 		logger.Printf("ERROR: Fail to update box state %v, err: %v\n", box, err)
 		msg.Success = false
+	}
+	// send back the final spec of box
+	msg.Data = map[string]interface{}{
+		"memory":        box.Memory,
+		"diskSpace":     box.DiskSpace,
+		"cpuShares":     box.CpuShares,
+		"virtualMemory": box.VirtualMemory,
 	}
 	return msg
 }
@@ -238,7 +259,7 @@ func RestartBoxHandler(m Message, boxer *Boxer) Message {
 		logger.Printf("ERROR: Fail to find box %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
 	}
-	if err := box.Restart(); err != nil {
+	if err := box.Restart(box.CurrentSpec()); err != nil {
 		logger.Printf("ERROR: Fail to restart box %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
 	}
@@ -482,7 +503,7 @@ func (boxer *Boxer) StartAll(boxes []*Box) error {
 	var errors []error
 	for _, box := range boxes {
 		box.boxer = boxer
-		if err := box.Start(); err != nil {
+		if err := box.Start(box.CurrentSpec()); err != nil {
 			errors = append(errors, fmt.Errorf("Failed to start box: %s",
 				box.ContainerName()))
 		} else {
