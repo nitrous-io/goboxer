@@ -273,8 +273,8 @@ func (b *Box) MacAddress() string {
 }
 
 // memory + swap size
-// so for 256M, the swap memory allocated will be 256M,
-// making the total memory allocated to the box 512M
+// if virtual memory (a.k.a swap) is specified, we will use it, otherwise,
+// default is memory x 2
 func (b *Box) TotalMemory() string {
 	var m, vm quota.ValueUnit
 	m = quota.ParseValueUnit(b.Memory)
