@@ -576,6 +576,78 @@ func (s *BoxerSuite) TestRestart(c *C) {
 	})
 }
 
+func (s *BoxerSuite) TestRestartWithNewSpec(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+		cleanContainer(stratName, "mclovins-container-1",
+			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
+		s.Boxer.Receive(Message{
+			Id:         "testboxer",
+			BoxId:      1,
+			Type:       "aio:create",
+			Name:       "mclovins-container",
+			Runtime:    "test",
+			Memory:     "256M",
+			DiskSpace:  "1G",
+			PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
+		})
+		defer cleanContainer(stratName, "mclovins-container-1",
+			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
+		message := s.Boxer.Receive(Message{
+			Id:    "testboxer",
+			BoxId: 1,
+			Type:  "aio:restart",
+			Data: map[string]interface{}{
+				"memory":        "640M",
+				"virtualMemory": "1280M",
+				"cpuShares":     1536,
+			},
+			Name: "mclovins-container-1",
+		})
+
+		c.Assert(message.Type, Equals, "aio:restarted")
+		c.Assert(message.Id, Equals, "testboxer")
+		c.Assert(message.BoxId, Equals, 1)
+		c.Assert(message.Success, Equals, true)
+
+		AssertLxcState(c, "mclovins-container-1", "RUNNING")
+
+		root := "/var/lib/lxc/mclovins-container-1"
+		containerPlace := []string{root}
+		switch stratName {
+		case "xfs", "ext4":
+			containerPlace = append(containerPlace, stratValue.SelectedDisk+
+				"/mclovins-container-1")
+			containerPlace = append(containerPlace, stratValue.SelectedDisk+
+				"/mclovins-container-1_delta")
+		case "lvm":
+			containerPlace = append(containerPlace, "/dev/"+stratValue.SelectedVG+
+				"/mclovins-container-1")
+		}
+		DoesExist(c, containerPlace)
+
+		DoesExist(c, []string{
+			root + "/rootfs",
+		})
+
+		DoesContain(c, map[string][]string{
+			root + "/config": []string{
+				"lxc.cgroup.memory.limit_in_bytes = 640M",
+				"lxc.cgroup.memory.memsw.limit_in_bytes = 1920M",
+				"lxc.cgroup.cpu.shares = 1536",
+			},
+		})
+
+		// virtualMemory is persisted with redis
+		b, _ := s.ResourcePool.FindBox("mclovins-container-1")
+		c.Assert(b.VirtualMemory, Equals, "1280M")
+		c.Assert(b.CpuShares, Equals, 1536)
+		c.Assert(b.Memory, Equals, "640M")
+
+		s.assertBoxState(c, "mclovins-container-1", "running")
+	})
+}
+
 func (s *BoxerSuite) TestUpdatePremium(c *C) {
 	ts := httptest.NewServer(http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
