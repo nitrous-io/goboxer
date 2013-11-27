@@ -36,15 +36,17 @@ func (d debugging) Debugln(args ...interface{}) {
 // provide a method to log duration of the function
 // for now this is the only function signature we are going to accept
 func (d debugging) LogHandler(name string, handler MessageHandler) MessageHandler {
+	d.Debugf("%s: Started", name)
 	return func(m Message, boxer *Boxer) Message {
 		start := time.Now()
 		msg := handler(m, boxer)
-		logger.Debugf("%s: %v", name, time.Since(start).Seconds())
+		d.Debugf("%s: %v", name, time.Since(start).Seconds())
 		return msg
 	}
 }
 
 func (d debugging) LogDuration(msg string) func(time.Time) {
+	d.Printf("%s: Started", msg)
 	return func(start time.Time) {
 		d.Println(msg, time.Since(start).Seconds())
 	}
