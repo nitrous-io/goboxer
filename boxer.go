@@ -401,9 +401,17 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 		if !ok {
 			return boxer.NewInvalidParamMessage()
 		}
+		username, ok := data["auth_username"].(string)
+		if !ok {
+			return boxer.NewInvalidParamMessage()
+		}
+		password, ok := data["auth_password"].(string)
+		if !ok {
+			return boxer.NewInvalidParamMessage()
+		}
 		auth := BoxAuth{
-			Username: data["auth_username"].(string),
-			Password: data["auth_password"].(string),
+			Username: username,
+			Password: password,
 		}
 		if !auth.IsValid() {
 			return boxer.NewInvalidParamMessage()
