@@ -18,15 +18,16 @@ type Message struct {
 	// for create message
 	// Name is used subsequently in coach message to describe containerName
 	// i.e. 123-testbox
-	Name        string   `json:"name,omitempty"`
-	Port        int      `json:"port,omitempty"`
-	Runtime     string   `json:"runtime,omitempty"`
-	SnapshotURL string   `json:"snapshotURL,omitempty"`
-	Memory      string   `json:"memory,omitempty"`
-	DiskSpace   string   `json:"diskSpace,omitempty"`
-	PublicKeys  []string `json:"publicKeys,omitempty"`
-	SshKeyPair  []string `json:"sshKeyPair,omitempty"`
-	CpuShares   int      `json:"cpuShares,omitempty"`
+	Name          string   `json:"name,omitempty"`
+	Port          int      `json:"port,omitempty"`
+	Runtime       string   `json:"runtime,omitempty"`
+	SnapshotURL   string   `json:"snapshotURL,omitempty"`
+	Memory        string   `json:"memory,omitempty"`
+	DiskSpace     string   `json:"diskSpace,omitempty"`
+	PublicKeys    []string `json:"publicKeys,omitempty"`
+	SshKeyPair    []string `json:"sshKeyPair,omitempty"`
+	CpuShares     int      `json:"cpuShares,omitempty"`
+	VirtualMemory string   `json:"virtualMemory,omitempty"`
 
 	// for normal message
 	DataType string      `json:"dataType,omitempty"`

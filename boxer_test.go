@@ -258,6 +258,41 @@ func (s *BoxerSuite) TestCreateWithDefaultCpuShares(c *C) {
 	})
 }
 
+func (s *BoxerSuite) TestCreateWithVirtualMemory(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+		cleanContainer(stratName, "mclovins-container-1",
+			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
+		s.Boxer.Receive(Message{
+			Id:            "testboxer",
+			BoxId:         1,
+			Type:          "aio:create",
+			Name:          "mclovins-container",
+			Runtime:       "test",
+			Memory:        "256M",
+			DiskSpace:     "1G",
+			VirtualMemory: "1024",
+			PublicKeys:    []string{"ssh-key QWER", "ssh-key ASDF"},
+		})
+		defer cleanContainer(stratName, "mclovins-container-1",
+			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
+
+		root := "/var/lib/lxc/mclovins-container-1"
+		// total memory = memory + virtual memory
+		var checkContent = map[string][]string{
+			root + "/config": {
+				"lxc.cgroup.memory.memsw.limit_in_bytes = 257M",
+			},
+		}
+		DoesContain(c, checkContent)
+
+		// virtualMemory is persisted with redis
+		b, _ := s.ResourcePool.FindBox("mclovins-container-1")
+		c.Assert(b.VirtualMemory, Equals, "1024")
+		c.Assert(b.TotalMemory(), Equals, "257M")
+	})
+}
+
 func (s *BoxerSuite) TestStop(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {

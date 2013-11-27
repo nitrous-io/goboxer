@@ -70,6 +70,7 @@ type Box struct {
 	AuthPassword     string   `json:"authPassword"`
 	Swappiness       int      `json:"swappiness"`
 	CpuShares        int      `json:"cpuShares"`
+	VirtualMemory    string   `json:"virtualMemory"`
 	Runtime          string   `json:"-"`
 	SnapshotURL      string   `json:"-"`
 	PublicKeys       []string `json:"-"`
@@ -275,8 +276,14 @@ func (b *Box) MacAddress() string {
 // so for 256M, the swap memory allocated will be 256M,
 // making the total memory allocated to the box 512M
 func (b *Box) TotalMemory() string {
-	m := quota.ParseValueUnit(b.Memory)
-	return fmt.Sprintf("%d%s", int(m.Value)*2, m.Unit)
+	var m, vm quota.ValueUnit
+	m = quota.ParseValueUnit(b.Memory)
+	if len(b.VirtualMemory) > 0 {
+		vm = quota.ParseValueUnit(b.VirtualMemory)
+	} else {
+		vm = m
+	}
+	return quota.SumValueUnit(m, vm).ToString()
 }
 
 func (b *Box) AddPublicKey(keys ...string) error {

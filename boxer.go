@@ -161,6 +161,7 @@ func CreateBoxHandler(m Message, boxer *Boxer) Message {
 		QuotaMethod:      boxer.QuotaMethod,
 		SelectedVG:       boxer.SelectedVG,
 		CpuShares:        m.CpuShares,
+		VirtualMemory:    m.VirtualMemory,
 	}
 	box.boxer = boxer
 	box.Prepare()
