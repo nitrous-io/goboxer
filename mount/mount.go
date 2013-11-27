@@ -10,7 +10,6 @@ import (
 )
 
 func mount(source string, target string, fstype string, flags uintptr, data string) (err error) {
-	fmt.Println(source, target, fstype, flags, data)
 	return syscall.Mount(source, target, fstype, flags, data)
 }
 
