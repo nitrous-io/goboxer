@@ -39,6 +39,22 @@ type BoxSpec struct {
 	VirtualMemory string `json:"virtualMemory,omitempty"`
 }
 
+func (s *BoxSpec) MergeData(m Message) {
+	data, ok := (m.Data).(map[string]interface{})
+	if !ok {
+		return
+	}
+	if memory, ok := (data["memory"]).(string); ok {
+		s.Memory = memory
+	}
+	if virtualMemory, ok := (data["virtualMemory"]).(string); ok {
+		s.VirtualMemory = virtualMemory
+	}
+	if cpuShares, ok := (data["cpuShares"]).(int); ok {
+		s.CpuShares = cpuShares
+	}
+}
+
 // Return current box info.
 // StorageUsage: total storage in mb
 // MemoryUsage: total memory usage in mb

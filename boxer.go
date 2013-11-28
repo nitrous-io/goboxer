@@ -185,6 +185,18 @@ func CreateBoxHandler(m Message, boxer *Boxer) Message {
 	return msg
 }
 
+// Start message will have this format
+// {
+//	id: boxerId,
+//	type: 'aio:start',
+//	name: containerName-id,
+//	returnVars: {...},
+//	data: {
+//	 memory: ...,
+//	 virtualMemory: ...,
+//	 cpuShares: ...
+//	}
+// }
 func StartBoxHandler(m Message, boxer *Boxer) Message {
 	box, err := boxer.findBox(m.Name)
 	if err != nil {
@@ -198,18 +210,7 @@ func StartBoxHandler(m Message, boxer *Boxer) Message {
 		Success:    true,
 	}
 	spec := box.CurrentSpec()
-
-	if data, ok := (m.Data).(map[string]interface{}); ok {
-		if memory, ok := (data["memory"]).(string); ok {
-			spec.Memory = memory
-		}
-		if virtualMemory, ok := (data["virtualMemory"]).(string); ok {
-			spec.VirtualMemory = virtualMemory
-		}
-		if cpuShares, ok := (data["cpuShares"]).(int); ok {
-			spec.CpuShares = cpuShares
-		}
-	}
+	spec.MergeData(m)
 
 	if err := box.Start(spec); err != nil {
 		logger.Printf("ERROR: Fail to start %v, err: %v\n", box, err)
@@ -253,6 +254,18 @@ func StopBoxHandler(m Message, boxer *Boxer) Message {
 	return msg
 }
 
+// Restart message will have this format
+// {
+//	id: boxerId,
+//	type: 'aio:restart',
+//	name: containerName-id,
+//	returnVars: {...},
+//	data: {
+//	 memory: ...,
+//	 virtualMemory: ...,
+//	 cpuShares: ...
+//	}
+// }
 func RestartBoxHandler(m Message, boxer *Boxer) Message {
 	box, err := boxer.findBox(m.Name)
 	if err != nil {
@@ -260,18 +273,8 @@ func RestartBoxHandler(m Message, boxer *Boxer) Message {
 		return boxer.NewInvalidParamMessage()
 	}
 	spec := box.CurrentSpec()
+	spec.MergeData(m)
 
-	if data, ok := (m.Data).(map[string]interface{}); ok {
-		if memory, ok := (data["memory"]).(string); ok {
-			spec.Memory = memory
-		}
-		if virtualMemory, ok := (data["virtualMemory"]).(string); ok {
-			spec.VirtualMemory = virtualMemory
-		}
-		if cpuShares, ok := (data["cpuShares"]).(int); ok {
-			spec.CpuShares = cpuShares
-		}
-	}
 	if err := box.Restart(spec); err != nil {
 		logger.Printf("ERROR: Fail to restart box %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
