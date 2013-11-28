@@ -37,7 +37,8 @@ if [[ $ARG ]]; then
 else
   echo -e "${OK_COLOR}--> ADDING GIT TAG!............${NO_COLOR}"
   TAG=`date +"%d%m%Y%H%M%S"`
-  USER=`git config user.name`.chomp
+  TAG=`date --utc +"%d-%b-%Y-%H-%M"`
+  USER=`git config user.name`
   MSG="${USER} BUILT VERSION ${TAG} OF GOBOXER"
 
   echo -e "${OK_COLOR}--> CHECKING NEW TAG TO GIT ${TAG}${NO_COLOR}"
