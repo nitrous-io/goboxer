@@ -32,12 +32,6 @@ func (a BoxAuth) IsValid() bool {
 	return len(a.Username) > 0 && len(a.Password) > 0
 }
 
-type BoxSpec struct {
-	Memory    string `json:"memory,omitempty"`
-	DiskSpace string `json:"diskSpace,omitempty"`
-	CpuShares int    `json:"cpuShares,omitempty"`
-}
-
 // Return current box info.
 // StorageUsage: total storage in mb
 // MemoryUsage: total memory usage in mb
@@ -153,11 +147,15 @@ func (b *Box) Create() error {
 	return b.setPortForwarding()
 }
 
-func (b *Box) Start() error {
+func (b *Box) Start(spec *BoxSpec) error {
 	defer logger.LogDuration(
 		fmt.Sprintf("%s:Start", b.ContainerName()),
 	)(time.Now())
 	if err := b.Mount(b.boxer.Root); err != nil {
+		return err
+	}
+	// this change spec without restarting the box
+	if err := b.handleSpecChange(spec); err != nil {
 		return err
 	}
 	return lxc.Start(b.ContainerName())
@@ -173,14 +171,14 @@ func (b *Box) Stop() error {
 	return b.Unmount(b.boxer.Root)
 }
 
-func (b *Box) Restart() error {
+func (b *Box) Restart(spec *BoxSpec) error {
 	defer logger.LogDuration(
 		fmt.Sprintf("%s:Restart", b.ContainerName()),
 	)(time.Now())
 	if err := b.Stop(); err != nil {
 		return err
 	}
-	return b.Start()
+	return b.Start(spec)
 }
 
 func (b *Box) Destroy() error {
@@ -336,29 +334,19 @@ func (b *Box) UnsetQuota() error {
 }
 
 func (b *Box) ChangeSpec(spec *BoxSpec) error {
-	willWriteConfig := false
-	if spec.Memory != b.Memory {
-		b.Memory = spec.Memory
-		willWriteConfig = true
+	if err := b.handleSpecChange(spec); err != nil {
+		return err
 	}
-	if spec.CpuShares != b.CpuShares {
-		b.CpuShares = spec.CpuShares
-		willWriteConfig = true
+	return b.Restart(spec)
+}
+
+func (b *Box) CurrentSpec() *BoxSpec {
+	return &BoxSpec{
+		Memory:        b.Memory,
+		CpuShares:     b.CpuShares,
+		VirtualMemory: b.VirtualMemory,
+		DiskSpace:     b.DiskSpace,
 	}
-	if willWriteConfig {
-		if err := b.writeConfig(); err != nil {
-			return err
-		}
-	}
-	if spec.DiskSpace != b.DiskSpace {
-		oldDiskSpace := b.DiskSpace
-		b.DiskSpace = spec.DiskSpace
-		if err := b.SetQuota(); err != nil {
-			b.DiskSpace = oldDiskSpace
-			return err
-		}
-	}
-	return b.Restart()
 }
 
 func (b *Box) UpdatePremiumStatus() error {
@@ -540,6 +528,38 @@ func (b *Box) RemoveEnv(data []string) (err error) {
 		}
 	}
 	return
+}
+
+// this requires the box to be mounted because we are writing lxc config into
+// the mounted path, not the _delta path
+func (b *Box) handleSpecChange(spec *BoxSpec) error {
+	willWriteConfig := false
+	if spec.Memory != b.Memory {
+		b.Memory = spec.Memory
+		willWriteConfig = true
+	}
+	if spec.CpuShares != b.CpuShares {
+		b.CpuShares = spec.CpuShares
+		willWriteConfig = true
+	}
+	if spec.VirtualMemory != b.VirtualMemory {
+		b.VirtualMemory = spec.VirtualMemory
+		willWriteConfig = true
+	}
+	if willWriteConfig {
+		if err := b.writeConfig(); err != nil {
+			return err
+		}
+	}
+	if len(spec.DiskSpace) > 0 && spec.DiskSpace != b.DiskSpace {
+		oldDiskSpace := b.DiskSpace
+		b.DiskSpace = spec.DiskSpace
+		if err := b.SetQuota(); err != nil {
+			b.DiskSpace = oldDiskSpace
+			return err
+		}
+	}
+	return nil
 }
 
 func (b *Box) quotaArg() quota.QuotaArg {

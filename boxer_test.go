@@ -407,6 +407,68 @@ func (s *BoxerSuite) TestStart(c *C) {
 	})
 }
 
+func (s *BoxerSuite) TestStartWithNewSpecs(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+		cleanContainer(stratName, "mclovins-container-1",
+			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
+		s.Boxer.Receive(Message{
+			Id:         "testboxer",
+			BoxId:      1,
+			Type:       "aio:create",
+			Name:       "mclovins-container",
+			Runtime:    "test",
+			Memory:     "256M",
+			DiskSpace:  "1G",
+			PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
+		})
+		defer cleanContainer(stratName, "mclovins-container-1",
+			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
+
+		// mock data
+		var mockData map[string]interface{}
+		json.Unmarshal(
+			[]byte("{\"memory\":\"640M\",\"virtualMemory\":\"1280M\",\"cpuShares\":1536}"),
+			&mockData)
+
+		message := s.Boxer.Receive(Message{
+			Id:    "testboxer",
+			BoxId: 1,
+			Type:  "aio:start",
+			Data:  mockData,
+			Name:  "mclovins-container-1",
+		})
+
+		c.Assert(message.Type, Equals, "aio:started")
+		c.Assert(message.Id, Equals, "testboxer")
+		c.Assert(message.BoxId, Equals, 1)
+		c.Assert(message.Success, Equals, true)
+
+		AssertLxcState(c, "mclovins-container-1", "RUNNING")
+
+		root := "/var/lib/lxc/mclovins-container-1"
+		DoesExist(c, []string{
+			root + "/rootfs",
+		})
+
+		DoesContain(c, map[string][]string{
+			root + "/config": []string{
+				"lxc.cgroup.memory.limit_in_bytes = 640M",
+				"lxc.cgroup.memory.memsw.limit_in_bytes = 1920M",
+				"lxc.cgroup.cpu.shares = 1536",
+			},
+		})
+
+		// virtualMemory is persisted with redis
+		b, _ := s.ResourcePool.FindBox("mclovins-container-1")
+		c.Assert(b.VirtualMemory, Equals, "1280M")
+		c.Assert(b.CpuShares, Equals, 1536)
+		c.Assert(b.Memory, Equals, "640M")
+
+		s.assertBoxState(c, "mclovins-container-1", "running")
+	})
+}
+
 func (s *BoxerSuite) TestDestroy(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
@@ -512,6 +574,81 @@ func (s *BoxerSuite) TestRestart(c *C) {
 				"/mclovins-container-1")
 		}
 		DoesExist(c, containerPlace)
+
+		s.assertBoxState(c, "mclovins-container-1", "running")
+	})
+}
+
+func (s *BoxerSuite) TestRestartWithNewSpec(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+		cleanContainer(stratName, "mclovins-container-1",
+			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
+		s.Boxer.Receive(Message{
+			Id:         "testboxer",
+			BoxId:      1,
+			Type:       "aio:create",
+			Name:       "mclovins-container",
+			Runtime:    "test",
+			Memory:     "256M",
+			DiskSpace:  "1G",
+			PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
+		})
+		defer cleanContainer(stratName, "mclovins-container-1",
+			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
+
+		// mock data
+		var mockData map[string]interface{}
+		json.Unmarshal(
+			[]byte("{\"memory\":\"640M\",\"virtualMemory\":\"1280M\",\"cpuShares\":1536}"),
+			&mockData)
+
+		message := s.Boxer.Receive(Message{
+			Id:    "testboxer",
+			BoxId: 1,
+			Type:  "aio:restart",
+			Data:  mockData,
+			Name:  "mclovins-container-1",
+		})
+
+		c.Assert(message.Type, Equals, "aio:restarted")
+		c.Assert(message.Id, Equals, "testboxer")
+		c.Assert(message.BoxId, Equals, 1)
+		c.Assert(message.Success, Equals, true)
+
+		AssertLxcState(c, "mclovins-container-1", "RUNNING")
+
+		root := "/var/lib/lxc/mclovins-container-1"
+		containerPlace := []string{root}
+		switch stratName {
+		case "xfs", "ext4":
+			containerPlace = append(containerPlace, stratValue.SelectedDisk+
+				"/mclovins-container-1")
+			containerPlace = append(containerPlace, stratValue.SelectedDisk+
+				"/mclovins-container-1_delta")
+		case "lvm":
+			containerPlace = append(containerPlace, "/dev/"+stratValue.SelectedVG+
+				"/mclovins-container-1")
+		}
+		DoesExist(c, containerPlace)
+
+		DoesExist(c, []string{
+			root + "/rootfs",
+		})
+
+		DoesContain(c, map[string][]string{
+			root + "/config": []string{
+				"lxc.cgroup.memory.limit_in_bytes = 640M",
+				"lxc.cgroup.memory.memsw.limit_in_bytes = 1920M",
+				"lxc.cgroup.cpu.shares = 1536",
+			},
+		})
+
+		// virtualMemory is persisted with redis
+		b, _ := s.ResourcePool.FindBox("mclovins-container-1")
+		c.Assert(b.VirtualMemory, Equals, "1280M")
+		c.Assert(b.CpuShares, Equals, 1536)
+		c.Assert(b.Memory, Equals, "640M")
 
 		s.assertBoxState(c, "mclovins-container-1", "running")
 	})
@@ -702,17 +839,19 @@ func (s *BoxerSuite) TestChangeBoxSpecsPass(c *C) {
 		limit, _ := quotaProvisioner.ViewLimit(arg)
 		c.Assert(limit.Limit > 900*1000, Equals, true)
 
+		// mock data
+		var mockData map[string]interface{}
+		json.Unmarshal(
+			[]byte("{\"memory\":\"512M\",\"diskSpace\":\"2048M\",\"cpuShares\":2048}"),
+			&mockData)
+
 		message := s.Boxer.Receive(Message{
 			Id:       "testboxer",
 			BoxId:    1,
 			Type:     "aio:configure",
 			DataType: "aio:configure:change_specs",
-			Data: map[string]interface{}{
-				"memory":    "512M",
-				"diskSpace": "2048M",
-				"cpuShares": 2048,
-			},
-			Name: "mclovins-container-1",
+			Data:     mockData,
+			Name:     "mclovins-container-1",
 		})
 
 		c.Assert(message.Type, Equals, "aio:configured")
