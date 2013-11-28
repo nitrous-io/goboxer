@@ -16,7 +16,7 @@ lxc.pivotdir = lxc_putold
 lxc.cap.drop = audit_control audit_write
 lxc.cap.drop = mac_admin mac_override
 lxc.cap.drop = mknod setfcap setpcap
-lxc.cap.drop = sys_boot sys_module sys_nice sys_pacct sys_rawio sys_resource
+lxc.cap.drop = sys_module sys_nice sys_pacct sys_rawio sys_resource
 lxc.cap.drop = sys_time sys_tty_config
 
 lxc.network.type = veth
