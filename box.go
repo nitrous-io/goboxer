@@ -71,6 +71,7 @@ type Box struct {
 	Swappiness       int      `json:"swappiness"`
 	CpuShares        int      `json:"cpuShares"`
 	VirtualMemory    string   `json:"virtualMemory"`
+	Premium          bool     `json:"premium"`
 	Runtime          string   `json:"-"`
 	SnapshotURL      string   `json:"-"`
 	PublicKeys       []string `json:"-"`
@@ -116,6 +117,9 @@ func (b *Box) Create() error {
 		return err
 	}
 	if err := b.setEtcAction(); err != nil {
+		return err
+	}
+	if err := b.UpdatePremiumStatus(); err != nil {
 		return err
 	}
 	if err := b.AddPublicKey(b.PublicKeys...); err != nil {
@@ -355,6 +359,25 @@ func (b *Box) ChangeSpec(spec *BoxSpec) error {
 		}
 	}
 	return b.Restart()
+}
+
+func (b *Box) UpdatePremiumStatus() error {
+	actionPath := path.Join(b.RootFS(), "etc", "action")
+	premiumPath := path.Join(actionPath, "premium")
+	if b.Premium {
+		if err := os.MkdirAll(actionPath, 0755); err != nil {
+			return err
+		}
+		premiumFile, err := os.Create(premiumPath)
+		if err != nil {
+			return err
+		}
+		defer premiumFile.Close()
+		_, err = premiumFile.WriteString("1")
+		return err
+	} else {
+		return os.RemoveAll(premiumPath)
+	}
 }
 
 func (b *Box) Mount(root string) error {

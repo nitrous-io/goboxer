@@ -28,6 +28,7 @@ type Message struct {
 	SshKeyPair    []string `json:"sshKeyPair,omitempty"`
 	CpuShares     int      `json:"cpuShares,omitempty"`
 	VirtualMemory string   `json:"virtualMemory,omitempty"`
+	Premium       bool     `json:"premium,omitempty"`
 
 	// for normal message
 	DataType string      `json:"dataType,omitempty"`

@@ -181,6 +181,10 @@ func (s *BoxerSuite) TestCreateBox(c *C) {
 			root + "/rootfs/home/action/.ssh/id_rsa.pub",
 		}
 
+		var notExists = []string{
+			root + "/rootfs/etc/action/premium",
+		}
+
 		var checkContainsContent = map[string][]string{
 			root + "/rootfs/etc/passwd":          {"action:x:15001:15001"},
 			root + "/rootfs/etc/action/box_id":   {"1"},
@@ -219,6 +223,7 @@ func (s *BoxerSuite) TestCreateBox(c *C) {
 
 		// check the container contents
 		DoesExist(c, checkExists)
+		DoesNotExist(c, notExists)
 		DoesContain(c, checkContainsContent)
 		DoesHavePermissions(c, checkPermissions)
 
@@ -290,6 +295,37 @@ func (s *BoxerSuite) TestCreateWithVirtualMemory(c *C) {
 		b, _ := s.ResourcePool.FindBox("mclovins-container-1")
 		c.Assert(b.VirtualMemory, Equals, "1024")
 		c.Assert(b.TotalMemory(), Equals, "257M")
+	})
+}
+
+func (s *BoxerSuite) TestCreatePremiumBox(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+		cleanContainer(stratName, "mclovins-container-1",
+			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
+		s.Boxer.Receive(Message{
+			Id:         "testboxer",
+			BoxId:      1,
+			Type:       "aio:create",
+			Name:       "mclovins-container",
+			Runtime:    "test",
+			Memory:     "256M",
+			DiskSpace:  "1G",
+			Premium:    true,
+			PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
+		})
+		defer cleanContainer(stratName, "mclovins-container-1",
+			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
+
+		root := "/var/lib/lxc/mclovins-container-1"
+		var checkContent = map[string][]string{
+			root + "/rootfs/etc/action/premium": {"1"},
+		}
+		DoesContain(c, checkContent)
+
+		// virtualMemory is persisted with redis
+		b, _ := s.ResourcePool.FindBox("mclovins-container-1")
+		c.Assert(b.Premium, Equals, true)
 	})
 }
 
@@ -478,6 +514,73 @@ func (s *BoxerSuite) TestRestart(c *C) {
 		DoesExist(c, containerPlace)
 
 		s.assertBoxState(c, "mclovins-container-1", "running")
+	})
+}
+
+func (s *BoxerSuite) TestUpdatePremium(c *C) {
+	ts := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			fmt.Fprintln(w, "Hello, boxer")
+		}))
+	defer ts.Close()
+	// simulate response from cartman server
+	cartmanURL, _ := url.Parse(ts.URL)
+	s.Boxer.Cartman = &cartman.Cartman{Host: cartmanURL.Host}
+
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+		cleanContainer(stratName, "mclovins-container-1",
+			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
+		s.Boxer.Receive(Message{
+			Id:         "testboxer",
+			BoxId:      1,
+			Type:       "aio:create",
+			Name:       "mclovins-container",
+			Runtime:    "test",
+			Memory:     "256M",
+			DiskSpace:  "1G",
+			PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
+		})
+		defer cleanContainer(stratName, "mclovins-container-1",
+			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
+
+		message := s.Boxer.Receive(Message{
+			Id:       "testboxer",
+			BoxId:    1,
+			Type:     "aio:configure",
+			DataType: "aio:configure:update_premium",
+			Data: map[string]interface{}{
+				"premium": true,
+			},
+			Name: "mclovins-container-1",
+		})
+
+		c.Assert(message.Type, Equals, "aio:configured")
+		c.Assert(message.DataType, Equals, "aio:configured:update_premium")
+		c.Assert(message.Id, Equals, "testboxer")
+		c.Assert(message.BoxId, Equals, 1)
+		c.Assert(message.Success, Equals, true)
+
+		root := "/var/lib/lxc/mclovins-container-1"
+		var checkContainsContent = map[string][]string{
+			root + "/rootfs/etc/action/premium": {"1"},
+		}
+		DoesContain(c, checkContainsContent)
+
+		s.Boxer.Receive(Message{
+			Id:       "testboxer",
+			BoxId:    1,
+			Type:     "aio:configure",
+			DataType: "aio:configure:update_premium",
+			Data: map[string]interface{}{
+				"premium": false,
+			},
+			Name: "mclovins-container-1",
+		})
+
+		DoesNotExist(c, []string{
+			root + "/rootfs/etc/action/premium",
+		})
 	})
 }
 
