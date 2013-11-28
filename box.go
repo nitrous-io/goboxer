@@ -162,7 +162,7 @@ func (b *Box) Start(spec *BoxSpec) error {
 		return err
 	}
 	// this change spec without restarting the box
-	if err := b.changeSpec(spec); err != nil {
+	if err := b.handleSpecChange(spec); err != nil {
 		return err
 	}
 	return lxc.Start(b.ContainerName())
@@ -341,7 +341,7 @@ func (b *Box) UnsetQuota() error {
 }
 
 func (b *Box) ChangeSpec(spec *BoxSpec) error {
-	if err := b.changeSpec(spec); err != nil {
+	if err := b.handleSpecChange(spec); err != nil {
 		return err
 	}
 	return b.Restart(spec)
@@ -537,7 +537,9 @@ func (b *Box) RemoveEnv(data []string) (err error) {
 	return
 }
 
-func (b *Box) changeSpec(spec *BoxSpec) error {
+// this requires the box to be mounted because we are writing lxc config into
+// the mounted path, not the _delta path
+func (b *Box) handleSpecChange(spec *BoxSpec) error {
 	willWriteConfig := false
 	if spec.Memory != b.Memory {
 		b.Memory = spec.Memory
