@@ -44,7 +44,7 @@ type BoxInfo struct {
 }
 
 type Box struct {
-	Id               int      `json:"id,string"`
+	Id               int      `json:"id"`
 	Name             string   `json:"name"`
 	Template         string   `json:"containerTemplate"`
 	Memory           string   `json:"memory"`
