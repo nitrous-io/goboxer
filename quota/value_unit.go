@@ -15,7 +15,7 @@ func (v ValueUnit) ToString() string {
 }
 
 // return the sum of value unit in megabytes
-func SumValueUnit(a, b ValueUnit) ValueUnit {
+func SumValueUnitMb(a, b ValueUnit) ValueUnit {
 	if a.Unit == b.Unit {
 		return ConvertValueUnit(ValueUnit{
 			Value: a.Value + b.Value,

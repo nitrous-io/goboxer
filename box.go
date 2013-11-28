@@ -283,7 +283,7 @@ func (b *Box) TotalMemory() string {
 	} else {
 		vm = m
 	}
-	return quota.SumValueUnit(m, vm).ToString()
+	return quota.SumValueUnitMb(m, vm).ToString()
 }
 
 func (b *Box) AddPublicKey(keys ...string) error {

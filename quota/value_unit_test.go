@@ -32,17 +32,17 @@ func (s *ValueUnitSuite) TestConvertValueUnit(c *C) {
 	c.Assert(v.Unit, Equals, "K")
 }
 
-func (s *ValueUnitSuite) TestSumValueUnit(c *C) {
+func (s *ValueUnitSuite) TestSumValueUnitMb(c *C) {
 	var a, b, sum ValueUnit
 	a = ParseValueUnit("1024K")
 	b = ParseValueUnit("1024K")
-	sum = SumValueUnit(a, b)
+	sum = SumValueUnitMb(a, b)
 	c.Assert(sum.Value, Equals, 2.0)
 	c.Assert(sum.Unit, Equals, "M")
 
 	a = ParseValueUnit("1024K")
 	b = ParseValueUnit("2M")
-	sum = SumValueUnit(a, b)
+	sum = SumValueUnitMb(a, b)
 	c.Assert(sum.Value, Equals, 3.0)
 	c.Assert(sum.Unit, Equals, "M")
 }
