@@ -9,16 +9,51 @@ type ValueUnit struct {
 	Unit  string
 }
 
-// Return a value unit from a string
+// roundup the value unit to int
+func (v ValueUnit) ToString() string {
+	return fmt.Sprintf("%d%s", int(v.Value), v.Unit)
+}
+
+// return the sum of value unit in megabytes
+func SumValueUnitMb(a, b ValueUnit) ValueUnit {
+	if a.Unit == b.Unit {
+		return ConvertValueUnit(ValueUnit{
+			Value: a.Value + b.Value,
+			Unit:  a.Unit,
+		}, "M")
+	}
+	au := ScaleUnit(ConvertValueUnitToByte(a), "M")
+	bu := ScaleUnit(ConvertValueUnitToByte(b), "M")
+	return ValueUnit{
+		Value: au + bu,
+		Unit:  "M",
+	}
+}
+
+func ConvertValueUnit(v ValueUnit, m string) ValueUnit {
+	au := ScaleUnit(ConvertValueUnitToByte(v), m)
+	return ValueUnit{
+		Value: au,
+		Unit:  m,
+	}
+}
+
+// Return a value unit from a string. If the string doesnt have unit, we assume
+// that it will be K
 //
 //	ParseValueUnit("123M")
 //	>> ValueUnit{Value: 123, Unit: "M"}
 //	ParseValueUnit("0.5M")
 //	>> ValueUnit{Value: 0.5, Unit: "M"}
+//	ParseValueUnit("0.5")
+//	>> ValueUnit{Value: 0.5, Unit: "K"}
 func ParseValueUnit(s string) ValueUnit {
 	var i float64
 	var u string
 	fmt.Sscanf(s, "%f%s", &i, &u)
+	if len(u) == 0 {
+		u = "K"
+	}
 	return ValueUnit{i, u}
 }
 
