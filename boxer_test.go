@@ -424,16 +424,19 @@ func (s *BoxerSuite) TestStartWithNewSpecs(c *C) {
 		})
 		defer cleanContainer(stratName, "mclovins-container-1",
 			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
+
+		// mock data
+		var mockData map[string]interface{}
+		json.Unmarshal(
+			[]byte("{\"memory\":\"640M\",\"virtualMemory\":\"1280M\",\"cpuShares\":1536}"),
+			&mockData)
+
 		message := s.Boxer.Receive(Message{
 			Id:    "testboxer",
 			BoxId: 1,
 			Type:  "aio:start",
-			Data: map[string]interface{}{
-				"memory":        "640M",
-				"virtualMemory": "1280M",
-				"cpuShares":     1536,
-			},
-			Name: "mclovins-container-1",
+			Data:  mockData,
+			Name:  "mclovins-container-1",
 		})
 
 		c.Assert(message.Type, Equals, "aio:started")
@@ -593,16 +596,19 @@ func (s *BoxerSuite) TestRestartWithNewSpec(c *C) {
 		})
 		defer cleanContainer(stratName, "mclovins-container-1",
 			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
+
+		// mock data
+		var mockData map[string]interface{}
+		json.Unmarshal(
+			[]byte("{\"memory\":\"640M\",\"virtualMemory\":\"1280M\",\"cpuShares\":1536}"),
+			&mockData)
+
 		message := s.Boxer.Receive(Message{
 			Id:    "testboxer",
 			BoxId: 1,
 			Type:  "aio:restart",
-			Data: map[string]interface{}{
-				"memory":        "640M",
-				"virtualMemory": "1280M",
-				"cpuShares":     1536,
-			},
-			Name: "mclovins-container-1",
+			Data:  mockData,
+			Name:  "mclovins-container-1",
 		})
 
 		c.Assert(message.Type, Equals, "aio:restarted")
@@ -833,17 +839,19 @@ func (s *BoxerSuite) TestChangeBoxSpecsPass(c *C) {
 		limit, _ := quotaProvisioner.ViewLimit(arg)
 		c.Assert(limit.Limit > 900*1000, Equals, true)
 
+		// mock data
+		var mockData map[string]interface{}
+		json.Unmarshal(
+			[]byte("{\"memory\":\"512M\",\"diskSpace\":\"2048M\",\"cpuShares\":2048}"),
+			&mockData)
+
 		message := s.Boxer.Receive(Message{
 			Id:       "testboxer",
 			BoxId:    1,
 			Type:     "aio:configure",
 			DataType: "aio:configure:change_specs",
-			Data: map[string]interface{}{
-				"memory":    "512M",
-				"diskSpace": "2048M",
-				"cpuShares": 2048,
-			},
-			Name: "mclovins-container-1",
+			Data:     mockData,
+			Name:     "mclovins-container-1",
 		})
 
 		c.Assert(message.Type, Equals, "aio:configured")

@@ -221,12 +221,7 @@ func StartBoxHandler(m Message, boxer *Boxer) Message {
 		msg.Success = false
 	}
 	// send back the final spec of box
-	msg.Data = map[string]interface{}{
-		"memory":        box.Memory,
-		"diskSpace":     box.DiskSpace,
-		"cpuShares":     box.CpuShares,
-		"virtualMemory": box.VirtualMemory,
-	}
+	msg.Data = box.CurrentSpec().ToData()
 	return msg
 }
 
@@ -285,12 +280,7 @@ func RestartBoxHandler(m Message, boxer *Boxer) Message {
 		BoxId:      box.Id,
 		ReturnVars: m.ReturnVars,
 		Success:    true,
-		Data: map[string]interface{}{
-			"memory":        box.Memory,
-			"diskSpace":     box.DiskSpace,
-			"cpuShares":     box.CpuShares,
-			"virtualMemory": box.VirtualMemory,
-		},
+		Data:       box.CurrentSpec().ToData(),
 	}
 	if err := boxer.ResourcePool.UpdateState(box, "running"); err != nil {
 		logger.Printf("ERROR: Fail to update box state %v, err: %v\n", box, err)
@@ -358,46 +348,15 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 		return message
 	case "aio:configure:change_specs":
 		message.DataType = "aio:configured:change_specs"
-		message.Data = map[string]interface{}{
-			"memory":    box.Memory,
-			"diskSpace": box.DiskSpace,
-			"cpuShares": box.CpuShares,
-		}
-		data, ok := (m.Data).(map[string]interface{})
-		if !ok {
+		spec := box.CurrentSpec()
+		message.Data = spec.ToData()
+		if ok := spec.MergeData(m); !ok {
+			logger.Debugln("aio:configure:change_specs: merge data", spec, m)
 			message.Success = false
 			return message
 		}
-		spec := &BoxSpec{}
-		if data["memory"] != nil {
-			spec.Memory, ok = (data["memory"]).(string)
-			if !ok {
-				message.Success = false
-				return message
-			}
-		}
-
-		if data["diskSpace"] != nil {
-			spec.DiskSpace, ok = (data["diskSpace"]).(string)
-			if !ok {
-				message.Success = false
-				return message
-			}
-		}
-
-		if data["cpuShares"] != nil {
-			spec.CpuShares, ok = (data["cpuShares"]).(int)
-			if !ok {
-				message.Success = false
-				return message
-			}
-		}
-
 		err := box.ChangeSpec(spec)
-		message.Data = map[string]interface{}{
-			"memory":    box.Memory,
-			"diskSpace": box.DiskSpace,
-		}
+		message.Data = box.CurrentSpec().ToData()
 		if err != nil {
 			logger.Debugf("ChangeSpecs: %v\n", err)
 			message.Success = false
