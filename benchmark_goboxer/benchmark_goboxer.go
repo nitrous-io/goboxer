@@ -13,15 +13,13 @@ import (
 )
 
 const (
-	NUM_BOX       = 10
-	BIN           = "goboxer"
-	BOXER_ID      = "46.137.252.155"
-	BOX_NAME      = "mclovins-container"
 	BOXER_CHANNEL = "aio-boxer-channel"
 	COACH_CHANNEL = "aio-coach-channel"
 )
 
 type benchmarkResult map[string]float64
+
+var config *benchmarkConfig
 
 func insertResource(idsMap []int, c redis.Conn) {
 	c.Do("FLUSHDB")
@@ -36,10 +34,19 @@ func insertResource(idsMap []int, c redis.Conn) {
 
 func main() {
 	// initialize number of boxes
-	flNumBox := flag.Int("n", 1, "Set config path of the program")
+	flNumBox := flag.Int("n", 0, "number of boxes, override config")
+	flConfigPath := flag.String("c", "./config.json", "config path")
 	flag.Parse()
+
+	config = NewConfig(*flConfigPath)
+
+	if *flNumBox > 0 {
+		config.NumBox = *flNumBox
+	}
+
+	// initialize number of boxes
 	idsMap := []int{}
-	for i := 0; i < *flNumBox; i++ {
+	for i := 0; i < config.NumBox; i++ {
 		id := i + 2
 		idsMap = append(idsMap, id)
 	}
@@ -101,10 +108,10 @@ func main() {
 func createMessage(id int) string {
 	m := goboxer.Message{
 		Type:       "aio:create",
-		Id:         BOXER_ID,
+		Id:         config.BoxerId,
 		BoxId:      id,
-		Name:       BOX_NAME,
-		Runtime:    "test",
+		Name:       config.BoxName,
+		Runtime:    config.Runtime,
 		Memory:     "384M",
 		DiskSpace:  "750M",
 		PublicKeys: []string{"ssh-rsa qwer", "ssh-rsa asdf"},
@@ -117,9 +124,9 @@ func createMessage(id int) string {
 func destroyMessage(id int) string {
 	m := goboxer.Message{
 		Type:  "aio:destroy",
-		Id:    BOXER_ID,
+		Id:    config.BoxerId,
 		BoxId: id,
-		Name:  BOX_NAME + "-" + strconv.Itoa(id),
+		Name:  config.BoxName + "-" + strconv.Itoa(id),
 	}
 	b, _ := json.Marshal(m)
 	return string(b)
