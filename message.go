@@ -7,7 +7,7 @@ package goboxer
 type Message struct {
 	// all messages can have these
 	Id         string            `json:"id,omitempty"`
-	BoxId      int               `json:"boxId,omitempty,string"`
+	BoxId      int               `json:"boxId,omitempty"`
 	Type       string            `json:"type,omitempty"`
 	ReturnVars map[string]string `json:"returnVars,omitempty"`
 
