@@ -29,7 +29,8 @@ type BoxAuth struct {
 }
 
 func (a BoxAuth) IsValid() bool {
-	return len(a.Username) > 0 && len(a.Password) > 0
+	return ((len(a.Username) == 0 && len(a.Password) == 0) ||
+		(len(a.Username) > 0 && len(a.Password) > 0))
 }
 
 // Return current box info.

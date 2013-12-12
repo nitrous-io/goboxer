@@ -53,3 +53,25 @@ func (s *BoxSuite) TestQuotaMethod(c *C) {
 	b.QuotaMethod = "usrquota"
 	c.Assert(b.getQuotaMethod(), Equals, "usrquota")
 }
+
+func (s *BoxSuite) TestBoxAuthIsValid(c *C) {
+	var b BoxAuth
+	b = BoxAuth{
+		Username: "hello",
+		Password: "world",
+	}
+	c.Assert(b.IsValid(), Equals, true)
+
+	b = BoxAuth{
+		Username: "hello",
+	}
+	c.Assert(b.IsValid(), Equals, false)
+
+	b = BoxAuth{
+		Password: "hello",
+	}
+	c.Assert(b.IsValid(), Equals, false)
+
+	b = BoxAuth{}
+	c.Assert(b.IsValid(), Equals, true)
+}
