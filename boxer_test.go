@@ -1413,3 +1413,70 @@ func (s *BoxerSuite) TestUpdateAuth(c *C) {
 		c.Assert(box.AuthPassword, Equals, "password")
 	})
 }
+
+func (s *BoxerSuite) TestRemoveAuth(c *C) {
+	// simulate response from cartman server
+	ts := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			fmt.Fprintln(w, "Hello, boxer")
+		}))
+	defer ts.Close()
+	cartmanURL, _ := url.Parse(ts.URL)
+	s.Boxer.Cartman = &cartman.Cartman{Host: cartmanURL.Host}
+
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+		cleanContainer(stratName, "mclovins-container-1",
+			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
+		defer cleanContainer(stratName, "mclovins-container-1",
+			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
+
+		s.Boxer.Receive(Message{
+			Id:         "testboxer",
+			BoxId:      1,
+			Type:       "aio:create",
+			Name:       "mclovins-container",
+			Runtime:    "test",
+			Memory:     "256M",
+			DiskSpace:  "1024M",
+			PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
+		})
+
+		message := s.Boxer.Receive(Message{
+			Id:       "testboxer",
+			BoxId:    1,
+			Type:     "aio:configure",
+			DataType: "aio:configure:update_auth",
+			Data: map[string]interface{}{
+				"auth_username": "action",
+				"auth_password": "password",
+			},
+			Name: "mclovins-container-1",
+		})
+
+		c.Assert(message.Success, Equals, true)
+
+		// check redis
+		box, _ := s.ResourcePool.FindBox("mclovins-container-1")
+		c.Assert(box.AuthUsername, Equals, "action")
+		c.Assert(box.AuthPassword, Equals, "password")
+
+		message = s.Boxer.Receive(Message{
+			Id:       "testboxer",
+			BoxId:    1,
+			Type:     "aio:configure",
+			DataType: "aio:configure:update_auth",
+			Data: map[string]interface{}{
+				"auth_username": nil,
+				"auth_password": nil,
+			},
+			Name: "mclovins-container-1",
+		})
+
+		c.Assert(message.Success, Equals, true)
+		// check redis
+		box, _ = s.ResourcePool.FindBox("mclovins-container-1")
+		c.Assert(box.AuthUsername, Equals, "")
+		c.Assert(box.AuthPassword, Equals, "")
+	})
+}

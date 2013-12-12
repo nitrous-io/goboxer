@@ -398,18 +398,28 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 		}
 		return message
 	case "aio:configure:update_auth":
+		var username, password string
+		var ok bool
 		message.DataType = "aio:configured:update_auth"
 		data, ok := (m.Data).(map[string]interface{})
 		if !ok {
 			return boxer.NewInvalidParamMessage()
 		}
-		username, ok := data["auth_username"].(string)
-		if !ok {
-			return boxer.NewInvalidParamMessage()
+		if data["auth_username"] == nil {
+			username = ""
+		} else {
+			username, ok = data["auth_username"].(string)
+			if !ok {
+				return boxer.NewInvalidParamMessage()
+			}
 		}
-		password, ok := data["auth_password"].(string)
-		if !ok {
-			return boxer.NewInvalidParamMessage()
+		if data["auth_password"] == nil {
+			password = ""
+		} else {
+			password, ok = data["auth_password"].(string)
+			if !ok {
+				return boxer.NewInvalidParamMessage()
+			}
 		}
 		auth := BoxAuth{
 			Username: username,
