@@ -49,12 +49,12 @@ var strategies = map[string]testProvisionStrategy{
 		SelectedDisk: "/lxc/disk2",
 		SelectedVG:   "",
 	},
-	//"lvm": testProvisionStrategy{
-	//    MountMethod:  "lvm",
-	//    QuotaMethod:  "lvm",
-	//    SelectedDisk: "",
-	//    SelectedVG:   "aio_boxhost",
-	//},
+	"lvm": testProvisionStrategy{
+		MountMethod:  "lvm",
+		QuotaMethod:  "lvm",
+		SelectedDisk: "",
+		SelectedVG:   "aio_boxhost",
+	},
 }
 
 type boxContentSpec struct {
@@ -1121,7 +1121,7 @@ func (s *BoxerSuite) TestChangeBoxSpecsLvmFail(c *C) {
 
 		// write 16M to test
 		exec.Command("dd", "if=/dev/zero",
-			"of=/var/lib/lxc/mclovins-container-1/test_file",
+			"of="+box.LxcPath()+"/test_file",
 			"bs=1024", "count=16384").Run()
 
 		message, box = s.receiveMessages("mclovins-container-1", Message{
