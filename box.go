@@ -44,8 +44,12 @@ type BoxInfo struct {
 	LxcStatus    string  `json:"lxcStatus,omitempty"`
 }
 
+// UniqueId is the guaranteed unique id *only* for the current box over its lifetime
+// i.e. a box will be guaranteed not to have its mountpoint clash when
+// umount/remount when uid is implemented
 type Box struct {
 	Id               int      `json:"id"`
+	UniqueId         string   `json:"uniqueId"`
 	Name             string   `json:"name"`
 	Template         string   `json:"containerTemplate"`
 	Memory           string   `json:"memory"`
@@ -208,6 +212,14 @@ func (b *Box) UpdateAuth(auth BoxAuth) error {
 	return b.boxer.Cartman.InvalidateCache(b.ContainerName())
 }
 
+func (b *Box) MountName() string {
+	base := b.ContainerName()
+	if len(b.UniqueId) > 0 {
+		base = base + "-" + b.UniqueId
+	}
+	return base
+}
+
 func (b *Box) ContainerName() string {
 	return b.Name + "-" + strconv.Itoa(b.Id)
 }
@@ -217,14 +229,14 @@ func (b *Box) PublicKeysPath() string {
 }
 
 func (b *Box) LxcPath() string {
-	return path.Join(b.boxer.Root, b.ContainerName())
+	return path.Join(b.boxer.Root, b.MountName())
 }
 
 func (b *Box) ContainerFS() string {
 	if b.getMountMethod() == "lvm" {
 		return b.LxcPath()
 	} else {
-		return path.Join(b.Disk, b.ContainerName())
+		return path.Join(b.Disk, b.MountName())
 	}
 }
 
@@ -235,7 +247,7 @@ func (b *Box) EnvPath() string {
 // rootfs of the container. This is the root after unionized so its typically
 // will be in boxer.Root i.e /var/lib/lxc
 func (b *Box) RootFS() string {
-	return path.Join(b.boxer.Root, b.ContainerName(), "rootfs")
+	return path.Join(b.boxer.Root, b.MountName(), "rootfs")
 }
 
 // path of the box's templates.  (i.e. ruby_template.tar.gz,
@@ -378,7 +390,8 @@ func (b *Box) Mount(root string) error {
 
 	lxcBoxPath := b.LxcPath()
 	boxDeltaPath := b.ContainerDeltaPath()
-	switch b.getMountMethod() {
+	mountMethod := b.getMountMethod()
+	switch mountMethod {
 	case "overlayfs", "aufs":
 		// overlayfs or aufs strategy
 		//
@@ -415,8 +428,7 @@ func (b *Box) Mount(root string) error {
 		}
 		return mount.Union("aufs", lxcBoxPath, boxDeltaPath, baseContainerPath)
 	default:
-		return fmt.Errorf("%s is not a supported mount method",
-			b.getMountMethod())
+		return fmt.Errorf("%s is not a supported mount method", mountMethod)
 	}
 }
 
