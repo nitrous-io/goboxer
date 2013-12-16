@@ -6,7 +6,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"syscall"
-	"time"
 )
 
 func mount(source string, target string, fstype string, flags uintptr, data string) (err error) {
@@ -105,16 +104,7 @@ func Unmount(mountType, target string) error {
 	if err := umount(target); err != nil {
 		return fmt.Errorf("%s failed to umount: %v", target, err)
 	}
-	// Even though we just unmounted the filesystem, AUFS will prevent deleting the mntpoint
-	// for some time. We'll just keep retrying until it succeeds.
-	for retries := 0; retries < 1000; retries++ {
-		err := remove(target)
-		if err == nil {
-			return nil
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	return fmt.Errorf("Umount: Failed to umount %v", target)
+	return remove(target)
 }
 
 // from ruby's Pathname#mountpoint?
