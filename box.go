@@ -441,7 +441,7 @@ func (b *Box) Mount(root string) error {
 }
 
 // Unmount will always regenerate an unique id for the box, so it guarantees
-// that the next mount operation will success even if `Unmount` failsnow
+// that the next mount operation will success even if `Unmount` fails
 func (b *Box) Unmount(root string) error {
 	b.boxer.Lock()
 	defer b.boxer.Unlock()
@@ -452,17 +452,22 @@ func (b *Box) Unmount(root string) error {
 	defer b.generateUniqueId()
 	mountMethod := b.getMountMethod()
 	if err := mount.Unmount(mountMethod, b.LxcPath()); err != nil {
-		return err
+		logger.Println("Unmount: err %v", err)
 	}
 	switch mountMethod {
 	case "overlayfs", "aufs":
-		return mount.Unmount(mountMethod, b.ContainerFS())
+		if err := mount.Unmount(mountMethod, b.ContainerFS()); err != nil {
+			logger.Println("Unmount: err %v", err)
+		}
 	case "lvm":
-		return mount.Unmount(mountMethod, b.ContainerDeltaPath())
+		if err := mount.Unmount(mountMethod, b.ContainerDeltaPath()); err != nil {
+			logger.Println("Unmount: err %v", err)
+		}
 	default:
 		return fmt.Errorf("%s is not a supported unmount method",
 			mountMethod)
 	}
+	return nil
 }
 
 func (b *Box) DeleteContainerData() error {
