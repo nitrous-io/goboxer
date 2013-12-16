@@ -62,7 +62,7 @@ func (q UsrQuota) ViewLimit(arg QuotaArg) (QuotaInfo, error) {
 		line := scanner.Text()
 		// found the quota for user
 		fields := strings.Fields(line)
-		if fields[0] == fmt.Sprintf("#%d", userId) {
+		if len(fields) > 1 && fields[0] == fmt.Sprintf("#%d", userId) {
 			quota.Used, _ = strconv.Atoi(fields[2])
 			quota.Limit, _ = strconv.Atoi(fields[3])
 			break
