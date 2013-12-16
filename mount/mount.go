@@ -117,21 +117,27 @@ func Unmount(mountType, target string) error {
 	return fmt.Errorf("Umount: Failed to umount %v", target)
 }
 
+// from ruby's Pathname#mountpoint?
+// http://www.ruby-doc.org/stdlib-1.9.3/libdoc/pathname/rdoc/Pathname.html#method-i-mountpoint-3F
 func Mounted(mountpoint string) (bool, error) {
-	mntpoint, err := os.Stat(mountpoint)
-	if err != nil {
+	var stat1, stat2 os.FileInfo
+	var err error
+	if stat1, err = os.Stat(mountpoint); err != nil {
 		if os.IsNotExist(err) {
 			return false, nil
 		}
 		return false, err
 	}
-	parent, err := os.Stat(filepath.Join(mountpoint, ".."))
-	if err != nil {
+	if stat2, err = os.Stat(filepath.Join(mountpoint, "..")); err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
 		return false, err
 	}
-	mntpointSt := mntpoint.Sys().(*syscall.Stat_t)
-	parentSt := parent.Sys().(*syscall.Stat_t)
-	return mntpointSt.Dev != parentSt.Dev, nil
+	st1 := stat1.Sys().(*syscall.Stat_t)
+	st2 := stat2.Sys().(*syscall.Stat_t)
+	mounted := (st1.Dev == st2.Dev && st1.Ino == st2.Ino) || st1.Dev != st2.Dev
+	return mounted, nil
 }
 
 func remove(target string) error {
