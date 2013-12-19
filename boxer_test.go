@@ -1480,3 +1480,10 @@ func (s *BoxerSuite) TestRemoveAuth(c *C) {
 		c.Assert(box.AuthPassword, Equals, "")
 	})
 }
+
+func (s *BoxerSuite) TestCpuRange(c *C) {
+  c.Assert(CpuRange(6), Equals, "1-5")
+  c.Assert(CpuRange(4), Equals, "1-3")
+  c.Assert(CpuRange(2), Equals, "1")
+  c.Assert(CpuRange(1), Equals, "0")
+}

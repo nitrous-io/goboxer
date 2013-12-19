@@ -160,7 +160,7 @@ func CreateBoxHandler(m Message, boxer *Boxer) Message {
 		QuotaMethod:      boxer.QuotaMethod,
 		SelectedVG:       boxer.SelectedVG,
 		CpuShares:        m.CpuShares,
-		CpuRange:         CpuRange(),
+		CpuRange:         CpuRange(runtime.NumCPU()),
 		VirtualMemory:    m.VirtualMemory,
 		Premium:          m.Premium,
 	}
@@ -532,8 +532,8 @@ func (boxer *Boxer) findBox(name string) (*Box, error) {
 }
 
 // Return CpuRange depending on boxhost's NumCPU.
-func CpuRange() string {
-	cpuCount := runtime.NumCPU()
+func CpuRange(numCPU int) string {
+	cpuCount := numCPU
 	var cpuRange string
 
 	switch cpuCount {
