@@ -160,6 +160,15 @@ func (s *BoxerSuite) TearDownTest(c *C) {
 	conn.Do("FLUSHDB")
 }
 
+func (s *BoxerSuite) TestSetCpuSet(c *C) {
+	s.Boxer.SetCpuSet(3)
+	c.Assert(s.Boxer.CpuSet, DeepEquals, []int{1, 2})
+	s.Boxer.SetCpuSet(2)
+	c.Assert(s.Boxer.CpuSet, DeepEquals, []int{1})
+	s.Boxer.SetCpuSet(1)
+	c.Assert(s.Boxer.CpuSet, DeepEquals, []int{0})
+}
+
 func (s *BoxerSuite) TestCreateBox(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
@@ -239,6 +248,37 @@ func (s *BoxerSuite) TestCreateBox(c *C) {
 		defer conn.Close()
 		usedIp, _ := redis.String(conn.Do("LPOP", "aio:used_resources"))
 		c.Assert(usedIp, Equals, "192.168.254.2")
+	})
+}
+
+func (s *BoxerSuite) TestCreateBoxWithCpuRange(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+		cleanContainer(stratName, "mclovins-container-1",
+			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
+		// reset cpu set to make results consistent
+		s.Boxer.SetCpuSet(3)
+		message := s.Boxer.Receive(Message{
+			Id:         "testboxer",
+			BoxId:      1,
+			Type:       "aio:create",
+			Name:       "mclovins-container",
+			Runtime:    "test",
+			Memory:     "256M",
+			DiskSpace:  "1G",
+			PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
+			CpuShares:  2048,
+		})
+		defer cleanContainer(stratName, "mclovins-container-1",
+			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
+		c.Assert(message.Type, Equals, "aio:created")
+		c.Assert(message.Id, Equals, "testboxer")
+		root := "/var/lib/lxc/mclovins-container-1"
+		DoesContain(c, map[string][]string{
+			root + "/config": {
+				"lxc.cgroup.cpuset.cpus = 1,2",
+			},
+		})
 	})
 }
 
