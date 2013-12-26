@@ -47,7 +47,7 @@ fi
 # install templates to all disks
 template=base_container_template
 if [[ ! -d /var/lib/lxc/${template} ]]; then
-  lxc-create -n ${template} -t ubuntu -f $PWD/goboxer/script/lxc_default.conf -- -r precise
+  lxc-create -n ${template} -t ubuntu -f $PWD/script/lxc_default.conf -- -r precise
   chroot /var/lib/lxc/${template}/rootfs useradd action -m -s /bin/bash -d /home/action
   chroot /var/lib/lxc/base_container_template/rootfs rm -rf /dev/null
   chroot /var/lib/lxc/base_container_template/rootfs mknod -m 666 /dev/null c 1 3

@@ -34,8 +34,8 @@ $script = <<SCRIPT
   chown -R vagrant:vagrant $HOME/gocode
 
   cd $HOME/gocode/src/github.com/action-io/goboxer
-  go get
-  go get launchpad.net/gocheck
+  /usr/local/go/bin/go get
+  /usr/local/go/bin/go get launchpad.net/gocheck
 
   ./script/setup
 
