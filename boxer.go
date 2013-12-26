@@ -176,6 +176,7 @@ func CreateBoxHandler(m Message, boxer *Boxer) Message {
 		CpuShares:        m.CpuShares,
 		VirtualMemory:    m.VirtualMemory,
 		Premium:          m.Premium,
+		CpuSet:           boxer.CpuSet,
 	}
 	box.boxer = boxer
 	box.Prepare()

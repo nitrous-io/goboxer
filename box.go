@@ -97,9 +97,6 @@ func (b *Box) Prepare() {
 	if b.CpuShares == 0 {
 		b.CpuShares = DEFAULT_CPU_SHARES
 	}
-	if b.boxer != nil && len(b.boxer.CpuSet) > 0 {
-		b.CpuSet = b.boxer.CpuSet
-	}
 }
 
 // return the valid value that should be applied to `cpuset.cpus`
