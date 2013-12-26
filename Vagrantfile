@@ -18,7 +18,7 @@ $script = <<SCRIPT
   apt-get install -yy s3cmd
 
   # support for cgroup
-  sed -i "s/GRUB_CMDLINE_LINUX=\"\"/GRUB_CMDLINE_LINUX=\"cgroup_enable=memory swapaccount=1\"/g" /etc/default/grub
+  sed -i 's/GRUB_CMDLINE_LINUX=""/GRUB_CMDLINE_LINUX="cgroup_enable=memory swapaccount=1"/g' /etc/default/grub
   update-grub
 
   if [[ ! -f /usr/local/go/bin/go ]]; then
