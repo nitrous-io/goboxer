@@ -5,20 +5,20 @@ IP = ENV['GOBOXER_INTERFACE'] || ENV['VAGRANT_INTERFACE'] || "33.33.33.10"
 
 $script = <<SCRIPT
   export HOME=/home/vagrant
+  add-apt-repository http://ppa.launchpad.net/brightbox/experimental/ubuntu
   apt-get update
   apt-get install -yy python-software-properties
-  add-apt-repository http://ppa.launchpad.net/brightbox/experimental/ubuntu
 
   apt-get update
   # install a newer kernel
   apt-get install -q -y linux-image-generic-lts-raring linux-headers-generic-lts-raring
   apt-get install -yy build-essential
-  apt-get install -yy git-core lxc bridge-utils curl redis-server build-essential xfsprogs lvm2 iptables aufs-tools mercurial
+  apt-get install -yy git-core bzr lxc bridge-utils curl redis-server build-essential xfsprogs lvm2 iptables aufs-tools mercurial
   apt-get install -yy quotatool thin-provisioning-tools
   apt-get install -yy s3cmd
 
   # support for cgroup
-  sed -i "s/GRUB_CMDLINE_LINUX=\"\"/GRUB_CMDLINE_LINUX=\"cgroup_enable=memory swapaccount=1\"/g" /etc/default/grub
+  sed -i 's/GRUB_CMDLINE_LINUX=""/GRUB_CMDLINE_LINUX="cgroup_enable=memory swapaccount=1"/g' /etc/default/grub
   update-grub
 
   if [[ ! -f /usr/local/go/bin/go ]]; then
@@ -31,8 +31,12 @@ $script = <<SCRIPT
   cd $HOME
   mkdir -p $HOME/gocode/src/github.com/action-io
   ln -fs $HOME/gocode/src/github.com/action-io/goboxer $HOME/goboxer
+  chown -R vagrant:vagrant $HOME/gocode
 
   cd $HOME/gocode/src/github.com/action-io/goboxer
+  go get
+  go get launchpad.net/gocheck
+
   ./script/setup
 
   echo 'To deploy, you need to setup s3cmd credentials. Run `s3cmd --configure` inside the box to start'
