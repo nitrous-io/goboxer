@@ -8,4 +8,4 @@
 - glare at the screen angrily as the provisioning will take some time
 - Login to the box: `vagrant ssh`
 - If you havent setup s3cmd, now is a good time to do that
-- change to goboxer directory and run `make test`. *Ideally* it should pass !!!
+- change to goboxer directory, run `go get`, then `make test`. *Ideally* it should pass !!!
