@@ -10,6 +10,20 @@ type BoxSuite struct{}
 
 var _ = Suite(&BoxSuite{})
 
+func (s *BoxSuite) TestPrepareWithDefaults(c *C) {
+	b := &Box{}
+	b.Prepare()
+	c.Assert(b.Swappiness, Equals, 60) // FIXME How to stub constants in Golang?
+	c.Assert(b.CpuShares, Equals, 512)
+	c.Assert(b.CpuQuota, Equals, 0.5)
+}
+
+func (s *BoxSuite) TestPrepareWithPremiumBox(c *C) {
+	b := &Box{Premium: true}
+	b.Prepare()
+	c.Assert(b.CpuQuota, Equals, 1.0)
+}
+
 func (s *BoxSuite) TestTotalMemory(c *C) {
 	b := &Box{Memory: "384M"}
 	c.Assert(b.TotalMemory(), Equals, "768M")
@@ -127,4 +141,13 @@ func (s *BoxSuite) TestContainerDeltaPath(c *C) {
 func (s *BoxSuite) TestCpuSetString(c *C) {
 	b := &Box{CpuSet: []int{1, 2, 3}}
 	c.Assert(b.CpuSetStr(), Equals, "1,2,3")
+}
+
+func (s *BoxSuite) TestCpuQuotaMicroseconds(c *C) {
+	b := &Box{CpuQuota: 0.5}
+	c.Assert(b.CpuQuotaMicroseconds(), Equals, 500000)
+	b = &Box{CpuQuota: 1}
+	c.Assert(b.CpuQuotaMicroseconds(), Equals, 1000000)
+	b = &Box{CpuQuota: 0}
+	c.Assert(b.CpuQuotaMicroseconds(), Equals, 0)
 }
