@@ -28,6 +28,9 @@ lxc.cgroup.memory.limit_in_bytes = {{.Memory}}
 lxc.cgroup.memory.memsw.limit_in_bytes = {{.TotalMemory}}
 lxc.cgroup.memory.swappiness = {{.Swappiness}}
 lxc.cgroup.cpu.shares = {{.CpuShares}}
+{{if .CpuSet}}
+lxc.cgroup.cpuset.cpus = {{.CpuSetStr}}
+{{end}}
 lxc.cgroup.devices.deny = a
 # Allow any mknod (but not using the node)
 lxc.cgroup.devices.allow = c *:* m

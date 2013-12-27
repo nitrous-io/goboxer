@@ -123,3 +123,8 @@ func (s *BoxSuite) TestContainerDeltaPath(c *C) {
 	b.MountMethod = "lvm"
 	c.Assert(b.ContainerDeltaPath(), Equals, "/var/lib/lxc/test-123-123456_delta")
 }
+
+func (s *BoxSuite) TestCpuSetString(c *C) {
+	b := &Box{CpuSet: []int{1, 2, 3}}
+	c.Assert(b.CpuSetStr(), Equals, "1,2,3")
+}

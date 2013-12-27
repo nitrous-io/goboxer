@@ -74,6 +74,7 @@ type Box struct {
 	Runtime          string   `json:"-"`
 	SnapshotURL      string   `json:"-"`
 	PublicKeys       []string `json:"-"`
+	CpuSet           []int    // the same for all boxes for now
 	// hold a reference to boxer so that we can access mutex capabilities
 	boxer *Boxer
 }
@@ -96,6 +97,15 @@ func (b *Box) Prepare() {
 	if b.CpuShares == 0 {
 		b.CpuShares = DEFAULT_CPU_SHARES
 	}
+}
+
+// return the valid value that should be applied to `cpuset.cpus`
+func (b *Box) CpuSetStr() string {
+	cpus := []string{}
+	for _, cpu := range b.CpuSet {
+		cpus = append(cpus, strconv.Itoa(cpu))
+	}
+	return strings.Join(cpus, ",")
 }
 
 // Create a new box

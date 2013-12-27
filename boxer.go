@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"github.com/action-io/goboxer/cartman"
 	"github.com/action-io/goboxer/host"
+	"runtime"
 	"sync"
 )
 
@@ -44,11 +45,25 @@ type Boxer struct {
 	MountMethod  string
 	QuotaMethod  string
 	SelectedVG   string
+	CpuSet       []int
 	Cartman      *cartman.Cartman
 }
 
 func (boxer *Boxer) Configure() {
 	boxer.Handles = handlers
+	boxer.SetCpuSet(runtime.NumCPU())
+}
+
+func (boxer *Boxer) SetCpuSet(numCpu int) {
+	boxer.CpuSet = []int{}
+	switch numCpu {
+	case 1:
+		boxer.CpuSet = append(boxer.CpuSet, 0)
+	default:
+		for i := 1; i < numCpu; i++ {
+			boxer.CpuSet = append(boxer.CpuSet, i)
+		}
+	}
 }
 
 // return back a slice of keys for the runtimes
@@ -161,6 +176,7 @@ func CreateBoxHandler(m Message, boxer *Boxer) Message {
 		CpuShares:        m.CpuShares,
 		VirtualMemory:    m.VirtualMemory,
 		Premium:          m.Premium,
+		CpuSet:           boxer.CpuSet,
 	}
 	box.boxer = boxer
 	box.Prepare()
