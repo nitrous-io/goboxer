@@ -36,8 +36,7 @@ if [[ $ARG ]]; then
 # otherwise, take the current date and add that as a tag to git
 else
   echo -e "${OK_COLOR}--> ADDING GIT TAG!............${NO_COLOR}"
-  TAG=`date +"%d%m%Y%H%M%S"`
-  TAG=`date --utc +"%d-%b-%Y-%H-%M"`
+  TAG=`date -u +"%d-%b-%Y-%H-%M"`
   USER=`git config user.name`
   MSG="${USER} BUILT VERSION ${TAG} OF GOBOXER"
 
@@ -50,7 +49,11 @@ fi
 echo -e "${OK_COLOR}--> GO BOXER!............${NO_COLOR}"
 go install -ldflags "-X main.version ${GIT_COMMIT}" -v $PACKAGE/...
 mkdir -p bin
-cp $GOBIN/goboxer bin/goboxer
+if [ ! -z "$GOBIN" ]; then
+  cp $GOBIN/goboxer bin/goboxer
+else
+  cp $GOPATH/bin/goboxer bin/goboxer
+fi
 
 BINRELEASE="goboxer_${TAG}.tgz"
 

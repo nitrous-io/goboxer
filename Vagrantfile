@@ -13,7 +13,7 @@ $script = <<SCRIPT
   # install a newer kernel
   apt-get install -q -y linux-image-generic-lts-raring linux-headers-generic-lts-raring
   apt-get install -yy build-essential
-  apt-get install -yy git-core lxc bridge-utils curl redis-server build-essential xfsprogs lvm2 iptables aufs-tools mercurial
+  apt-get install -yy git-core bzr lxc bridge-utils curl redis-server build-essential xfsprogs lvm2 iptables aufs-tools mercurial
   apt-get install -yy quotatool thin-provisioning-tools
   apt-get install -yy s3cmd
 
@@ -31,8 +31,12 @@ $script = <<SCRIPT
   cd $HOME
   mkdir -p $HOME/gocode/src/github.com/action-io
   ln -fs $HOME/gocode/src/github.com/action-io/goboxer $HOME/goboxer
+  chown -R vagrant:vagrant $HOME/gocode
 
   cd $HOME/gocode/src/github.com/action-io/goboxer
+  /usr/local/go/bin/go get
+  /usr/local/go/bin/go get launchpad.net/gocheck
+
   ./script/setup
 
   echo 'To deploy, you need to setup s3cmd credentials. Run `s3cmd --configure` inside the box to start'

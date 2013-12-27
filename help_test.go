@@ -4,7 +4,6 @@ import (
 	"io/ioutil"
 	. "launchpad.net/gocheck"
 	"os"
-	"os/exec"
 	"strings"
 	"syscall"
 	"testing"
@@ -45,12 +44,6 @@ func SliceInclude(slice []string, target string) bool {
 		}
 	}
 	return false
-}
-
-// given an lxc container name, assert that its has the specified state
-func AssertLxcState(c *C, containerName, state string) {
-	stdout, _ := exec.Command("sudo", "lxc-info", "-n", containerName).CombinedOutput()
-	c.Assert(strings.Contains(string(stdout), state), Equals, true)
 }
 
 func DoesExist(c *C, checkExists []string) {

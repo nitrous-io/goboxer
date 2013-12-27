@@ -44,8 +44,12 @@ type BoxInfo struct {
 	LxcStatus    string  `json:"lxcStatus,omitempty"`
 }
 
+// UniqueId is the guaranteed unique id *only* for the current box over its lifetime
+// i.e. a box will be guaranteed not to have its mountpoint clash when
+// umount/remount when uid is implemented
 type Box struct {
 	Id               int      `json:"id"`
+	UniqueId         string   `json:"uniqueId"`
 	Name             string   `json:"name"`
 	Template         string   `json:"containerTemplate"`
 	Memory           string   `json:"memory"`
@@ -98,10 +102,14 @@ func (b *Box) Prepare() {
 //
 // This create a new box. The chosen provisioning scheme will depend on
 // `MountMethod` and `QuotaMethod`.
+// This also generate an unique id to be used for the next start
 func (b *Box) Create() error {
 	defer logger.LogDuration(
 		fmt.Sprintf("%s:Create", b.ContainerName()),
 	)(time.Now())
+	if err := b.generateUniqueId(); err != nil {
+		return err
+	}
 	if err := b.Mount(b.boxer.Root); err != nil {
 		return err
 	}
@@ -145,28 +153,29 @@ func (b *Box) Create() error {
 			return err
 		}
 	}
+	b.State = "stopped"
 	return b.setPortForwarding()
 }
 
 func (b *Box) Start(spec *BoxSpec) error {
 	defer logger.LogDuration(
-		fmt.Sprintf("%s:Start", b.ContainerName()),
+		fmt.Sprintf("%s:Start %s", b.ContainerName(), b.MountName()),
 	)(time.Now())
 	if err := b.Mount(b.boxer.Root); err != nil {
 		return err
 	}
 	// this change spec without restarting the box
-	if err := b.handleSpecChange(spec); err != nil {
+	if err := b.handleSpecChange(spec, true); err != nil {
 		return err
 	}
-	return lxc.Start(b.ContainerName())
+	return lxc.Start(b.MountName())
 }
 
 func (b *Box) Stop() error {
 	defer logger.LogDuration(
-		fmt.Sprintf("%s:Stop", b.ContainerName()),
+		fmt.Sprintf("%s:Stop %s", b.ContainerName(), b.MountName()),
 	)(time.Now())
-	if err := lxc.Stop(b.ContainerName()); err != nil {
+	if err := lxc.Stop(b.MountName()); err != nil {
 		return err
 	}
 	return b.Unmount(b.boxer.Root)
@@ -174,7 +183,7 @@ func (b *Box) Stop() error {
 
 func (b *Box) Restart(spec *BoxSpec) error {
 	defer logger.LogDuration(
-		fmt.Sprintf("%s:Restart", b.ContainerName()),
+		fmt.Sprintf("%s:Restart %s", b.ContainerName(), b.MountName()),
 	)(time.Now())
 	if err := b.Stop(); err != nil {
 		return err
@@ -184,7 +193,7 @@ func (b *Box) Restart(spec *BoxSpec) error {
 
 func (b *Box) Destroy() error {
 	defer logger.LogDuration(
-		fmt.Sprintf("%s:Destroy", b.ContainerName()),
+		fmt.Sprintf("%s:Destroy %s", b.ContainerName(), b.MountName()),
 	)(time.Now())
 	if err := b.Stop(); err != nil {
 		return err
@@ -208,6 +217,14 @@ func (b *Box) UpdateAuth(auth BoxAuth) error {
 	return b.boxer.Cartman.InvalidateCache(b.ContainerName())
 }
 
+func (b *Box) MountName() string {
+	base := b.ContainerName()
+	if len(b.UniqueId) > 0 {
+		base = base + "-" + b.UniqueId
+	}
+	return base
+}
+
 func (b *Box) ContainerName() string {
 	return b.Name + "-" + strconv.Itoa(b.Id)
 }
@@ -217,14 +234,14 @@ func (b *Box) PublicKeysPath() string {
 }
 
 func (b *Box) LxcPath() string {
-	return path.Join(b.boxer.Root, b.ContainerName())
+	return path.Join(b.boxer.Root, b.MountName())
 }
 
 func (b *Box) ContainerFS() string {
 	if b.getMountMethod() == "lvm" {
 		return b.LxcPath()
 	} else {
-		return path.Join(b.Disk, b.ContainerName())
+		return path.Join(b.Disk, b.MountName())
 	}
 }
 
@@ -235,7 +252,7 @@ func (b *Box) EnvPath() string {
 // rootfs of the container. This is the root after unionized so its typically
 // will be in boxer.Root i.e /var/lib/lxc
 func (b *Box) RootFS() string {
-	return path.Join(b.boxer.Root, b.ContainerName(), "rootfs")
+	return path.Join(b.boxer.Root, b.MountName(), "rootfs")
 }
 
 // path of the box's templates.  (i.e. ruby_template.tar.gz,
@@ -248,6 +265,9 @@ func (b *Box) TemplatePath() string {
 	return path.Join(b.Disk, templateName)
 }
 
+// we actually want the delta folders for non-lvm containers to be consistent
+// because they will never be mountpoints, so we use Box#ContainerName() here
+// and not Box#MountName()
 func (b *Box) ContainerDeltaPath() string {
 	if b.getMountMethod() == "lvm" {
 		return b.ContainerFS() + "_delta"
@@ -335,7 +355,7 @@ func (b *Box) UnsetQuota() error {
 }
 
 func (b *Box) ChangeSpec(spec *BoxSpec) error {
-	if err := b.handleSpecChange(spec); err != nil {
+	if err := b.handleSpecChange(spec, false); err != nil {
 		return err
 	}
 	return b.Restart(spec)
@@ -378,7 +398,8 @@ func (b *Box) Mount(root string) error {
 
 	lxcBoxPath := b.LxcPath()
 	boxDeltaPath := b.ContainerDeltaPath()
-	switch b.getMountMethod() {
+	mountMethod := b.getMountMethod()
+	switch mountMethod {
 	case "overlayfs", "aufs":
 		// overlayfs or aufs strategy
 		//
@@ -415,30 +436,38 @@ func (b *Box) Mount(root string) error {
 		}
 		return mount.Union("aufs", lxcBoxPath, boxDeltaPath, baseContainerPath)
 	default:
-		return fmt.Errorf("%s is not a supported mount method",
-			b.getMountMethod())
+		return fmt.Errorf("%s is not a supported mount method", mountMethod)
 	}
 }
 
+// Unmount will always regenerate an unique id for the box, so it guarantees
+// that the next mount operation will success even if `Unmount` fails
 func (b *Box) Unmount(root string) error {
 	b.boxer.Lock()
 	defer b.boxer.Unlock()
 	defer logger.LogDuration(
 		fmt.Sprintf("%s:Unmount", b.ContainerName()),
 	)(time.Now())
+	// always re-generate a new unique id when unmount the path
+	defer b.generateUniqueId()
 	mountMethod := b.getMountMethod()
 	if err := mount.Unmount(mountMethod, b.LxcPath()); err != nil {
-		return err
+		logger.Println("Unmount: err %v", err)
 	}
 	switch mountMethod {
 	case "overlayfs", "aufs":
-		return mount.Unmount(mountMethod, b.ContainerFS())
+		if err := mount.Unmount(mountMethod, b.ContainerFS()); err != nil {
+			logger.Println("Unmount: err %v", err)
+		}
 	case "lvm":
-		return mount.Unmount(mountMethod, b.ContainerDeltaPath())
+		if err := mount.Unmount(mountMethod, b.ContainerDeltaPath()); err != nil {
+			logger.Println("Unmount: err %v", err)
+		}
 	default:
 		return fmt.Errorf("%s is not a supported unmount method",
 			mountMethod)
 	}
+	return nil
 }
 
 func (b *Box) DeleteContainerData() error {
@@ -457,29 +486,26 @@ func (b *Box) DeleteContainerData() error {
 // the unit if B, so if we want to convert to MB, it needs to be divided with
 // 1024 * 1024
 func (b *Box) MemoryUsageInBytes() (int, error) {
-	containerName := b.ContainerName()
-	filename := fmt.Sprintf(
-		"/sys/fs/cgroup/memory/lxc/%s/memory.usage_in_bytes",
-		containerName)
+	name := b.MountName()
+	filename := fmt.Sprintf("/sys/fs/cgroup/memory/lxc/%s/memory.usage_in_bytes",
+		name)
 	_, err := os.Stat(filename)
 	if err != nil {
 		if os.IsNotExist(err) {
 			alternate := fmt.Sprintf(
 				"/sys/fs/cgroup/memory/sysdefault/lxc/%s/memory.usage_in_bytes",
-				containerName)
+				name)
 			content, err := ioutil.ReadFile(alternate)
 			if err == nil {
 				return strconv.Atoi(string(content))
 			}
 		}
-		logger.Printf("%s: Failed to read memory usage, err: %v",
-			containerName, err)
+		logger.Printf("%s: Failed to read memory usage, err: %v", name, err)
 		return 0, err
 	}
 	content, err := ioutil.ReadFile(filename)
 	if err != nil {
-		logger.Printf("%s: Failed to read memory usage, err: %v\n",
-			containerName, err)
+		logger.Printf("%s: Failed to read memory usage, err: %v\n", name, err)
 		return 0, err
 	}
 	return strconv.Atoi(strings.TrimSpace(string(content)))
@@ -492,7 +518,7 @@ func (b *Box) Info() (BoxInfo, error) {
 	} else {
 		info.MemoryUsage = float64(memoryUsage) / (1024 * 1024)
 	}
-	if state, err := lxc.Status(b.ContainerName()); err != nil {
+	if state, err := lxc.Status(b.MountName()); err != nil {
 		return info, err
 	} else {
 		info.LxcStatus = state
@@ -533,7 +559,7 @@ func (b *Box) RemoveEnv(data []string) (err error) {
 
 // this requires the box to be mounted because we are writing lxc config into
 // the mounted path, not the _delta path
-func (b *Box) handleSpecChange(spec *BoxSpec) error {
+func (b *Box) handleSpecChange(spec *BoxSpec, forceWriteConfig bool) error {
 	willWriteConfig := false
 	if spec.Memory != b.Memory {
 		b.Memory = spec.Memory
@@ -547,7 +573,7 @@ func (b *Box) handleSpecChange(spec *BoxSpec) error {
 		b.VirtualMemory = spec.VirtualMemory
 		willWriteConfig = true
 	}
-	if willWriteConfig {
+	if willWriteConfig || forceWriteConfig {
 		if err := b.writeConfig(); err != nil {
 			return err
 		}
@@ -610,7 +636,7 @@ func (b *Box) writeConfig() error {
 	// we want to re-check the box values here to make sure that only valid lxc
 	// config value will be saved
 	b.Prepare()
-	lxcConfigPath := path.Join(b.boxer.Root, b.ContainerName(), "config")
+	lxcConfigPath := path.Join(b.LxcPath(), "config")
 	lxcConfig, err := os.Create(lxcConfigPath)
 	if err != nil {
 		return err
@@ -740,4 +766,9 @@ func (b *Box) setDefaultKeyPair() error {
 		return err
 	}
 	return nil
+}
+
+func (b *Box) generateUniqueId() error {
+	b.UniqueId = strconv.FormatInt(time.Now().Unix(), 10)
+	return b.boxer.ResourcePool.SaveBox(b)
 }

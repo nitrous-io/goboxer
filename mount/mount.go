@@ -6,7 +6,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"syscall"
-	"time"
 )
 
 func mount(source string, target string, fstype string, flags uintptr, data string) (err error) {
@@ -105,33 +104,30 @@ func Unmount(mountType, target string) error {
 	if err := umount(target); err != nil {
 		return fmt.Errorf("%s failed to umount: %v", target, err)
 	}
-	// Even though we just unmounted the filesystem, AUFS will prevent deleting the mntpoint
-	// for some time. We'll just keep retrying until it succeeds.
-	for retries := 0; retries < 1000; retries++ {
-		err := remove(target)
-		if err == nil {
-			return nil
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	return fmt.Errorf("Umount: Failed to umount %v", target)
+	return remove(target)
 }
 
+// from ruby's Pathname#mountpoint?
+// http://www.ruby-doc.org/stdlib-1.9.3/libdoc/pathname/rdoc/Pathname.html#method-i-mountpoint-3F
 func Mounted(mountpoint string) (bool, error) {
-	mntpoint, err := os.Stat(mountpoint)
-	if err != nil {
+	var stat1, stat2 os.FileInfo
+	var err error
+	if stat1, err = os.Stat(mountpoint); err != nil {
 		if os.IsNotExist(err) {
 			return false, nil
 		}
 		return false, err
 	}
-	parent, err := os.Stat(filepath.Join(mountpoint, ".."))
-	if err != nil {
+	if stat2, err = os.Stat(filepath.Join(mountpoint, "..")); err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
 		return false, err
 	}
-	mntpointSt := mntpoint.Sys().(*syscall.Stat_t)
-	parentSt := parent.Sys().(*syscall.Stat_t)
-	return mntpointSt.Dev != parentSt.Dev, nil
+	st1 := stat1.Sys().(*syscall.Stat_t)
+	st2 := stat2.Sys().(*syscall.Stat_t)
+	mounted := (st1.Dev == st2.Dev && st1.Ino == st2.Ino) || st1.Dev != st2.Dev
+	return mounted, nil
 }
 
 func remove(target string) error {
