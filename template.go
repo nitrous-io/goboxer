@@ -28,6 +28,10 @@ lxc.cgroup.memory.limit_in_bytes = {{.Memory}}
 lxc.cgroup.memory.memsw.limit_in_bytes = {{.TotalMemory}}
 lxc.cgroup.memory.swappiness = {{.Swappiness}}
 lxc.cgroup.cpu.shares = {{.CpuShares}}
+{{if .CpuQuota}}
+lxc.cgroup.cpu.cfs_period_us = {{.CpuPeriodMicroseconds}}
+lxc.cgroup.cpu.cfs_quota_us = {{.CpuQuotaMicroseconds}}
+{{end}}
 {{if .CpuSet}}
 lxc.cgroup.cpuset.cpus = {{.CpuSetStr}}
 {{end}}
