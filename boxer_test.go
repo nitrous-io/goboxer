@@ -271,11 +271,8 @@ func (s *BoxerSuite) TestCreateBoxWithCpuRange(c *C) {
 
 		c.Assert(message.Type, Equals, "aio:created")
 		c.Assert(message.Id, Equals, "testboxer")
-		root := "/var/lib/lxc/mclovins-container-1"
 		DoesContain(c, map[string][]string{
-			root + "/config": {
-				"lxc.cgroup.cpuset.cpus = 1,2",
-			},
+			box.LxcPath() + "/config": {"lxc.cgroup.cpuset.cpus = 1,2"},
 		})
 	})
 }
@@ -294,9 +291,8 @@ func (s *BoxerSuite) TestCreateWithDefaultCpuShares(c *C) {
 			PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
 		})
 		defer box.Destroy()
-		root := box.LxcPath()
 		DoesContain(c, map[string][]string{
-			root + "/config": {"lxc.cgroup.cpu.shares = 512"},
+			box.LxcPath() + "/config": {"lxc.cgroup.cpu.shares = 512"},
 		})
 	})
 }
@@ -318,9 +314,7 @@ func (s *BoxerSuite) TestCreateWithVirtualMemory(c *C) {
 		defer box.Destroy()
 		// total memory = memory + virtual memory
 		DoesContain(c, map[string][]string{
-			box.LxcPath() + "/config": {
-				"lxc.cgroup.memory.memsw.limit_in_bytes = 257M",
-			},
+			box.LxcPath() + "/config": {"lxc.cgroup.memory.memsw.limit_in_bytes = 257M"},
 		})
 		// virtualMemory is persisted with redis
 		c.Assert(box.VirtualMemory, Equals, "1024")
@@ -344,9 +338,8 @@ func (s *BoxerSuite) TestCreatePremiumBox(c *C) {
 		})
 		defer box.Destroy()
 
-		root := box.LxcPath()
 		var checkContent = map[string][]string{
-			root + "/rootfs/etc/action/premium": {"1"},
+			box.LxcPath() + "/rootfs/etc/action/premium": {"1"},
 		}
 		DoesContain(c, checkContent)
 
@@ -487,8 +480,7 @@ func (s *BoxerSuite) TestDestroy(c *C) {
 			DiskSpace:  "1G",
 			PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
 		})
-		root := box.LxcPath()
-		containerPlace := []string{root}
+		containerPlace := []string{box.LxcPath()}
 		switch stratName {
 		case "xfs", "ext4":
 			containerPlace = append(containerPlace, box.ContainerFS())
@@ -594,9 +586,8 @@ func (s *BoxerSuite) TestRestartWithNewSpec(c *C) {
 		c.Assert(message.BoxId, Equals, 1)
 		c.Assert(message.Success, Equals, true)
 
-		root := box.LxcPath()
 		DoesContain(c, map[string][]string{
-			root + "/config": []string{
+			box.LxcPath() + "/config": []string{
 				"lxc.cgroup.memory.limit_in_bytes = 640M",
 				"lxc.cgroup.memory.memsw.limit_in_bytes = 1920M",
 				"lxc.cgroup.cpu.shares = 1536",
@@ -651,9 +642,8 @@ func (s *BoxerSuite) TestUpdatePremium(c *C) {
 		c.Assert(message.BoxId, Equals, 1)
 		c.Assert(message.Success, Equals, true)
 
-		root := box.LxcPath()
 		var checkContainsContent = map[string][]string{
-			root + "/rootfs/etc/action/premium": {"1"},
+			box.LxcPath() + "/rootfs/etc/action/premium": {"1"},
 		}
 		DoesContain(c, checkContainsContent)
 
