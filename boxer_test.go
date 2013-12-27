@@ -254,11 +254,9 @@ func (s *BoxerSuite) TestCreateBox(c *C) {
 func (s *BoxerSuite) TestCreateBoxWithCpuRange(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
-		cleanContainer(stratName, "mclovins-container-1",
-			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
 		// reset cpu set to make results consistent
 		s.Boxer.SetCpuSet(3)
-		message := s.Boxer.Receive(Message{
+		message, box := s.receiveMessages("mclovins-container-1", Message{
 			Id:         "testboxer",
 			BoxId:      1,
 			Type:       "aio:create",
@@ -269,8 +267,8 @@ func (s *BoxerSuite) TestCreateBoxWithCpuRange(c *C) {
 			PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
 			CpuShares:  2048,
 		})
-		defer cleanContainer(stratName, "mclovins-container-1",
-			stratValue.SelectedDisk, "15001", stratValue.SelectedVG)
+		defer box.Destroy()
+
 		c.Assert(message.Type, Equals, "aio:created")
 		c.Assert(message.Id, Equals, "testboxer")
 		root := "/var/lib/lxc/mclovins-container-1"
