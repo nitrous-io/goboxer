@@ -10,6 +10,7 @@ import (
 	"github.com/action-io/goboxer/cartman"
 	"github.com/action-io/goboxer/host"
 	"sync"
+	"runtime"
 )
 
 var handlers map[string]MessageHandler
@@ -159,6 +160,7 @@ func CreateBoxHandler(m Message, boxer *Boxer) Message {
 		QuotaMethod:      boxer.QuotaMethod,
 		SelectedVG:       boxer.SelectedVG,
 		CpuShares:        m.CpuShares,
+		CpuRange:         CpuRange(runtime.NumCPU()),
 		VirtualMemory:    m.VirtualMemory,
 		Premium:          m.Premium,
 	}
@@ -527,4 +529,18 @@ func (boxer *Boxer) findBox(name string) (*Box, error) {
 	}
 	box.boxer = boxer
 	return box, nil
+}
+
+// Return CpuRange depending on boxhost's NumCPU.
+func CpuRange(numCPU int) string {
+	cpuCount := numCPU
+	var cpuRange string
+
+	switch cpuCount {
+		case 1:  cpuRange = "0"
+		case 2:  cpuRange = "1"
+		default: cpuRange = fmt.Sprintf("1-%v", cpuCount - 1)
+	}
+
+	return cpuRange
 }

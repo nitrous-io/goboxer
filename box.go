@@ -69,6 +69,7 @@ type Box struct {
 	AuthPassword     string   `json:"authPassword"`
 	Swappiness       int      `json:"swappiness"`
 	CpuShares        int      `json:"cpuShares"`
+	CpuRange         string 
 	VirtualMemory    string   `json:"virtualMemory"`
 	Premium          bool     `json:"premium"`
 	Runtime          string   `json:"-"`
