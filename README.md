@@ -3,7 +3,7 @@
 goboxer is a service which provisions boxes (LXC containers).
 It listens for messages on a Redis pub/sub channel and performs the requisite
 operations (provisioning, setting up iptables filters, IPs, etc.) to setup a
-working dev environment).
+working dev environment.
 
 goboxer is written in Go and deprecates [Boxer](https://github.com/action-io/boxer).
 
@@ -20,7 +20,7 @@ Developing goboxer is best done in a VM.
 1. `vagrant up`
 1. Glare at the screen angrily as the provisioning will take some time.
 1. Login to the box: `vagrant ssh`.
-1. If you havent setup s3cmd, now is a good time to do that: `s3cmd --configure`.
+1. If you haven't setup s3cmd, now is a good time to do that: `s3cmd --configure`.
 
 ### Git setup
 
@@ -51,4 +51,4 @@ Tests are implemented with [gocheck](http://labix.org/gocheck).
 1. You'll need to set your git `user.name` and `user.email` first.
 1. Setup s3cmd as well if you haven't: `s3cmd --configure`.
 1. `cd $HOME/goboxer`
-1. Tag a new release and upload the build to S3 with: `script/release`
+1. Tag a new release and upload the build to S3 with: `make release`

@@ -1,45 +1,28 @@
 package ip
 
 import (
-	"fmt"
-	"os/exec"
+	"github.com/action-io/goboxer/utils"
 )
 
-// FIXME: this is copied from the main package. should consider moving it to
-// utils
-func runCommand(cmd string, args ...string) error {
-	command := exec.Command(cmd, args...)
-	if stdout, err := command.CombinedOutput(); err != nil {
-		fmt.Printf("Command %v failed with output %s\n", command, string(stdout))
-		return err
-	}
-	return nil
-}
-
 func forward(chain, port, dest string) error {
-	args := []string{
-		"-t", "nat", // use nat table
-		"-A", chain, // append to chain
-		"!", "-s", "192.168.1.0/16", // not forward traffic from internal
-		"-p", "tcp", // forward tcp protocol
-		"--dport", port, // from hostport
-		"-j", "DNAT", // forward packet
-		"--to", dest, // to ip:port
-	}
-	return runCommand("iptables", args...)
+	return filter("-A", chain, port, dest)
 }
 
 func release(chain, port, dest string) error {
+	return filter("-D", chain, port, dest)
+}
+
+func filter(action, chain, port, dest string) error {
 	args := []string{
 		"-t", "nat", // use nat table
-		"-D", chain, // delete from chain
+		action, chain,
 		"!", "-s", "192.168.1.0/16", // not forward traffic from internal
 		"-p", "tcp", // forward tcp protocol
 		"--dport", port, // from hostport
 		"-j", "DNAT", // forward packet
 		"--to", dest, // to ip:port
 	}
-	return runCommand("iptables", args...)
+	return utils.RunCommand("iptables", args...)
 }
 
 func Open(hostPort, containerIp, containerPort string) error {
