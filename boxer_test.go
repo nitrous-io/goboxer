@@ -49,12 +49,12 @@ var strategies = map[string]testProvisionStrategy{
 		SelectedDisk: "/lxc/disk2",
 		SelectedVG:   "",
 	},
-	"lvm": testProvisionStrategy{
-		MountMethod:  "lvm",
-		QuotaMethod:  "lvm",
-		SelectedDisk: "",
-		SelectedVG:   "aio_boxhost",
-	},
+	// "lvm": testProvisionStrategy{
+	// 	MountMethod:  "lvm",
+	// 	QuotaMethod:  "lvm",
+	// 	SelectedDisk: "",
+	// 	SelectedVG:   "aio_boxhost",
+	// },
 }
 
 type boxContentSpec struct {
