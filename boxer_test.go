@@ -117,6 +117,18 @@ func (s *BoxerSuite) findBox(name string) *Box {
 	return box
 }
 
+// Returns a fake Cartman server.
+// The caller should call Close when finished, to shut down the server.
+func (s *BoxerSuite) setupFakeCartman() *httptest.Server {
+	server := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			fmt.Fprintln(w, "Hello, boxer")
+		}))
+	cartmanURL, _ := url.Parse(server.URL)
+	s.Boxer.Cartman = &cartman.Cartman{Host: cartmanURL.Host}
+	return server
+}
+
 type testFunction func(s *BoxerSuite, c *C, stratName string, stratValue testProvisionStrategy)
 
 func (s *BoxerSuite) testEachStrategy(c *C, test testFunction) {
@@ -652,14 +664,8 @@ func (s *BoxerSuite) TestRestartWithNewSpec(c *C) {
 }
 
 func (s *BoxerSuite) TestUpdatePremium(c *C) {
-	ts := httptest.NewServer(http.HandlerFunc(
-		func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprintln(w, "Hello, boxer")
-		}))
-	defer ts.Close()
-	// simulate response from cartman server
-	cartmanURL, _ := url.Parse(ts.URL)
-	s.Boxer.Cartman = &cartman.Cartman{Host: cartmanURL.Host}
+	fakeCartman := s.setupFakeCartman()
+	defer fakeCartman.Close()
 
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
@@ -1256,14 +1262,8 @@ func (s *BoxerSuite) TestChangeBoxSpecsInvalidParams(c *C) {
 }
 
 func (s *BoxerSuite) TestUpdateAuth(c *C) {
-	// simulate response from cartman server
-	ts := httptest.NewServer(http.HandlerFunc(
-		func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprintln(w, "Hello, boxer")
-		}))
-	defer ts.Close()
-	cartmanURL, _ := url.Parse(ts.URL)
-	s.Boxer.Cartman = &cartman.Cartman{Host: cartmanURL.Host}
+	fakeCartman := s.setupFakeCartman()
+	defer fakeCartman.Close()
 
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
@@ -1312,14 +1312,8 @@ func (s *BoxerSuite) TestUpdateAuth(c *C) {
 }
 
 func (s *BoxerSuite) TestRemoveAuth(c *C) {
-	// simulate response from cartman server
-	ts := httptest.NewServer(http.HandlerFunc(
-		func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprintln(w, "Hello, boxer")
-		}))
-	defer ts.Close()
-	cartmanURL, _ := url.Parse(ts.URL)
-	s.Boxer.Cartman = &cartman.Cartman{Host: cartmanURL.Host}
+	fakeCartman := s.setupFakeCartman()
+	defer fakeCartman.Close()
 
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
