@@ -3,6 +3,7 @@ package ip
 import (
 	. "launchpad.net/gocheck"
 	"os/exec"
+	"strings"
 	"testing"
 )
 
@@ -25,6 +26,26 @@ func (s *IptablesSuite) TestOpenClose(c *C) {
 	Open("80", "192.168.0.1", "10001")
 	defer Close("80", "192.168.0.1", "10001")
 	c.Assert(rule.exists(), Equals, true)
+}
+
+func (s *IptablesSuite) TestMultipleOpen(c *C) {
+	rule := natRule{"PREROUTING", "80", "192.168.0.1:10001"}
+	c.Assert(rule.exists(), Equals, false)
+	var err error
+
+	err = Open("80", "192.168.0.1", "10001")
+	c.Assert(err, IsNil)
+	err = Open("80", "192.168.0.1", "10001")
+	c.Assert(err, IsNil)
+	c.Assert(rule.exists(), Equals, true)
+
+	output, _ := exec.Command("iptables", "-L", "-t", "nat").Output()
+	c.Assert(strings.Count(string(output), "192.168.0.1:10001"), Equals, 1)
+
+	err = Close("80", "192.168.0.1", "10001")
+	c.Assert(err, IsNil)
+	err = Close("80", "192.168.0.1", "10001")
+	c.Assert(err, IsNil)
 }
 
 func (s *IptablesSuite) TestOpenCloseInVagrant(c *C) {

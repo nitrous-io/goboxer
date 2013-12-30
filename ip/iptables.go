@@ -40,12 +40,18 @@ func (n natRule) exists() bool {
 
 func forward(chain, port, dest string) error {
 	rule := natRule{chain, port, dest}
+	if rule.exists() {
+		return nil
+	}
 	return rule.create()
 }
 
 func release(chain, port, dest string) error {
 	rule := natRule{chain, port, dest}
-	return rule.destroy()
+	if rule.exists() {
+		return rule.destroy()
+	}
+	return nil
 }
 
 func Open(hostPort, containerIp, containerPort string) error {
