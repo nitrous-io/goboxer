@@ -164,7 +164,7 @@ func (b *Box) Create() error {
 		}
 	}
 	b.State = "stopped"
-	return b.setPortForwarding()
+	return nil
 }
 
 func (b *Box) Start(spec *BoxSpec) error {
@@ -172,6 +172,9 @@ func (b *Box) Start(spec *BoxSpec) error {
 		fmt.Sprintf("%s:Start %s", b.ContainerName(), b.MountName()),
 	)(time.Now())
 	if err := b.Mount(b.boxer.Root); err != nil {
+		return err
+	}
+	if err := b.setPortForwarding(); err != nil {
 		return err
 	}
 	// this change spec without restarting the box
