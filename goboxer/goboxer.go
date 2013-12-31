@@ -53,16 +53,18 @@ func main() {
 	}
 
 	boxer := &goboxer.Boxer{
-		Id:           config.Id,
-		Vagrant:      config.Vagrant,
-		Root:         "/var/lib/lxc",
-		SelectedDisk: config.SelectedDisk,
-		Disks:        config.Disks,
-		Runtimes:     config.Runtimes,
-		ResourcePool: resourcePool,
-		MountMethod:  config.MountMethod,
-		QuotaMethod:  config.QuotaMethod,
-		Cartman:      cartman,
+		Id:              config.Id,
+		Vagrant:         config.Vagrant,
+		Root:            "/var/lib/lxc",
+		SelectedDisk:    config.SelectedDisk,
+		Disks:           config.Disks,
+		Runtimes:        config.Runtimes,
+		ResourcePool:    resourcePool,
+		MountMethod:     config.MountMethod,
+		QuotaMethod:     config.QuotaMethod,
+		Cartman:         cartman,
+		PremiumCPUQuota: config.PremiumCPUQuota,
+		DefaultCPUQuota: config.DefaultCPUQuota,
 	}
 	boxer.Configure()
 

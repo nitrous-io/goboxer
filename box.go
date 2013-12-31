@@ -23,8 +23,6 @@ const THIN_VG = "boxes"
 const DEFAULT_SWAPPINESS = 60
 const DEFAULT_CPU_SHARES = 512
 const DEFAULT_CPU_PERIOD = 1000000 // cpu.cfs_period_us: 1 million microseconds
-const PREMIUM_CPU_QUOTA = 1.0 // 100% of 1 CPU
-const DEFAULT_CPU_QUOTA = 0.5 // 50% of 1 CPU
 
 type BoxAuth struct {
 	Username string
@@ -100,11 +98,6 @@ func (b *Box) Prepare() {
 	}
 	if b.CpuShares == 0 {
 		b.CpuShares = DEFAULT_CPU_SHARES
-	}
-	if b.Premium {
-		b.CpuQuota = PREMIUM_CPU_QUOTA
-	} else {
-		b.CpuQuota = DEFAULT_CPU_QUOTA
 	}
 }
 

@@ -21,5 +21,7 @@
     "django": "python_template",
     "golang": "golang_template",
     "test": "test_container_template"
-  }
+  },
+  "premiumCPUQuota": 1.0,
+  "defaultCPUQuota": 0.5
 }
