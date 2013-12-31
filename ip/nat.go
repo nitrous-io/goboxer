@@ -25,31 +25,21 @@ func (n natRule) args(ruleType string) []string {
 }
 
 func (n natRule) create() error {
+	if n.exists() {
+		return nil
+	}
 	return utils.RunCommand("iptables", n.args("-A")...)
 }
 
 func (n natRule) destroy() error {
-	return utils.RunCommand("iptables", n.args("-D")...)
+	if n.exists() {
+		return utils.RunCommand("iptables", n.args("-D")...)
+	}
+	return nil
 }
 
 func (n natRule) exists() bool {
 	cmd := exec.Command("iptables", n.args("-C")...)
 	cmd.Run()
 	return cmd.ProcessState.Success()
-}
-
-func forward(chain, port, dest string) error {
-	rule := natRule{chain, port, dest}
-	if rule.exists() {
-		return nil
-	}
-	return rule.create()
-}
-
-func release(chain, port, dest string) error {
-	rule := natRule{chain, port, dest}
-	if rule.exists() {
-		return rule.destroy()
-	}
-	return nil
 }
