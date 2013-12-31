@@ -21,13 +21,3 @@ func CloseInVagrant(hostPort, containerIp, containerPort string) error {
 	}
 	return release("OUTPUT", hostPort, containerIp+":"+containerPort)
 }
-
-func CreateNetwork(source string, vagrant bool) error {
-	rule := ethRule{source, vagrant}
-	return rule.create()
-}
-
-func DestroyNetwork(source string, vagrant bool) error {
-	rule := ethRule{source, vagrant}
-	return rule.destroy()
-}

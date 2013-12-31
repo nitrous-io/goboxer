@@ -51,26 +51,17 @@ go install -ldflags "-X main.version ${GIT_COMMIT}" -v $PACKAGE/...
 mkdir -p bin
 if [ ! -z "$GOBIN" ]; then
   cp $GOBIN/goboxer bin/goboxer
-  cp $GOBIN/goboxer_network bin/goboxer_network
 else
   cp $GOPATH/bin/goboxer bin/goboxer
-  cp $GOPATH/bin/goboxer_network bin/goboxer_network
 fi
 
-release() {
-  name=$1
-  tag=$2
-  tag_release="${name}_${tag}.tgz"
-  latest_release="${name}_latest.tgz"
+BINRELEASE="goboxer_${TAG}.tgz"
 
-  tar -f $tag_release -zv -c $name
-  tar -f $latest_release -zv -c $name
-
-  echo -e "${OK_COLOR}--> PUSH TO S3: ${name}!............${NO_COLOR}"
-  s3cmd put $tag_release s3://bombay-apse.action.io/$tag_release
-  s3cmd put $latest_release s3://bombay-apse.action.io/$latest_release
-}
-
+echo -e "${OK_COLOR}--> PACKAGE GOBOXER!............${NO_COLOR}"
 cd bin
-release goboxer $TAG
-release goboxer_network $TAG
+tar -f ${BINRELEASE} -zv -c goboxer
+tar -f goboxer_latest.tgz -zv -c goboxer
+
+echo -e "${OK_COLOR}--> PUSH TO S3!............${NO_COLOR}"
+s3cmd put ${BINRELEASE} s3://bombay-apse.action.io/${BINRELEASE}
+s3cmd put goboxer_latest.tgz s3://bombay-apse.action.io/goboxer_latest.tgz

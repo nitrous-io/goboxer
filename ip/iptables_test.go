@@ -58,18 +58,3 @@ func (s *IptablesSuite) TestOpenCloseInVagrant(c *C) {
 	c.Assert(prerouting.exists(), Equals, true)
 	c.Assert(output.exists(), Equals, true)
 }
-
-func (s *IptablesSuite) TestCreateRemoveNetwork(c *C) {
-	rule := ethRule{Source: "192.168.212.0/24"}
-	c.Assert(rule.exists(), Equals, false)
-	CreateNetwork("192.168.212.0/24", false)
-	CreateNetwork("192.168.212.0/24", false)
-	c.Assert(rule.exists(), Equals, true)
-
-	output, _ := exec.Command("iptables", "-L", "-t", "nat").Output()
-	c.Assert(strings.Count(string(output), "192.168.212.0/24"), Equals, 1)
-
-	DestroyNetwork("192.168.212.0/24", false)
-	DestroyNetwork("192.168.212.0/24", false)
-	c.Assert(rule.exists(), Equals, false)
-}

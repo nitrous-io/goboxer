@@ -12,7 +12,6 @@ if [ -z "${spec}" ]; then
   go test -test.v github.com/action-io/goboxer/host
   sudo -E go test -test.v github.com/action-io/goboxer/quota
   go test -test.v github.com/action-io/goboxer/cartman
-  sudo -E go test -test.v github.com/action-io/goboxer/goboxer_network
 else
   sudo -E go test -gocheck.v -gocheck.f ${spec}
 fi

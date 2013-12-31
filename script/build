@@ -28,8 +28,6 @@ mkdir -p bin
 
 if [ ! -z "$GOBIN" ]; then
   cp $GOBIN/goboxer bin/goboxer
-  cp $GOBIN/goboxer_network bin/goboxer_network
 else
   cp $GOPATH/bin/goboxer bin/goboxer
-  cp $GOPATH/bin/goboxer_network bin/goboxer_network
 fi
