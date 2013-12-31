@@ -7,26 +7,28 @@ import (
 )
 
 var VALID_MOUNT = []string{"aufs", "lvm", "overlayfs"}
-var VALID_QUOTA = []string{"prjquota", "usrquota"}
+var VALID_DISK_QUOTA = []string{"prjquota", "usrquota"}
 
 type Config struct {
-	Id             string            `json:"id"`
-	Vagrant        bool              `json:"vagrant"`
-	BoxerChannel   string            `json:"boxerChannel"`
-	CoachChannel   string            `json:"coachChannel"`
-	RedisMQHost    string            `json:"redisMQHost"`
-	RedisMQPort    string            `json:"redisMQPort"`
-	RedisStoreHost string            `json:"redisStoreHost"`
-	RedisStorePort string            `json:"redisStorePort"`
-	SelectedDisk   string            `json:"selectedDisk"`
-	Disks          []string          `json:"disks"`
-	Runtimes       map[string]string `json:"runtimes"`
-	PingHost       string            `json:"pingHost"`
-	PingPort       string            `json:"pingPort"`
-	MountMethod    string            `json:"mountMethod"`
-	QuotaMethod    string            `json:"quotaMethod"`
-	CartmanHost    string            `json:"cartmanHost"`
-	CartmanPort    string            `json:"cartmanPort"`
+	Id              string            `json:"id"`
+	Vagrant         bool              `json:"vagrant"`
+	BoxerChannel    string            `json:"boxerChannel"`
+	CoachChannel    string            `json:"coachChannel"`
+	RedisMQHost     string            `json:"redisMQHost"`
+	RedisMQPort     string            `json:"redisMQPort"`
+	RedisStoreHost  string            `json:"redisStoreHost"`
+	RedisStorePort  string            `json:"redisStorePort"`
+	SelectedDisk    string            `json:"selectedDisk"`
+	Disks           []string          `json:"disks"`
+	Runtimes        map[string]string `json:"runtimes"`
+	PingHost        string            `json:"pingHost"`
+	PingPort        string            `json:"pingPort"`
+	MountMethod     string            `json:"mountMethod"`
+	QuotaMethod     string            `json:"quotaMethod"`
+	CartmanHost     string            `json:"cartmanHost"`
+	CartmanPort     string            `json:"cartmanPort"`
+	PremiumCPUQuota string            `json:"premiumCPUQuota"`
+	DefaultCPUQuota string            `json:"defaultCPUQuota"`
 }
 
 func (c Config) RedisMQAddr() string {
@@ -54,8 +56,8 @@ func (c Config) HasValidMountSettings() bool {
 	return false
 }
 
-func (c Config) HasValidQuotaSettings() bool {
-	for _, b := range VALID_QUOTA {
+func (c Config) HasValidDiskQuotaSettings() bool {
+	for _, b := range VALID_DISK_QUOTA {
 		if b == c.QuotaMethod {
 			return true
 		}

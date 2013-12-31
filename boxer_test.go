@@ -156,12 +156,14 @@ func (s *BoxerSuite) SetUpTest(c *C) {
 	s.Redis = NewRedisPool(":6379")
 	s.ResourcePool = &ResourcePool{Pool: s.Redis}
 	s.Boxer = &Boxer{
-		Id:           "testboxer",
-		Root:         "/var/lib/lxc",
-		SelectedDisk: "/lxc/disk1",
-		Disks:        []string{"/lxc/disk1"},
-		Runtimes:     map[string]string{"test": "test_container_template"},
-		ResourcePool: s.ResourcePool,
+		Id:              "testboxer",
+		Root:            "/var/lib/lxc",
+		SelectedDisk:    "/lxc/disk1",
+		Disks:           []string{"/lxc/disk1"},
+		Runtimes:        map[string]string{"test": "test_container_template"},
+		ResourcePool:    s.ResourcePool,
+		DefaultCPUQuota: 0.5,
+		PremiumCPUQuota: 1.0,
 	}
 }
 
@@ -354,12 +356,11 @@ func (s *BoxerSuite) TestCreatePremiumBox(c *C) {
 
 		var checkContent = map[string][]string{
 			box.LxcPath() + "/rootfs/etc/action/premium": {"1"},
-			box.LxcPath() + "/config": {"lxc.cgroup.cpu.cfs_period_us = 1000000"},
-			box.LxcPath() + "/config": {"lxc.cgroup.cpu.cfs_quota_us = 1000000"},
+			box.LxcPath() + "/config":                    {"lxc.cgroup.cpu.cfs_period_us = 1000000"},
+			box.LxcPath() + "/config":                    {"lxc.cgroup.cpu.cfs_quota_us = 1000000"},
 		}
 		DoesContain(c, checkContent)
 
-		// virtualMemory is persisted with redis
 		b, _ := s.ResourcePool.FindBox("mclovins-container-1")
 		c.Assert(b.Premium, Equals, true)
 	})
@@ -679,6 +680,71 @@ func (s *BoxerSuite) TestRestartNewlyPremiumBox(c *C) {
 	})
 }
 
+func (s *BoxerSuite) TestStopStartNewlyPremiumBox(c *C) {
+	fakeCartman := s.setupFakeCartman()
+	defer fakeCartman.Close()
+
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+		message, box := s.receiveMessages("mclovins-container-1", Message{
+			Id:        "testboxer",
+			BoxId:     1,
+			Type:      "aio:create",
+			Name:      "mclovins-container",
+			Runtime:   "test",
+			Memory:    "256M",
+			DiskSpace: "1G",
+		}, Message{
+			Id:       "testboxer",
+			BoxId:    1,
+			Type:     "aio:configure",
+			DataType: "aio:configure:update_premium",
+			Data: map[string]interface{}{
+				"premium": true,
+			},
+			Name: "mclovins-container-1",
+		})
+		defer box.Destroy()
+
+		c.Assert(message.Type, Equals, "aio:configured")
+		c.Assert(message.DataType, Equals, "aio:configured:update_premium")
+		c.Assert(message.Id, Equals, "testboxer")
+		c.Assert(message.BoxId, Equals, 1)
+		c.Assert(message.Success, Equals, true)
+		DoesContain(c, map[string][]string{
+			box.LxcPath() + "/rootfs/etc/action/premium": {"1"},
+			box.LxcPath() + "/config":                    {"lxc.cgroup.cpu.cfs_period_us = 1000000"},
+			box.LxcPath() + "/config":                    {"lxc.cgroup.cpu.cfs_quota_us = 500000"},
+		})
+
+		// Now stop and then start the box to verify that the cfs_quota_us changes.
+		message, box = s.receiveMessages("mclovins-container-1", Message{
+			Id:    "testboxer",
+			BoxId: 1,
+			Type:  "aio:stop",
+			Name:  "mclovins-container-1",
+		}, Message{
+			Id:    "testboxer",
+			BoxId: 1,
+			Type:  "aio:start",
+			Name:  "mclovins-container-1",
+		})
+
+		c.Assert(message.Type, Equals, "aio:started")
+		c.Assert(message.Id, Equals, "testboxer")
+		c.Assert(message.BoxId, Equals, 1)
+		c.Assert(message.Success, Equals, true)
+
+		DoesContain(c, map[string][]string{
+			box.LxcPath() + "/rootfs/etc/action/premium": {"1"},
+			box.LxcPath() + "/config":                    {"lxc.cgroup.cpu.cfs_period_us = 1000000"},
+			box.LxcPath() + "/config":                    {"lxc.cgroup.cpu.cfs_quota_us = 1000000"},
+		})
+
+		s.assertBoxState(c, box, "running")
+	})
+}
+
 func (s *BoxerSuite) TestUpdatePremium(c *C) {
 	fakeCartman := s.setupFakeCartman()
 	defer fakeCartman.Close()
@@ -711,11 +777,11 @@ func (s *BoxerSuite) TestUpdatePremium(c *C) {
 		c.Assert(message.Id, Equals, "testboxer")
 		c.Assert(message.BoxId, Equals, 1)
 		c.Assert(message.Success, Equals, true)
+		c.Assert(box.CpuQuota, Equals, 1.0)
 
-		var checkContainsContent = map[string][]string{
+		DoesContain(c, map[string][]string{
 			box.LxcPath() + "/rootfs/etc/action/premium": {"1"},
-		}
-		DoesContain(c, checkContainsContent)
+		})
 
 		_, box = s.receiveMessages("mclovins-container-1", Message{
 			Id:       "testboxer",
@@ -727,6 +793,9 @@ func (s *BoxerSuite) TestUpdatePremium(c *C) {
 			},
 			Name: "mclovins-container-1",
 		})
+
+		c.Assert(box.CpuQuota, Equals, 0.5)
+
 		DoesNotExist(c, []string{
 			box.LxcPath() + "/rootfs/etc/action/premium",
 		})
