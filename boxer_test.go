@@ -364,6 +364,11 @@ func (s *BoxerSuite) TestStop(c *C) {
 		}, Message{
 			Id:    "testboxer",
 			BoxId: 1,
+			Type:  "aio:start",
+			Name:  "mclovins-container-1",
+		}, Message{
+			Id:    "testboxer",
+			BoxId: 1,
 			Type:  "aio:stop",
 			Name:  "mclovins-container-1",
 		})
@@ -378,6 +383,8 @@ func (s *BoxerSuite) TestStop(c *C) {
 		DoesNotExist(c, []string{
 			box.LxcPath(),
 		})
+
+		AssertIptablesOutput(c, "192.168.254.2:22", false)
 	})
 }
 
