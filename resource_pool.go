@@ -1,7 +1,3 @@
-// Take care of resource storage such as
-// - distribute/release resource
-// - save box
-// - fetch box
 package goboxer
 
 import (
@@ -25,6 +21,10 @@ func (r *Resource) GetPort() (port int) {
 	return
 }
 
+// Takes care of resource storage such as
+// - distribute/release resource
+// - save box
+// - fetch box
 type ResourcePool struct {
 	Pool *redis.Pool
 }

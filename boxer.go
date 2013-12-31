@@ -1,8 +1,8 @@
-// Similar to docker runtime. This manages a list of containers
+// A service which provisions and manages boxes (LXC containers).
 //
-// We differentiate from docker in:
-// - using `ResourcePool` to manages available resources i.e ip, open port etc
-// instead of auto-generating them on the fly
+// It's somewhat similar to Docker.
+// We differentiate from Docker by using a `ResourcePool` to manage available
+// resources like ip, open port instead of auto-generating them on-the-fly.
 package goboxer
 
 import (

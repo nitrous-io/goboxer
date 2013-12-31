@@ -1,9 +1,9 @@
-// This contains definition of `Message` type that Boxer and Coach uses to
-// communicate with each other
 package goboxer
 
-// we concat all messages type here and use `Receive` to distribute correct
-// type to correct function for now
+// A Message type that Boxer and Coach use to communicate with each other.
+//
+// We concat all messages type here and use `Receive` to distribute correct
+// type to correct function for now.
 type Message struct {
 	// all messages can have these
 	Id         string            `json:"id,omitempty"`

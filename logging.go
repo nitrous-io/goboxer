@@ -1,4 +1,3 @@
-// This contains some logging utilities
 package goboxer
 
 import (

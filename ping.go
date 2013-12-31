@@ -1,4 +1,3 @@
-// HTTP Ping server for goboxer
 package goboxer
 
 import (
