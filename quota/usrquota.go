@@ -65,7 +65,9 @@ func (q UsrQuota) ViewLimit(arg QuotaArg) (QuotaInfo, error) {
 		if len(fields) > 1 && fields[0] == fmt.Sprintf("#%d", userId) {
 			quota.Used, _ = strconv.Atoi(fields[2])
 			quota.Limit, _ = strconv.Atoi(fields[3])
-			break
+			// FIXME: maybe fix issue when process cant write to stdoutpipe
+			// i.e. repquota
+			// break
 		}
 	}
 	if err := cmd.Wait(); err != nil {
