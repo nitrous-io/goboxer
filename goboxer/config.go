@@ -27,8 +27,8 @@ type Config struct {
 	QuotaMethod     string            `json:"quotaMethod"`
 	CartmanHost     string            `json:"cartmanHost"`
 	CartmanPort     string            `json:"cartmanPort"`
-	PremiumCPUQuota string            `json:"premiumCPUQuota"`
-	DefaultCPUQuota string            `json:"defaultCPUQuota"`
+	PremiumCPUQuota float64           `json:"premiumCPUQuota"`
+	DefaultCPUQuota float64           `json:"defaultCPUQuota"`
 }
 
 func (c Config) RedisMQAddr() string {
