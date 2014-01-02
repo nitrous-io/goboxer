@@ -132,7 +132,9 @@ func (s *BoxSuite) TestContainerDeltaPath(c *C) {
 }
 
 func (s *BoxSuite) TestCpuSetString(c *C) {
-	b := &Box{CpuSet: []int{1, 2, 3}}
+	b := &Box{CpuSet: []int{0}}
+	c.Assert(b.CpuSetStr(), Equals, "0")
+	b = &Box{CpuSet: []int{1, 2, 3}}
 	c.Assert(b.CpuSetStr(), Equals, "1,2,3")
 }
 
