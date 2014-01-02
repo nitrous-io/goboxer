@@ -1,11 +1,26 @@
 package quota
 
+/*
+#include <linux/quota.h>
+#include <linux/types.h>
+#include <sys/types.h>
+#include <sys/quota.h>
+#include <stdlib.h>
+
+static int get_quota(const char *special, int id, caddr_t addr) {
+  return quotactl(QCMD(Q_GETQUOTA, USRQUOTA), special, id, addr);
+}
+*/
+import "C"
+
 import (
 	"bufio"
 	"fmt"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
+	"unsafe"
 )
 
 // this should be the same as the uid that we used as base to calculate user id
@@ -44,6 +59,42 @@ func (q UsrQuota) RemoveLimit(arg QuotaArg) error {
 }
 
 func (q UsrQuota) ViewLimit(arg QuotaArg) (QuotaInfo, error) {
+	quota := QuotaInfo{}
+	userId, err := uid(arg.Id)
+	if err != nil {
+		return quota, err
+	}
+	var info C.struct_dqblk
+	device, err := getDevice(arg.Disk)
+	if err != nil {
+		return quota, err
+	}
+	dev := C.CString(device)
+	defer C.free(unsafe.Pointer(dev))
+	if C.get_quota(dev, C.int(userId),
+		(C.caddr_t)(unsafe.Pointer(&info))) == 1 {
+		return quota, fmt.Errorf("Failed to get quota: %v", arg)
+	}
+	quota.Used = int(info.dqb_curspace)
+	quota.Limit = int(info.dqb_bhardlimit)
+	return quota, nil
+}
+
+func setQuota(id string, newLimit int, disk string) error {
+	userId, err := uid(id)
+	if err != nil {
+		return err
+	}
+	uidStr := strconv.Itoa(userId)
+	newLimitStr := strconv.Itoa(newLimit)
+	cmd := exec.Command("setquota", "-u", uidStr, newLimitStr, newLimitStr,
+		"0", "0", disk)
+	return cmd.Run()
+}
+
+// use `repquota` shell command to view the limit. This is only useful in test
+// to verify that our `SetLimit` logic works properly
+func (q UsrQuota) ViewLimitShell(arg QuotaArg) (QuotaInfo, error) {
 	userId, err := uid(arg.Id)
 	if err != nil {
 		return QuotaInfo{}, err
@@ -76,14 +127,23 @@ func (q UsrQuota) ViewLimit(arg QuotaArg) (QuotaInfo, error) {
 	return quota, nil
 }
 
-func setQuota(id string, newLimit int, disk string) error {
-	userId, err := uid(id)
+// given a device or mountpoint, get the underlying device name
+func getDevice(deviceOrDir string) (string, error) {
+	fstab, err := os.Open("/etc/mtab")
 	if err != nil {
-		return err
+		return "", err
 	}
-	uidStr := strconv.Itoa(userId)
-	newLimitStr := strconv.Itoa(newLimit)
-	cmd := exec.Command("setquota", "-u", uidStr, newLimitStr, newLimitStr,
-		"0", "0", disk)
-	return cmd.Run()
+	defer fstab.Close()
+	scanner := bufio.NewScanner(fstab)
+	device := ""
+	for scanner.Scan() {
+		line := scanner.Text()
+		fields := strings.Fields(line)
+		if len(fields) >= 2 && fields[0] == deviceOrDir || fields[1] ==
+			deviceOrDir {
+			device = fields[0]
+			break
+		}
+	}
+	return device, nil
 }
