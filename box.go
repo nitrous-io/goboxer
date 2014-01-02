@@ -368,14 +368,14 @@ func (b *Box) SetQuota() error {
 				b.ContainerName(), err)
 		}
 	}
-	b.boxer.Lock()
-	defer b.boxer.Unlock()
+	b.boxer.Lock(b.Id)
+	defer b.boxer.Unlock(b.Id)
 	return q.SetLimit(arg)
 }
 
 func (b *Box) UnsetQuota() error {
-	b.boxer.Lock()
-	defer b.boxer.Unlock()
+	b.boxer.Lock(b.Id)
+	defer b.boxer.Unlock(b.Id)
 	return b.quota().RemoveLimit(b.quotaArg())
 }
 
@@ -415,8 +415,8 @@ func (b *Box) UpdatePremiumStatus() error {
 }
 
 func (b *Box) Mount(root string) error {
-	b.boxer.Lock()
-	defer b.boxer.Unlock()
+	b.boxer.Lock(b.Id)
+	defer b.boxer.Unlock(b.Id)
 	defer logger.LogDuration(
 		fmt.Sprintf("%s:Mount", b.ContainerName()),
 	)(time.Now())
@@ -468,8 +468,8 @@ func (b *Box) Mount(root string) error {
 // Unmount will always regenerate an unique id for the box, so it guarantees
 // that the next mount operation will success even if `Unmount` fails
 func (b *Box) Unmount(root string) error {
-	b.boxer.Lock()
-	defer b.boxer.Unlock()
+	b.boxer.Lock(b.Id)
+	defer b.boxer.Unlock(b.Id)
 	defer logger.LogDuration(
 		fmt.Sprintf("%s:Unmount", b.ContainerName()),
 	)(time.Now())
@@ -689,8 +689,8 @@ func (b *Box) setPermission() error {
 }
 
 func (b *Box) setPortForwarding() error {
-	b.boxer.Lock()
-	defer b.boxer.Unlock()
+	b.boxer.Lock(b.Id)
+	defer b.boxer.Unlock(b.Id)
 	strPort := strconv.Itoa(b.Port)
 	if b.boxer.Vagrant {
 		return ip.OpenInVagrant(strPort, b.Ip, "22")
@@ -700,8 +700,8 @@ func (b *Box) setPortForwarding() error {
 }
 
 func (b *Box) unsetPortForwarding() error {
-	b.boxer.Lock()
-	defer b.boxer.Unlock()
+	b.boxer.Lock(b.Id)
+	defer b.boxer.Unlock(b.Id)
 	strPort := strconv.Itoa(b.Port)
 	if b.boxer.Vagrant {
 		return ip.CloseInVagrant(strPort, b.Ip, "22")
