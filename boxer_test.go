@@ -696,9 +696,8 @@ func (s *BoxerSuite) TestRestartNewlyPremiumBox(c *C) {
 		c.Assert(message.BoxId, Equals, 1)
 		c.Assert(message.Success, Equals, true)
 		DoesContain(c, map[string][]string{
-			box.LxcPath() + "/rootfs/etc/action/premium": {"1"},
-			box.LxcPath() + "/config":                    {"lxc.cgroup.cpu.cfs_period_us = 1000000"},
-			box.LxcPath() + "/config":                    {"lxc.cgroup.cpu.cfs_quota_us = 500000"},
+			box.LxcPath() + "/config": {"lxc.cgroup.cpu.cfs_period_us = 1000000"},
+			box.LxcPath() + "/config": {"lxc.cgroup.cpu.cfs_quota_us = 500000"},
 		})
 
 		// Now restart the box to verify that the cfs_quota_us changes.
@@ -715,9 +714,79 @@ func (s *BoxerSuite) TestRestartNewlyPremiumBox(c *C) {
 		c.Assert(message.Success, Equals, true)
 
 		DoesContain(c, map[string][]string{
-			box.LxcPath() + "/rootfs/etc/action/premium": {"1"},
-			box.LxcPath() + "/config":                    {"lxc.cgroup.cpu.cfs_period_us = 1000000"},
-			box.LxcPath() + "/config":                    {"lxc.cgroup.cpu.cfs_quota_us = 1000000"},
+			box.LxcPath() + "/config": {"lxc.cgroup.cpu.cfs_period_us = 1000000"},
+			box.LxcPath() + "/config": {"lxc.cgroup.cpu.cfs_quota_us = 1000000"},
+		})
+
+		s.assertBoxState(c, box, "running")
+	})
+}
+
+func (s *BoxerSuite) TestRestartNewlyFreeBox(c *C) {
+	fakeCartman := s.setupFakeCartman()
+	defer fakeCartman.Close()
+
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+		message, box := s.receiveMessages("mclovins-container-1", Message{
+			Id:        "testboxer",
+			BoxId:     1,
+			Type:      "aio:create",
+			Name:      "mclovins-container",
+			Runtime:   "test",
+			Memory:    "256M",
+			DiskSpace: "1G",
+		}, Message{
+			Id:       "testboxer",
+			BoxId:    1,
+			Type:     "aio:configure",
+			DataType: "aio:configure:update_premium",
+			Data: map[string]interface{}{
+				"premium": true,
+			},
+			Name: "mclovins-container-1",
+		}, Message{
+			Id:    "testboxer",
+			BoxId: 1,
+			Type:  "aio:start",
+			Name:  "mclovins-container-1",
+		})
+		defer box.Destroy()
+
+		c.Assert(message.Type, Equals, "aio:started")
+		c.Assert(message.Id, Equals, "testboxer")
+		c.Assert(message.BoxId, Equals, 1)
+		c.Assert(message.Success, Equals, true)
+		DoesContain(c, map[string][]string{
+			box.LxcPath() + "/config": {"lxc.cgroup.cpu.cfs_period_us = 1000000"},
+			box.LxcPath() + "/config": {"lxc.cgroup.cpu.cfs_quota_us = 1000000"},
+		})
+
+		// Now make the box a free box and restart it to verify that the cfs_quota_us is reduced.
+		message, box = s.receiveMessages("mclovins-container-1", Message{
+			Id:       "testboxer",
+			BoxId:    1,
+			Type:     "aio:configure",
+			DataType: "aio:configure:update_premium",
+			Data: map[string]interface{}{
+				"premium": false,
+			},
+			Name: "mclovins-container-1",
+		}, Message{
+			Id:    "testboxer",
+			BoxId: 1,
+			Type:  "aio:restart",
+			Name:  "mclovins-container-1",
+		})
+
+		c.Assert(message.Type, Equals, "aio:restarted")
+		c.Assert(message.Id, Equals, "testboxer")
+		c.Assert(message.BoxId, Equals, 1)
+		c.Assert(message.Success, Equals, true)
+
+		DoesContain(c, map[string][]string{
+			box.LxcPath() + "/config": {"lxc.cgroup.cpu.cfs_period_us = 1000000"},
+			box.LxcPath() + "/config": {"lxc.cgroup.cpu.cfs_quota_us = 500000"},
 		})
 
 		s.assertBoxState(c, box, "running")
