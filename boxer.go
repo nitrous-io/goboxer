@@ -164,7 +164,6 @@ func CreateBoxHandler(m Message, boxer *Boxer) Message {
 		Premium:          m.Premium,
 		CpuSet:           boxer.CpuSet,
 	}
-	box.CpuQuota = boxer.boxCPUQuota(box)
 	box.boxer = boxer
 	box.Prepare()
 	if err := box.Create(); err != nil {
