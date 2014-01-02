@@ -213,7 +213,7 @@ func StartBoxHandler(m Message, boxer *Boxer) Message {
 	}
 	spec := box.CurrentSpec()
 	spec.MergeData(m)
-	box.CpuQuota = boxer.boxCPUQuota(box)
+	box.CpuQuota = boxer.BoxCPUQuota(box)
 
 	if err := box.Start(spec); err != nil {
 		logger.Printf("ERROR: Fail to start %v, err: %v\n", box, err)
@@ -272,7 +272,7 @@ func RestartBoxHandler(m Message, boxer *Boxer) Message {
 	}
 	spec := box.CurrentSpec()
 	spec.MergeData(m)
-	box.CpuQuota = boxer.boxCPUQuota(box)
+	box.CpuQuota = boxer.BoxCPUQuota(box)
 
 	if err := box.Restart(spec); err != nil {
 		logger.Printf("ERROR: Fail to restart box %v, err: %v\n", box, err)
@@ -549,7 +549,7 @@ func (boxer *Boxer) runtimeKeys() []string {
 	return keys
 }
 
-func (boxer *Boxer) boxCPUQuota(box *Box) float64 {
+func (boxer *Boxer) BoxCPUQuota(box *Box) float64 {
 	if box.Premium {
 		return boxer.PremiumCPUQuota
 	} else {

@@ -183,6 +183,23 @@ func (s *BoxerSuite) TestSetCpuSet(c *C) {
 	c.Assert(s.Boxer.CpuSet, DeepEquals, []int{0})
 }
 
+func (s *BoxerSuite) TestBoxCPUQuota(c *C) {
+	box := &Box{}
+	c.Assert(s.Boxer.BoxCPUQuota(box), Equals, 0.5)
+	box = &Box{Premium: true}
+	c.Assert(s.Boxer.BoxCPUQuota(box), Equals, 1.0)
+}
+
+func (s *BoxerSuite) TestBoxCPUQuotaDefaults(c *C) {
+	// Create a new Boxer with no CPU quotas configured.
+	s.Boxer = &Boxer{}
+
+	box := &Box{}
+	c.Assert(s.Boxer.BoxCPUQuota(box), Equals, 0.0)
+	box = &Box{Premium: true}
+	c.Assert(s.Boxer.BoxCPUQuota(box), Equals, 0.0)
+}
+
 func (s *BoxerSuite) TestCreateBox(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
@@ -516,6 +533,91 @@ func (s *BoxerSuite) TestStartWithNewSpecs(c *C) {
 
 		// assert that the box is running
 		s.assertBoxState(c, box, "running")
+	})
+}
+
+func (s *BoxerSuite) TestStartWithDefaultCPUQuotaNotConfigured(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+
+		s.Boxer.DefaultCPUQuota = 0.0
+
+		message, box := s.receiveMessages("mclovins-container-1", Message{
+			Id:         "testboxer",
+			BoxId:      1,
+			Type:       "aio:create",
+			Name:       "mclovins-container",
+			Runtime:    "test",
+			Memory:     "256M",
+			DiskSpace:  "1G",
+			PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
+		}, Message{
+			Id:    "testboxer",
+			BoxId: 1,
+			Type:  "aio:start",
+			Name:  "mclovins-container-1",
+		})
+		defer box.Destroy()
+
+		c.Assert(message.Type, Equals, "aio:started")
+		c.Assert(message.Id, Equals, "testboxer")
+		c.Assert(message.BoxId, Equals, 1)
+		c.Assert(message.Success, Equals, true)
+
+		// Make sure CPU quota configs aren't set.
+		DoesNotContain(c, map[string][]string{
+			box.LxcPath() + "/config": {
+				"cfs_period_us",
+				"cfs_quota_us",
+			},
+		})
+	})
+}
+
+func (s *BoxerSuite) TestStartWithPremiumCPUQuotaNotConfigured(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+
+		s.Boxer.PremiumCPUQuota = 0.0
+
+		message, box := s.receiveMessages("mclovins-container-1", Message{
+			Id:         "testboxer",
+			BoxId:      1,
+			Type:       "aio:create",
+			Name:       "mclovins-container",
+			Runtime:    "test",
+			Memory:     "256M",
+			DiskSpace:  "1G",
+			PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
+		}, Message{
+			Id:       "testboxer",
+			BoxId:    1,
+			Type:     "aio:configure",
+			DataType: "aio:configure:update_premium",
+			Data: map[string]interface{}{
+				"premium": true,
+			},
+			Name: "mclovins-container-1",
+		}, Message{
+			Id:    "testboxer",
+			BoxId: 1,
+			Type:  "aio:start",
+			Name:  "mclovins-container-1",
+		})
+		defer box.Destroy()
+
+		c.Assert(message.Type, Equals, "aio:started")
+		c.Assert(message.Id, Equals, "testboxer")
+		c.Assert(message.BoxId, Equals, 1)
+		c.Assert(message.Success, Equals, true)
+
+		// Make sure CPU quota configs aren't set.
+		DoesNotContain(c, map[string][]string{
+			box.LxcPath() + "/config": {
+				"cfs_period_us",
+				"cfs_quota_us",
+			},
+		})
 	})
 }
 
