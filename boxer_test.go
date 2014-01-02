@@ -456,11 +456,11 @@ func (s *BoxerSuite) TestStartSetIptablesRule(c *C) {
 func (s *BoxerSuite) TestStartWithNewSpecs(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
-		// mock data
 		mockData := make(map[string]interface{})
 		json.Unmarshal(
 			[]byte("{\"memory\":\"640M\",\"virtualMemory\":\"1280M\",\"cpuShares\":1536}"),
 			&mockData)
+
 		message, box := s.receiveMessages("mclovins-container-1", Message{
 			Id:         "testboxer",
 			BoxId:      1,
@@ -567,6 +567,11 @@ func (s *BoxerSuite) TestRestart(c *C) {
 			Memory:     "256M",
 			DiskSpace:  "1G",
 			PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
+		}, Message{
+			Id:    "testboxer",
+			BoxId: 1,
+			Type:  "aio:start",
+			Name:  "mclovins-container-1",
 		}, Message{
 			Id:    "testboxer",
 			BoxId: 1,
