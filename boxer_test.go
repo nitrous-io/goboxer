@@ -245,8 +245,6 @@ func (s *BoxerSuite) TestCreateBox(c *C) {
 					"lxc.cgroup.memory.swappiness = 60",
 					"lxc.network.hwaddr = 02:00",
 					"lxc.cgroup.cpu.shares = 2048",
-					"lxc.cgroup.cpu.cfs_period_us = 1000000",
-					"lxc.cgroup.cpu.cfs_quota_us = 500000",
 				},
 			},
 			Permissions: map[string][]int{
@@ -354,12 +352,9 @@ func (s *BoxerSuite) TestCreatePremiumBox(c *C) {
 		})
 		defer box.Destroy()
 
-		var checkContent = map[string][]string{
+		DoesContain(c, map[string][]string{
 			box.LxcPath() + "/rootfs/etc/action/premium": {"1"},
-			box.LxcPath() + "/config":                    {"lxc.cgroup.cpu.cfs_period_us = 1000000"},
-			box.LxcPath() + "/config":                    {"lxc.cgroup.cpu.cfs_quota_us = 1000000"},
-		}
-		DoesContain(c, checkContent)
+		})
 
 		b, _ := s.ResourcePool.FindBox("mclovins-container-1")
 		c.Assert(b.Premium, Equals, true)
@@ -679,6 +674,11 @@ func (s *BoxerSuite) TestRestartNewlyPremiumBox(c *C) {
 			Memory:    "256M",
 			DiskSpace: "1G",
 		}, Message{
+			Id:    "testboxer",
+			BoxId: 1,
+			Type:  "aio:start",
+			Name:  "mclovins-container-1",
+		}, Message{
 			Id:       "testboxer",
 			BoxId:    1,
 			Type:     "aio:configure",
@@ -738,6 +738,11 @@ func (s *BoxerSuite) TestStopStartNewlyPremiumBox(c *C) {
 			Runtime:   "test",
 			Memory:    "256M",
 			DiskSpace: "1G",
+		}, Message{
+			Id:    "testboxer",
+			BoxId: 1,
+			Type:  "aio:start",
+			Name:  "mclovins-container-1",
 		}, Message{
 			Id:       "testboxer",
 			BoxId:    1,
