@@ -364,6 +364,11 @@ func (s *BoxerSuite) TestStop(c *C) {
 		}, Message{
 			Id:    "testboxer",
 			BoxId: 1,
+			Type:  "aio:start",
+			Name:  "mclovins-container-1",
+		}, Message{
+			Id:    "testboxer",
+			BoxId: 1,
 			Type:  "aio:stop",
 			Name:  "mclovins-container-1",
 		})
@@ -378,6 +383,8 @@ func (s *BoxerSuite) TestStop(c *C) {
 		DoesNotExist(c, []string{
 			box.LxcPath(),
 		})
+
+		AssertIptablesOutput(c, "192.168.254.2:22", false)
 	})
 }
 
@@ -410,6 +417,39 @@ func (s *BoxerSuite) TestStart(c *C) {
 		DoesExist(c, []string{
 			box.LxcPath() + "/rootfs",
 		})
+	})
+}
+
+func (s *BoxerSuite) TestStartSetIptablesRule(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+		_, box := s.receiveMessages("mclovins-container-1", Message{
+			Id:         "testboxer",
+			BoxId:      1,
+			Type:       "aio:create",
+			Name:       "mclovins-container",
+			Runtime:    "test",
+			Memory:     "256M",
+			DiskSpace:  "1G",
+			PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
+		})
+		box.unsetPortForwarding()
+
+		AssertIptablesOutput(c, "192.168.254.2:22", false)
+
+		message, box := s.receiveMessages("mclovins-container-1", Message{
+			Id:    "testboxer",
+			BoxId: 1,
+			Type:  "aio:start",
+			Name:  "mclovins-container-1",
+		})
+		defer box.Destroy()
+
+		c.Assert(message.Type, Equals, "aio:started")
+		c.Assert(message.Success, Equals, true)
+		s.assertBoxState(c, box, "running")
+
+		AssertIptablesOutput(c, "192.168.254.2:22", true)
 	})
 }
 
@@ -505,8 +545,7 @@ func (s *BoxerSuite) TestDestroy(c *C) {
 
 		DoesNotExist(c, containerPlace)
 
-		output, _ := exec.Command("iptables", "-L", "-t", "nat").Output()
-		c.Assert(strings.Contains(string(output), "192.168.254.2:22"), Equals, false)
+		AssertIptablesOutput(c, "192.168.254.2:22", false)
 
 		// check redis
 		conn := s.Redis.Get()

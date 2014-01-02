@@ -164,7 +164,7 @@ func (b *Box) Create() error {
 		}
 	}
 	b.State = "stopped"
-	return b.setPortForwarding()
+	return nil
 }
 
 func (b *Box) Start(spec *BoxSpec) error {
@@ -172,6 +172,9 @@ func (b *Box) Start(spec *BoxSpec) error {
 		fmt.Sprintf("%s:Start %s", b.ContainerName(), b.MountName()),
 	)(time.Now())
 	if err := b.Mount(b.boxer.Root); err != nil {
+		return err
+	}
+	if err := b.setPortForwarding(); err != nil {
 		return err
 	}
 	// this change spec without restarting the box
@@ -185,6 +188,10 @@ func (b *Box) Stop() error {
 	defer logger.LogDuration(
 		fmt.Sprintf("%s:Stop %s", b.ContainerName(), b.MountName()),
 	)(time.Now())
+	if err := b.unsetPortForwarding(); err != nil {
+		// ignore error from unset port forwarding here as its not harmful
+		logger.Printf("%s:Destroy - unsetPortForwarding %v \n", err)
+	}
 	if err := lxc.Stop(b.MountName()); err != nil {
 		return err
 	}
@@ -207,10 +214,6 @@ func (b *Box) Destroy() error {
 	)(time.Now())
 	if err := b.Stop(); err != nil {
 		return err
-	}
-	if err := b.unsetPortForwarding(); err != nil {
-		// ignore error from unset port forwarding here as its not harmful
-		logger.Printf("%s:Destroy - unsetPortForwarding %v \n", err)
 	}
 	if err := b.UnsetQuota(); err != nil {
 		return err

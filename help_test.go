@@ -4,6 +4,7 @@ import (
 	"io/ioutil"
 	. "launchpad.net/gocheck"
 	"os"
+	"os/exec"
 	"strings"
 	"syscall"
 	"testing"
@@ -88,4 +89,10 @@ func DoesHavePermissions(c *C, checkPermissions map[string][]int) {
 		c.Assert(uidAndGid[0], Equals, value[0], Commentf("Uid mismatched: %d", key))
 		c.Assert(uidAndGid[1], Equals, value[1], Commentf("Gid mismatched: %d", key))
 	}
+}
+
+func AssertIptablesOutput(c *C, str string, assertion bool) {
+	output, _ := exec.Command("iptables", "-L", "-n", "-t", "nat").Output()
+	c.Assert(strings.Contains(string(output), "192.168.254.2:22"), Equals,
+		assertion)
 }
