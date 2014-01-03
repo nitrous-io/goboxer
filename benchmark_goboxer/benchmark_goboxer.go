@@ -66,6 +66,8 @@ func main() {
 	var wg sync.WaitGroup
 	// subscribe to coach
 	go func() {
+		pubConn := redisPool.Get()
+		defer pubConn.Close()
 		for {
 			switch v := psc.Receive().(type) {
 			case redis.Message:
@@ -96,6 +98,8 @@ func main() {
 	for _, id := range idsMap {
 		wg.Add(1)
 		go func(id int) {
+			pubConn := redisPool.Get()
+			defer pubConn.Close()
 			m := createMessage(id)
 			pubConn.Do("PUBLISH", BOXER_CHANNEL, m)
 		}(id)
