@@ -794,6 +794,6 @@ func (b *Box) setDefaultKeyPair() error {
 }
 
 func (b *Box) generateUniqueId() error {
-	b.UniqueId = strconv.FormatInt(time.Now().Unix(), 10)
+	b.UniqueId = strconv.FormatInt(time.Now().UnixNano(), 10)
 	return b.boxer.ResourcePool.SaveBox(b)
 }
