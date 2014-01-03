@@ -1,9 +1,6 @@
 package quota
 
 /*
-#include <linux/quota.h>
-#include <linux/types.h>
-#include <sys/types.h>
 #include <sys/quota.h>
 #include <stdlib.h>
 
