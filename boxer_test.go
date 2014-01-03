@@ -431,6 +431,7 @@ func (s *BoxerSuite) TestStartSetIptablesRule(c *C) {
 			Memory:    "256M",
 			DiskSpace: "1G",
 		})
+		defer box.Destroy()
 		box.unsetPortForwarding()
 
 		AssertIptablesOutput(c, "192.168.254.2:22", false)
@@ -1168,6 +1169,8 @@ func (s *BoxerSuite) TestChangeBoxSpecsPass(c *C) {
 			DiskSpace:  "1024M",
 			PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
 		})
+		defer box.Destroy()
+
 		quotaProvisioner := quota.Provisioner.GetQuota(stratValue.QuotaMethod)
 		limit, _ := quotaProvisioner.ViewLimit(quota.QuotaArg{
 			Id:   "1",
@@ -1189,7 +1192,6 @@ func (s *BoxerSuite) TestChangeBoxSpecsPass(c *C) {
 			Data:     mockData,
 			Name:     "mclovins-container-1",
 		})
-		defer box.Destroy()
 
 		c.Assert(message.Type, Equals, "aio:configured")
 		c.Assert(message.Id, Equals, "testboxer")
@@ -1493,6 +1495,8 @@ func (s *BoxerSuite) TestChangeBoxSpecsFail(c *C) {
 			DiskSpace:  "1024M",
 			PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
 		})
+		defer box.Destroy()
+
 		quotaProvisioner := quota.Provisioner.GetQuota(stratValue.QuotaMethod)
 		limit, _ := quotaProvisioner.ViewLimit(box.quotaArg())
 		// approximate the limit as lvm strategy will not report the whole
@@ -1513,7 +1517,6 @@ func (s *BoxerSuite) TestChangeBoxSpecsFail(c *C) {
 			},
 			Name: "mclovins-container-1",
 		})
-		defer box.Destroy()
 
 		c.Assert(message.Type, Equals, "aio:configured")
 		c.Assert(message.Success, Equals, false)
@@ -1561,6 +1564,8 @@ func (s *BoxerSuite) TestChangeBoxSpecsLvmFail(c *C) {
 			DiskSpace:  "30M",
 			PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
 		})
+		defer box.Destroy()
+
 		quotaProvisioner := quota.Provisioner.GetQuota(stratValue.QuotaMethod)
 		limit, _ := quotaProvisioner.ViewLimit(box.quotaArg())
 
@@ -1580,7 +1585,6 @@ func (s *BoxerSuite) TestChangeBoxSpecsLvmFail(c *C) {
 			},
 			Name: "mclovins-container-1",
 		})
-		defer box.Destroy()
 
 		c.Assert(message.Type, Equals, "aio:configured")
 		c.Assert(message.Success, Equals, false)
