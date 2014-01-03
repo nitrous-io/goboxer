@@ -92,41 +92,6 @@ func setQuota(id string, newLimit int, disk string) error {
 	return cmd.Run()
 }
 
-// use `repquota` shell command to view the limit. This is only useful in test
-// to verify that our `SetLimit` logic works properly
-func (q UsrQuota) ViewLimitShell(arg QuotaArg) (QuotaInfo, error) {
-	userId, err := uid(arg.Id)
-	if err != nil {
-		return QuotaInfo{}, err
-	}
-	cmd := exec.Command("repquota", "-n", arg.Disk)
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return QuotaInfo{}, err
-	}
-	if err := cmd.Start(); err != nil {
-		return QuotaInfo{}, err
-	}
-	scanner := bufio.NewScanner(stdout)
-	quota := QuotaInfo{}
-	for scanner.Scan() {
-		line := scanner.Text()
-		// found the quota for user
-		fields := strings.Fields(line)
-		if len(fields) > 1 && fields[0] == fmt.Sprintf("#%d", userId) {
-			quota.Used, _ = strconv.Atoi(fields[2])
-			quota.Limit, _ = strconv.Atoi(fields[3])
-			// FIXME: maybe fix issue when process cant write to stdoutpipe
-			// i.e. repquota
-			// break
-		}
-	}
-	if err := cmd.Wait(); err != nil {
-		return QuotaInfo{}, err
-	}
-	return quota, nil
-}
-
 // given a device or mountpoint, get the underlying device name
 func getDevice(deviceOrDir string) (string, error) {
 	fstab, err := os.Open("/etc/mtab")
