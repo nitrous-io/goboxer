@@ -170,7 +170,6 @@ func CreateBoxHandler(m Message, boxer *Boxer) Message {
 		CpuShares:        m.CpuShares,
 		VirtualMemory:    m.VirtualMemory,
 		Premium:          m.Premium,
-		CpuSet:           boxer.CpuSet,
 	}
 	box.boxer = boxer
 	box.Prepare()
@@ -222,6 +221,7 @@ func StartBoxHandler(m Message, boxer *Boxer) Message {
 	spec := box.CurrentSpec()
 	spec.MergeData(m)
 	box.CpuQuota = boxer.BoxCPUQuota(box)
+	box.CpuSet = boxer.CpuSet
 
 	if err := box.Start(spec); err != nil {
 		logger.Printf("ERROR: Fail to start %v, err: %v\n", box, err)
@@ -281,6 +281,7 @@ func RestartBoxHandler(m Message, boxer *Boxer) Message {
 	spec := box.CurrentSpec()
 	spec.MergeData(m)
 	box.CpuQuota = boxer.BoxCPUQuota(box)
+	box.CpuSet = boxer.CpuSet
 
 	if err := box.Restart(spec); err != nil {
 		logger.Printf("ERROR: Fail to restart box %v, err: %v\n", box, err)
