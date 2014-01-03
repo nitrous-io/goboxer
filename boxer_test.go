@@ -286,14 +286,13 @@ func (s *BoxerSuite) TestCreateWithDefaultCpuShares(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
 		_, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:         "testboxer",
-			BoxId:      1,
-			Type:       "aio:create",
-			Name:       "mclovins-container",
-			Runtime:    "test",
-			Memory:     "256M",
-			DiskSpace:  "1G",
-			PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
+			Id:        "testboxer",
+			BoxId:     1,
+			Type:      "aio:create",
+			Name:      "mclovins-container",
+			Runtime:   "test",
+			Memory:    "256M",
+			DiskSpace: "1G",
 		})
 		defer box.Destroy()
 		DoesContain(c, map[string][]string{
@@ -314,7 +313,6 @@ func (s *BoxerSuite) TestCreateWithVirtualMemory(c *C) {
 			Memory:        "256M",
 			DiskSpace:     "1G",
 			VirtualMemory: "1024",
-			PublicKeys:    []string{"ssh-key QWER", "ssh-key ASDF"},
 		})
 		defer box.Destroy()
 		// total memory = memory + virtual memory
@@ -331,15 +329,14 @@ func (s *BoxerSuite) TestCreatePremiumBox(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
 		_, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:         "testboxer",
-			BoxId:      1,
-			Type:       "aio:create",
-			Name:       "mclovins-container",
-			Runtime:    "test",
-			Memory:     "256M",
-			DiskSpace:  "1G",
-			Premium:    true,
-			PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
+			Id:        "testboxer",
+			BoxId:     1,
+			Type:      "aio:create",
+			Name:      "mclovins-container",
+			Runtime:   "test",
+			Memory:    "256M",
+			DiskSpace: "1G",
+			Premium:   true,
 		})
 		defer box.Destroy()
 
@@ -356,14 +353,13 @@ func (s *BoxerSuite) TestStop(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
 		message, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:         "testboxer",
-			BoxId:      1,
-			Type:       "aio:create",
-			Name:       "mclovins-container",
-			Runtime:    "test",
-			Memory:     "256M",
-			DiskSpace:  "1G",
-			PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
+			Id:        "testboxer",
+			BoxId:     1,
+			Type:      "aio:create",
+			Name:      "mclovins-container",
+			Runtime:   "test",
+			Memory:    "256M",
+			DiskSpace: "1G",
 		}, Message{
 			Id:    "testboxer",
 			BoxId: 1,
@@ -427,14 +423,13 @@ func (s *BoxerSuite) TestStartSetIptablesRule(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
 		_, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:         "testboxer",
-			BoxId:      1,
-			Type:       "aio:create",
-			Name:       "mclovins-container",
-			Runtime:    "test",
-			Memory:     "256M",
-			DiskSpace:  "1G",
-			PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
+			Id:        "testboxer",
+			BoxId:     1,
+			Type:      "aio:create",
+			Name:      "mclovins-container",
+			Runtime:   "test",
+			Memory:    "256M",
+			DiskSpace: "1G",
 		})
 		box.unsetPortForwarding()
 
@@ -465,14 +460,13 @@ func (s *BoxerSuite) TestStartWithNewSpecs(c *C) {
 			&mockData)
 
 		message, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:         "testboxer",
-			BoxId:      1,
-			Type:       "aio:create",
-			Name:       "mclovins-container",
-			Runtime:    "test",
-			Memory:     "256M",
-			DiskSpace:  "1G",
-			PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
+			Id:        "testboxer",
+			BoxId:     1,
+			Type:      "aio:create",
+			Name:      "mclovins-container",
+			Runtime:   "test",
+			Memory:    "256M",
+			DiskSpace: "1G",
 		}, Message{
 			Id:    "testboxer",
 			BoxId: 1,
@@ -552,14 +546,13 @@ func (s *BoxerSuite) TestStartWithDefaultCPUQuotaNotConfigured(c *C) {
 		s.Boxer.DefaultCPUQuota = 0.0
 
 		message, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:         "testboxer",
-			BoxId:      1,
-			Type:       "aio:create",
-			Name:       "mclovins-container",
-			Runtime:    "test",
-			Memory:     "256M",
-			DiskSpace:  "1G",
-			PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
+			Id:        "testboxer",
+			BoxId:     1,
+			Type:      "aio:create",
+			Name:      "mclovins-container",
+			Runtime:   "test",
+			Memory:    "256M",
+			DiskSpace: "1G",
 		}, Message{
 			Id:    "testboxer",
 			BoxId: 1,
@@ -590,14 +583,13 @@ func (s *BoxerSuite) TestStartWithPremiumCPUQuotaNotConfigured(c *C) {
 		s.Boxer.PremiumCPUQuota = 0.0
 
 		message, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:         "testboxer",
-			BoxId:      1,
-			Type:       "aio:create",
-			Name:       "mclovins-container",
-			Runtime:    "test",
-			Memory:     "256M",
-			DiskSpace:  "1G",
-			PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
+			Id:        "testboxer",
+			BoxId:     1,
+			Type:      "aio:create",
+			Name:      "mclovins-container",
+			Runtime:   "test",
+			Memory:    "256M",
+			DiskSpace: "1G",
 		}, Message{
 			Id:       "testboxer",
 			BoxId:    1,
@@ -731,14 +723,13 @@ func (s *BoxerSuite) TestRestartWithNewSpec(c *C) {
 			[]byte("{\"memory\":\"640M\",\"virtualMemory\":\"1280M\",\"cpuShares\":1536}"),
 			&mockData)
 		message, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:         "testboxer",
-			BoxId:      1,
-			Type:       "aio:create",
-			Name:       "mclovins-container",
-			Runtime:    "test",
-			Memory:     "256M",
-			DiskSpace:  "1G",
-			PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
+			Id:        "testboxer",
+			BoxId:     1,
+			Type:      "aio:create",
+			Name:      "mclovins-container",
+			Runtime:   "test",
+			Memory:    "256M",
+			DiskSpace: "1G",
 		}, Message{
 			Id:    "testboxer",
 			BoxId: 1,
@@ -779,15 +770,13 @@ func (s *BoxerSuite) TestRestartSetsCpuSet(c *C) {
 		s.Boxer.SetCpuSet(1)
 
 		message, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:         "testboxer",
-			BoxId:      1,
-			Type:       "aio:create",
-			Name:       "mclovins-container",
-			Runtime:    "test",
-			Memory:     "256M",
-			DiskSpace:  "1G",
-			PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
-			CpuShares:  2048,
+			Id:        "testboxer",
+			BoxId:     1,
+			Type:      "aio:create",
+			Name:      "mclovins-container",
+			Runtime:   "test",
+			Memory:    "256M",
+			DiskSpace: "1G",
 		}, Message{
 			Id:    "testboxer",
 			BoxId: 1,
@@ -818,6 +807,7 @@ func (s *BoxerSuite) TestRestartSetsCpuSet(c *C) {
 			Type:  "aio:restart",
 			Name:  "mclovins-container-1",
 		})
+		defer box.Destroy()
 
 		c.Assert(message.Type, Equals, "aio:restarted")
 		c.Assert(message.Id, Equals, "testboxer")
@@ -877,6 +867,7 @@ func (s *BoxerSuite) TestRestartNewlyPremiumBox(c *C) {
 			Type:  "aio:restart",
 			Name:  "mclovins-container-1",
 		})
+		defer box.Destroy()
 
 		c.Assert(message.Type, Equals, "aio:restarted")
 		c.Assert(message.Id, Equals, "testboxer")
@@ -948,6 +939,7 @@ func (s *BoxerSuite) TestRestartNewlyFreeBox(c *C) {
 			Type:  "aio:restart",
 			Name:  "mclovins-container-1",
 		})
+		defer box.Destroy()
 
 		c.Assert(message.Type, Equals, "aio:restarted")
 		c.Assert(message.Id, Equals, "testboxer")
@@ -1017,6 +1009,7 @@ func (s *BoxerSuite) TestStopStartNewlyPremiumBox(c *C) {
 			Type:  "aio:start",
 			Name:  "mclovins-container-1",
 		})
+		defer box.Destroy()
 
 		c.Assert(message.Type, Equals, "aio:started")
 		c.Assert(message.Id, Equals, "testboxer")
