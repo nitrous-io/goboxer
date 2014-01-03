@@ -988,7 +988,6 @@ func (s *BoxerSuite) TestStopStartNewlyPremiumBox(c *C) {
 			},
 			Name: "mclovins-container-1",
 		})
-		defer box.Destroy()
 
 		c.Assert(message.Type, Equals, "aio:configured")
 		c.Assert(message.DataType, Equals, "aio:configured:update_premium")
