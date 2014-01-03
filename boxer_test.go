@@ -117,6 +117,18 @@ func (s *BoxerSuite) findBox(name string) *Box {
 	return box
 }
 
+// Returns a fake Cartman server.
+// The caller should call Close when finished, to shut down the server.
+func (s *BoxerSuite) setupFakeCartman() *httptest.Server {
+	server := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			fmt.Fprintln(w, "Hello, boxer")
+		}))
+	cartmanURL, _ := url.Parse(server.URL)
+	s.Boxer.Cartman = &cartman.Cartman{Host: cartmanURL.Host}
+	return server
+}
+
 type testFunction func(s *BoxerSuite, c *C, stratName string, stratValue testProvisionStrategy)
 
 func (s *BoxerSuite) testEachStrategy(c *C, test testFunction) {
@@ -144,12 +156,14 @@ func (s *BoxerSuite) SetUpTest(c *C) {
 	s.Redis = NewRedisPool(":6379")
 	s.ResourcePool = &ResourcePool{Pool: s.Redis}
 	s.Boxer = &Boxer{
-		Id:           "testboxer",
-		Root:         "/var/lib/lxc",
-		SelectedDisk: "/lxc/disk1",
-		Disks:        []string{"/lxc/disk1"},
-		Runtimes:     map[string]string{"test": "test_container_template"},
-		ResourcePool: s.ResourcePool,
+		Id:              "testboxer",
+		Root:            "/var/lib/lxc",
+		SelectedDisk:    "/lxc/disk1",
+		Disks:           []string{"/lxc/disk1"},
+		Runtimes:        map[string]string{"test": "test_container_template"},
+		ResourcePool:    s.ResourcePool,
+		DefaultCPUQuota: 0.5,
+		PremiumCPUQuota: 1.0,
 	}
 }
 
@@ -167,6 +181,23 @@ func (s *BoxerSuite) TestSetCpuSet(c *C) {
 	c.Assert(s.Boxer.CpuSet, DeepEquals, []int{1})
 	s.Boxer.SetCpuSet(1)
 	c.Assert(s.Boxer.CpuSet, DeepEquals, []int{0})
+}
+
+func (s *BoxerSuite) TestBoxCPUQuota(c *C) {
+	box := &Box{}
+	c.Assert(s.Boxer.BoxCPUQuota(box), Equals, 0.5)
+	box = &Box{Premium: true}
+	c.Assert(s.Boxer.BoxCPUQuota(box), Equals, 1.0)
+}
+
+func (s *BoxerSuite) TestBoxCPUQuotaDefaults(c *C) {
+	// Create a new Boxer with no CPU quotas configured.
+	s.Boxer = &Boxer{}
+
+	box := &Box{}
+	c.Assert(s.Boxer.BoxCPUQuota(box), Equals, 0.0)
+	box = &Box{Premium: true}
+	c.Assert(s.Boxer.BoxCPUQuota(box), Equals, 0.0)
 }
 
 func (s *BoxerSuite) TestCreateBox(c *C) {
@@ -338,12 +369,10 @@ func (s *BoxerSuite) TestCreatePremiumBox(c *C) {
 		})
 		defer box.Destroy()
 
-		var checkContent = map[string][]string{
+		DoesContain(c, map[string][]string{
 			box.LxcPath() + "/rootfs/etc/action/premium": {"1"},
-		}
-		DoesContain(c, checkContent)
+		})
 
-		// virtualMemory is persisted with redis
 		b, _ := s.ResourcePool.FindBox("mclovins-container-1")
 		c.Assert(b.Premium, Equals, true)
 	})
@@ -507,6 +536,91 @@ func (s *BoxerSuite) TestStartWithNewSpecs(c *C) {
 	})
 }
 
+func (s *BoxerSuite) TestStartWithDefaultCPUQuotaNotConfigured(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+
+		s.Boxer.DefaultCPUQuota = 0.0
+
+		message, box := s.receiveMessages("mclovins-container-1", Message{
+			Id:         "testboxer",
+			BoxId:      1,
+			Type:       "aio:create",
+			Name:       "mclovins-container",
+			Runtime:    "test",
+			Memory:     "256M",
+			DiskSpace:  "1G",
+			PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
+		}, Message{
+			Id:    "testboxer",
+			BoxId: 1,
+			Type:  "aio:start",
+			Name:  "mclovins-container-1",
+		})
+		defer box.Destroy()
+
+		c.Assert(message.Type, Equals, "aio:started")
+		c.Assert(message.Id, Equals, "testboxer")
+		c.Assert(message.BoxId, Equals, 1)
+		c.Assert(message.Success, Equals, true)
+
+		// Make sure CPU quota configs aren't set.
+		DoesNotContain(c, map[string][]string{
+			box.LxcPath() + "/config": {
+				"cfs_period_us",
+				"cfs_quota_us",
+			},
+		})
+	})
+}
+
+func (s *BoxerSuite) TestStartWithPremiumCPUQuotaNotConfigured(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+
+		s.Boxer.PremiumCPUQuota = 0.0
+
+		message, box := s.receiveMessages("mclovins-container-1", Message{
+			Id:         "testboxer",
+			BoxId:      1,
+			Type:       "aio:create",
+			Name:       "mclovins-container",
+			Runtime:    "test",
+			Memory:     "256M",
+			DiskSpace:  "1G",
+			PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
+		}, Message{
+			Id:       "testboxer",
+			BoxId:    1,
+			Type:     "aio:configure",
+			DataType: "aio:configure:update_premium",
+			Data: map[string]interface{}{
+				"premium": true,
+			},
+			Name: "mclovins-container-1",
+		}, Message{
+			Id:    "testboxer",
+			BoxId: 1,
+			Type:  "aio:start",
+			Name:  "mclovins-container-1",
+		})
+		defer box.Destroy()
+
+		c.Assert(message.Type, Equals, "aio:started")
+		c.Assert(message.Id, Equals, "testboxer")
+		c.Assert(message.BoxId, Equals, 1)
+		c.Assert(message.Success, Equals, true)
+
+		// Make sure CPU quota configs aren't set.
+		DoesNotContain(c, map[string][]string{
+			box.LxcPath() + "/config": {
+				"cfs_period_us",
+				"cfs_quota_us",
+			},
+		})
+	})
+}
+
 func (s *BoxerSuite) TestDestroy(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
@@ -647,15 +761,213 @@ func (s *BoxerSuite) TestRestartWithNewSpec(c *C) {
 	})
 }
 
+func (s *BoxerSuite) TestRestartNewlyPremiumBox(c *C) {
+	fakeCartman := s.setupFakeCartman()
+	defer fakeCartman.Close()
+
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+		message, box := s.receiveMessages("mclovins-container-1", Message{
+			Id:        "testboxer",
+			BoxId:     1,
+			Type:      "aio:create",
+			Name:      "mclovins-container",
+			Runtime:   "test",
+			Memory:    "256M",
+			DiskSpace: "1G",
+		}, Message{
+			Id:    "testboxer",
+			BoxId: 1,
+			Type:  "aio:start",
+			Name:  "mclovins-container-1",
+		}, Message{
+			Id:       "testboxer",
+			BoxId:    1,
+			Type:     "aio:configure",
+			DataType: "aio:configure:update_premium",
+			Data: map[string]interface{}{
+				"premium": true,
+			},
+			Name: "mclovins-container-1",
+		})
+		defer box.Destroy()
+
+		c.Assert(message.Type, Equals, "aio:configured")
+		c.Assert(message.DataType, Equals, "aio:configured:update_premium")
+		c.Assert(message.Id, Equals, "testboxer")
+		c.Assert(message.BoxId, Equals, 1)
+		c.Assert(message.Success, Equals, true)
+		DoesContain(c, map[string][]string{
+			box.LxcPath() + "/config": {"lxc.cgroup.cpu.cfs_period_us = 1000000"},
+			box.LxcPath() + "/config": {"lxc.cgroup.cpu.cfs_quota_us = 500000"},
+		})
+
+		// Now restart the box to verify that the cfs_quota_us changes.
+		message, box = s.receiveMessages("mclovins-container-1", Message{
+			Id:    "testboxer",
+			BoxId: 1,
+			Type:  "aio:restart",
+			Name:  "mclovins-container-1",
+		})
+
+		c.Assert(message.Type, Equals, "aio:restarted")
+		c.Assert(message.Id, Equals, "testboxer")
+		c.Assert(message.BoxId, Equals, 1)
+		c.Assert(message.Success, Equals, true)
+
+		DoesContain(c, map[string][]string{
+			box.LxcPath() + "/config": {"lxc.cgroup.cpu.cfs_period_us = 1000000"},
+			box.LxcPath() + "/config": {"lxc.cgroup.cpu.cfs_quota_us = 1000000"},
+		})
+
+		s.assertBoxState(c, box, "running")
+	})
+}
+
+func (s *BoxerSuite) TestRestartNewlyFreeBox(c *C) {
+	fakeCartman := s.setupFakeCartman()
+	defer fakeCartman.Close()
+
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+		message, box := s.receiveMessages("mclovins-container-1", Message{
+			Id:        "testboxer",
+			BoxId:     1,
+			Type:      "aio:create",
+			Name:      "mclovins-container",
+			Runtime:   "test",
+			Memory:    "256M",
+			DiskSpace: "1G",
+		}, Message{
+			Id:       "testboxer",
+			BoxId:    1,
+			Type:     "aio:configure",
+			DataType: "aio:configure:update_premium",
+			Data: map[string]interface{}{
+				"premium": true,
+			},
+			Name: "mclovins-container-1",
+		}, Message{
+			Id:    "testboxer",
+			BoxId: 1,
+			Type:  "aio:start",
+			Name:  "mclovins-container-1",
+		})
+		defer box.Destroy()
+
+		c.Assert(message.Type, Equals, "aio:started")
+		c.Assert(message.Id, Equals, "testboxer")
+		c.Assert(message.BoxId, Equals, 1)
+		c.Assert(message.Success, Equals, true)
+		DoesContain(c, map[string][]string{
+			box.LxcPath() + "/config": {"lxc.cgroup.cpu.cfs_period_us = 1000000"},
+			box.LxcPath() + "/config": {"lxc.cgroup.cpu.cfs_quota_us = 1000000"},
+		})
+
+		// Now make the box a free box and restart it to verify that the cfs_quota_us is reduced.
+		message, box = s.receiveMessages("mclovins-container-1", Message{
+			Id:       "testboxer",
+			BoxId:    1,
+			Type:     "aio:configure",
+			DataType: "aio:configure:update_premium",
+			Data: map[string]interface{}{
+				"premium": false,
+			},
+			Name: "mclovins-container-1",
+		}, Message{
+			Id:    "testboxer",
+			BoxId: 1,
+			Type:  "aio:restart",
+			Name:  "mclovins-container-1",
+		})
+
+		c.Assert(message.Type, Equals, "aio:restarted")
+		c.Assert(message.Id, Equals, "testboxer")
+		c.Assert(message.BoxId, Equals, 1)
+		c.Assert(message.Success, Equals, true)
+
+		DoesContain(c, map[string][]string{
+			box.LxcPath() + "/config": {"lxc.cgroup.cpu.cfs_period_us = 1000000"},
+			box.LxcPath() + "/config": {"lxc.cgroup.cpu.cfs_quota_us = 500000"},
+		})
+
+		s.assertBoxState(c, box, "running")
+	})
+}
+
+func (s *BoxerSuite) TestStopStartNewlyPremiumBox(c *C) {
+	fakeCartman := s.setupFakeCartman()
+	defer fakeCartman.Close()
+
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+		message, box := s.receiveMessages("mclovins-container-1", Message{
+			Id:        "testboxer",
+			BoxId:     1,
+			Type:      "aio:create",
+			Name:      "mclovins-container",
+			Runtime:   "test",
+			Memory:    "256M",
+			DiskSpace: "1G",
+		}, Message{
+			Id:    "testboxer",
+			BoxId: 1,
+			Type:  "aio:start",
+			Name:  "mclovins-container-1",
+		}, Message{
+			Id:       "testboxer",
+			BoxId:    1,
+			Type:     "aio:configure",
+			DataType: "aio:configure:update_premium",
+			Data: map[string]interface{}{
+				"premium": true,
+			},
+			Name: "mclovins-container-1",
+		})
+		defer box.Destroy()
+
+		c.Assert(message.Type, Equals, "aio:configured")
+		c.Assert(message.DataType, Equals, "aio:configured:update_premium")
+		c.Assert(message.Id, Equals, "testboxer")
+		c.Assert(message.BoxId, Equals, 1)
+		c.Assert(message.Success, Equals, true)
+		DoesContain(c, map[string][]string{
+			box.LxcPath() + "/rootfs/etc/action/premium": {"1"},
+			box.LxcPath() + "/config":                    {"lxc.cgroup.cpu.cfs_period_us = 1000000"},
+			box.LxcPath() + "/config":                    {"lxc.cgroup.cpu.cfs_quota_us = 500000"},
+		})
+
+		// Now stop and then start the box to verify that the cfs_quota_us changes.
+		message, box = s.receiveMessages("mclovins-container-1", Message{
+			Id:    "testboxer",
+			BoxId: 1,
+			Type:  "aio:stop",
+			Name:  "mclovins-container-1",
+		}, Message{
+			Id:    "testboxer",
+			BoxId: 1,
+			Type:  "aio:start",
+			Name:  "mclovins-container-1",
+		})
+
+		c.Assert(message.Type, Equals, "aio:started")
+		c.Assert(message.Id, Equals, "testboxer")
+		c.Assert(message.BoxId, Equals, 1)
+		c.Assert(message.Success, Equals, true)
+
+		DoesContain(c, map[string][]string{
+			box.LxcPath() + "/rootfs/etc/action/premium": {"1"},
+			box.LxcPath() + "/config":                    {"lxc.cgroup.cpu.cfs_period_us = 1000000"},
+			box.LxcPath() + "/config":                    {"lxc.cgroup.cpu.cfs_quota_us = 1000000"},
+		})
+
+		s.assertBoxState(c, box, "running")
+	})
+}
+
 func (s *BoxerSuite) TestUpdatePremium(c *C) {
-	ts := httptest.NewServer(http.HandlerFunc(
-		func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprintln(w, "Hello, boxer")
-		}))
-	defer ts.Close()
-	// simulate response from cartman server
-	cartmanURL, _ := url.Parse(ts.URL)
-	s.Boxer.Cartman = &cartman.Cartman{Host: cartmanURL.Host}
+	fakeCartman := s.setupFakeCartman()
+	defer fakeCartman.Close()
 
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
@@ -686,10 +998,9 @@ func (s *BoxerSuite) TestUpdatePremium(c *C) {
 		c.Assert(message.BoxId, Equals, 1)
 		c.Assert(message.Success, Equals, true)
 
-		var checkContainsContent = map[string][]string{
+		DoesContain(c, map[string][]string{
 			box.LxcPath() + "/rootfs/etc/action/premium": {"1"},
-		}
-		DoesContain(c, checkContainsContent)
+		})
 
 		_, box = s.receiveMessages("mclovins-container-1", Message{
 			Id:       "testboxer",
@@ -701,6 +1012,7 @@ func (s *BoxerSuite) TestUpdatePremium(c *C) {
 			},
 			Name: "mclovins-container-1",
 		})
+
 		DoesNotExist(c, []string{
 			box.LxcPath() + "/rootfs/etc/action/premium",
 		})
@@ -1252,14 +1564,8 @@ func (s *BoxerSuite) TestChangeBoxSpecsInvalidParams(c *C) {
 }
 
 func (s *BoxerSuite) TestUpdateAuth(c *C) {
-	// simulate response from cartman server
-	ts := httptest.NewServer(http.HandlerFunc(
-		func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprintln(w, "Hello, boxer")
-		}))
-	defer ts.Close()
-	cartmanURL, _ := url.Parse(ts.URL)
-	s.Boxer.Cartman = &cartman.Cartman{Host: cartmanURL.Host}
+	fakeCartman := s.setupFakeCartman()
+	defer fakeCartman.Close()
 
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
@@ -1308,14 +1614,8 @@ func (s *BoxerSuite) TestUpdateAuth(c *C) {
 }
 
 func (s *BoxerSuite) TestRemoveAuth(c *C) {
-	// simulate response from cartman server
-	ts := httptest.NewServer(http.HandlerFunc(
-		func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprintln(w, "Hello, boxer")
-		}))
-	defer ts.Close()
-	cartmanURL, _ := url.Parse(ts.URL)
-	s.Boxer.Cartman = &cartman.Cartman{Host: cartmanURL.Host}
+	fakeCartman := s.setupFakeCartman()
+	defer fakeCartman.Close()
 
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {

@@ -34,19 +34,21 @@ type MessageHandler func(m Message, boxer *Boxer) Message
 
 type Boxer struct {
 	sync.Mutex
-	Id           string
-	Vagrant      bool
-	Root         string
-	SelectedDisk string
-	Disks        []string
-	ResourcePool *ResourcePool
-	Runtimes     map[string]string
-	Handles      map[string]MessageHandler
-	MountMethod  string
-	QuotaMethod  string
-	SelectedVG   string
-	CpuSet       []int
-	Cartman      *cartman.Cartman
+	Id              string
+	Vagrant         bool
+	Root            string
+	SelectedDisk    string
+	Disks           []string
+	ResourcePool    *ResourcePool
+	Runtimes        map[string]string
+	Handles         map[string]MessageHandler
+	MountMethod     string
+	QuotaMethod     string
+	SelectedVG      string
+	CpuSet          []int
+	Cartman         *cartman.Cartman
+	PremiumCPUQuota float64
+	DefaultCPUQuota float64
 }
 
 func (boxer *Boxer) Configure() {
@@ -64,22 +66,6 @@ func (boxer *Boxer) SetCpuSet(numCpu int) {
 			boxer.CpuSet = append(boxer.CpuSet, i)
 		}
 	}
-}
-
-// return back a slice of keys for the runtimes
-//
-//		boxer.Runtimes = map[string]string{
-// 		 	"rails": "ruby_template",
-// 		 	"django": "python_template",
-// 		}
-// 		boxer.runtimeKeys()
-// 		>> []string{"django", "rails"}
-func (boxer *Boxer) runtimeKeys() []string {
-	var keys []string
-	for k := range boxer.Runtimes {
-		keys = append(keys, k)
-	}
-	return keys
 }
 
 func (boxer *Boxer) ReceiveAsync(message Message) MessageChannel {
@@ -227,6 +213,7 @@ func StartBoxHandler(m Message, boxer *Boxer) Message {
 	}
 	spec := box.CurrentSpec()
 	spec.MergeData(m)
+	box.CpuQuota = boxer.BoxCPUQuota(box)
 
 	if err := box.Start(spec); err != nil {
 		logger.Printf("ERROR: Fail to start %v, err: %v\n", box, err)
@@ -285,6 +272,7 @@ func RestartBoxHandler(m Message, boxer *Boxer) Message {
 	}
 	spec := box.CurrentSpec()
 	spec.MergeData(m)
+	box.CpuQuota = boxer.BoxCPUQuota(box)
 
 	if err := box.Restart(spec); err != nil {
 		logger.Printf("ERROR: Fail to restart box %v, err: %v\n", box, err)
@@ -543,4 +531,28 @@ func (boxer *Boxer) findBox(name string) (*Box, error) {
 	}
 	box.boxer = boxer
 	return box, nil
+}
+
+// return back a slice of keys for the runtimes
+//
+//		boxer.Runtimes = map[string]string{
+// 		 	"rails": "ruby_template",
+// 		 	"django": "python_template",
+// 		}
+// 		boxer.runtimeKeys()
+// 		>> []string{"django", "rails"}
+func (boxer *Boxer) runtimeKeys() []string {
+	var keys []string
+	for k := range boxer.Runtimes {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
+func (boxer *Boxer) BoxCPUQuota(box *Box) float64 {
+	if box.Premium {
+		return boxer.PremiumCPUQuota
+	} else {
+		return boxer.DefaultCPUQuota
+	}
 }

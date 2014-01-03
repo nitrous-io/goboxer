@@ -22,6 +22,7 @@ const UID_START = 15000
 const THIN_VG = "boxes"
 const DEFAULT_SWAPPINESS = 60
 const DEFAULT_CPU_SHARES = 512
+const DEFAULT_CPU_PERIOD = 1000000 // cpu.cfs_period_us: 1 million microseconds
 
 type BoxAuth struct {
 	Username string
@@ -75,6 +76,7 @@ type Box struct {
 	SnapshotURL      string   `json:"-"`
 	PublicKeys       []string `json:"-"`
 	CpuSet           []int    // the same for all boxes for now
+	CpuQuota         float64
 	// hold a reference to boxer so that we can access mutex capabilities
 	boxer *Boxer
 }
@@ -106,6 +108,16 @@ func (b *Box) CpuSetStr() string {
 		cpus = append(cpus, strconv.Itoa(cpu))
 	}
 	return strings.Join(cpus, ",")
+}
+
+// Returns cpu.cfs_period_us setting for this box.
+func (b *Box) CpuPeriodMicroseconds() int {
+	return DEFAULT_CPU_PERIOD
+}
+
+// Returns cpu.cfs_quota_us setting for this box.
+func (b *Box) CpuQuotaMicroseconds() int {
+	return int(b.CpuQuota * DEFAULT_CPU_PERIOD)
 }
 
 // Create a new box
