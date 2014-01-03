@@ -65,7 +65,7 @@ func DoesContain(c *C, checkContainsContent map[string][]string) {
 		fileContent := string(file)
 		for _, i := range value {
 			c.Assert(strings.Contains(fileContent, i), Equals, true,
-				Commentf("%s should contain %s but got content %s", key, i,
+				Commentf("%s should contain '%s' but got content '%s'", key, i,
 					fileContent))
 		}
 	}
@@ -77,7 +77,7 @@ func DoesNotContain(c *C, checkNotContainsContent map[string][]string) {
 		fileContent := string(file)
 		for _, i := range value {
 			c.Assert(strings.Contains(fileContent, i), Equals, false,
-				Commentf("%s should not contain %s but got content %s", key, i,
+				Commentf("%s should not contain '%s' but got content '%s'", key, i,
 					fileContent))
 		}
 	}
