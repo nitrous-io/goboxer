@@ -10,7 +10,6 @@ import (
 	"github.com/action-io/goboxer/cartman"
 	"github.com/action-io/goboxer/host"
 	"runtime"
-	"sync"
 )
 
 var handlers map[string]MessageHandler
@@ -33,7 +32,7 @@ func init() {
 type MessageHandler func(m Message, boxer *Boxer) Message
 
 type Boxer struct {
-	sync.Mutex
+	locker          BoxLocker
 	Id              string
 	Vagrant         bool
 	Root            string
@@ -54,6 +53,15 @@ type Boxer struct {
 func (boxer *Boxer) Configure() {
 	boxer.Handles = handlers
 	boxer.SetCpuSet(runtime.NumCPU())
+	boxer.locker = BoxLocker{}
+}
+
+func (boxer *Boxer) Lock(id int) {
+	boxer.locker.Lock(id)
+}
+
+func (boxer *Boxer) Unlock(id int) {
+	boxer.locker.Unlock(id)
 }
 
 func (boxer *Boxer) SetCpuSet(numCpu int) {
