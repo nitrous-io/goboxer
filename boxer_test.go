@@ -19,6 +19,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type BoxerSuite struct {
@@ -147,6 +148,9 @@ func (s *BoxerSuite) receiveMessages(name string, messages ...Message) (Message,
 	var returnMsg Message
 	for _, msg := range messages {
 		returnMsg = s.Boxer.Receive(msg)
+		// sleep for some time here to prevent lxc chocking when we execute
+		// stuff too fast
+		time.Sleep(100 * time.Millisecond)
 	}
 	box := s.findBox(name)
 	return returnMsg, box
