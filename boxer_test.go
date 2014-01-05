@@ -222,6 +222,8 @@ func (s *BoxerSuite) TestCreateBox(c *C) {
 		c.Assert(message.Port, Equals, 10002)
 		c.Assert(message.Success, Equals, true)
 
+		c.Assert(box.PublicKeys, DeepEquals, []string{"ssh-key QWER", "ssh-key ASDF"})
+
 		root := box.LxcPath()
 		c.Assert(root, Equals, "/var/lib/lxc/mclovins-container-1-"+
 			box.UniqueId)
@@ -248,10 +250,6 @@ func (s *BoxerSuite) TestCreateBox(c *C) {
 				root + "/rootfs/etc/action/box_user": {"action"},
 				root + "/rootfs/etc/hostname":        {"mclovins-container-1"},
 				root + "/rootfs/etc/hosts":           {"mclovins-container-1"},
-				root + "/rootfs/etc/ssh/univ_public_keys": {
-					"ssh-key QWER",
-					"ssh-key ASDF",
-				},
 				root + "/rootfs/etc/network/interfaces": {
 					"address 192.168.254.2",
 					"gateway 192.168.254.1",
@@ -1095,6 +1093,11 @@ func (s *BoxerSuite) TestAddPublicKey(c *C) {
 				DiskSpace:  "1G",
 				PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
 			}, Message{
+				Id:    "testboxer",
+				BoxId: 1,
+				Type:  "aio:start",
+				Name:  "mclovins-container-1",
+			}, Message{
 				Id:       "testboxer",
 				BoxId:    1,
 				Type:     "aio:configure",
@@ -1120,6 +1123,52 @@ func (s *BoxerSuite) TestAddPublicKey(c *C) {
 	})
 }
 
+func (s *BoxerSuite) TestAddPublicKeyToStoppedBox(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+		message, box := s.receiveMessages("mclovins-container-1",
+			Message{
+				Id:         "testboxer",
+				BoxId:      1,
+				Type:       "aio:create",
+				Name:       "mclovins-container",
+				Runtime:    "test",
+				Memory:     "256M",
+				DiskSpace:  "1G",
+				PublicKeys: []string{"ssh-rsa QWER"},
+			}, Message{
+				Id:    "testboxer",
+				BoxId: 1,
+				Type:  "aio:start",
+				Name:  "mclovins-container-1",
+			}, Message{
+				Id:    "testboxer",
+				BoxId: 1,
+				Type:  "aio:stop",
+				Name:  "mclovins-container-1",
+			}, Message{
+				Id:       "testboxer",
+				BoxId:    1,
+				Type:     "aio:configure",
+				DataType: "aio:configure:add_public_key",
+				Data:     "ssh-rsa newkey",
+				Name:     "mclovins-container-1",
+			})
+		defer box.Destroy()
+
+		c.Assert(message.Type, Equals, "aio:configured")
+		c.Assert(message.DataType, Equals, "aio:configured:add_public_key")
+		c.Assert(box.State, Equals, "stopped")
+		DoesNotExist(c, []string{
+			box.LxcPath(),
+		})
+
+		// Public keys are persisted to Redis and won't be available on the
+		// filesystem since a stopped box's root fs won't be mounted.
+		c.Assert(box.PublicKeys, DeepEquals, []string{"ssh-rsa QWER", "ssh-rsa newkey"})
+	})
+}
+
 func (s *BoxerSuite) TestRemovePublicKey(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
@@ -1132,6 +1181,11 @@ func (s *BoxerSuite) TestRemovePublicKey(c *C) {
 			Memory:     "256M",
 			DiskSpace:  "1G",
 			PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
+		}, Message{
+			Id:    "testboxer",
+			BoxId: 1,
+			Type:  "aio:start",
+			Name:  "mclovins-container-1",
 		}, Message{
 			Id:       "testboxer",
 			BoxId:    1,
@@ -1148,11 +1202,61 @@ func (s *BoxerSuite) TestRemovePublicKey(c *C) {
 		c.Assert(message.BoxId, Equals, 1)
 		c.Assert(message.Success, Equals, true)
 
+		DoesContain(c, map[string][]string{
+			box.LxcPath() + "/rootfs/etc/ssh/univ_public_keys": {
+				"ssh-rsa ASDF",
+			},
+		})
 		DoesNotContain(c, map[string][]string{
 			box.LxcPath() + "/rootfs/etc/ssh/univ_public_keys": {
 				"ssh-rsa QWER",
 			},
 		})
+	})
+}
+
+func (s *BoxerSuite) TestRemovePublicKeyFromStoppedBox(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+		message, box := s.receiveMessages("mclovins-container-1",
+			Message{
+				Id:         "testboxer",
+				BoxId:      1,
+				Type:       "aio:create",
+				Name:       "mclovins-container",
+				Runtime:    "test",
+				Memory:     "256M",
+				DiskSpace:  "1G",
+				PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
+			}, Message{
+				Id:    "testboxer",
+				BoxId: 1,
+				Type:  "aio:start",
+				Name:  "mclovins-container-1",
+			}, Message{
+				Id:    "testboxer",
+				BoxId: 1,
+				Type:  "aio:stop",
+				Name:  "mclovins-container-1",
+			}, Message{
+				Id:       "testboxer",
+				BoxId:    1,
+				Type:     "aio:configure",
+				DataType: "aio:configure:remove_public_key",
+				Data:     "ssh-rsa QWER",
+				Name:     "mclovins-container-1",
+			})
+		defer box.Destroy()
+
+		c.Assert(message.Type, Equals, "aio:configured")
+		c.Assert(message.DataType, Equals, "aio:configured:remove_public_key")
+		c.Assert(box.State, Equals, "stopped")
+		DoesNotExist(c, []string{
+			box.LxcPath(),
+		})
+
+		// Public keys are persisted to Redis.
+		c.Assert(box.PublicKeys, DeepEquals, []string{"ssh-rsa ASDF"})
 	})
 }
 
