@@ -183,6 +183,15 @@ func (b *Box) Start(spec *BoxSpec) error {
 	if err := b.Mount(b.boxer.Root); err != nil {
 		return err
 	}
+	if len(b.PublicKeys) == 0 {
+		// If a box's Redis record doesn't have public keys, it probably means that
+		// this box was created before we started persisting public keys to Redis.
+		// We'll need to read the keys from box's rootfs/etc/ssh/univ_public_keys
+		// file and save them to Redis.
+		if err := b.setPublicKeysFromFile(); err != nil {
+			return err
+		}
+	}
 	if err := b.WritePublicKeys(b.PublicKeys...); err != nil {
 		return err
 	}
@@ -358,9 +367,27 @@ func (b *Box) WritePublicKeysIfFileExists(keys ...string) error {
 	return b.WritePublicKeys(keys...)
 }
 
+// Sets public keys of a box from the public key file in its rootfs, if the file
+// exists. The box's record is updated with the read public keys.
+func (b *Box) setPublicKeysFromFile() error {
+	filepath := b.PublicKeysPath()
+	if _, err := os.Stat(filepath); err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	content, err := ioutil.ReadFile(filepath)
+	if err != nil {
+		return err
+	}
+	b.PublicKeys = strings.Split(string(content), "\n")
+	return b.boxer.ResourcePool.SaveBox(b)
+}
+
 // Adds a public key to a box only if the key doesn't already exist. The box's
-// record is updated in Redis with the new key, and an attempt is made to write
-// the new key into the box if its root filesystem is mounted.
+// record is updated with the new key, and an attempt is made to write the new
+// key into the box if its root filesystem is mounted.
 func (b *Box) AddPublicKey(key string) error {
 	for _, elem := range b.PublicKeys {
 		if elem == key {

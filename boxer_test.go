@@ -389,14 +389,13 @@ func (s *BoxerSuite) TestStart(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
 		message, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:         "testboxer",
-			BoxId:      1,
-			Type:       "aio:create",
-			Name:       "mclovins-container",
-			Runtime:    "test",
-			Memory:     "256M",
-			DiskSpace:  "1G",
-			PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
+			Id:        "testboxer",
+			BoxId:     1,
+			Type:      "aio:create",
+			Name:      "mclovins-container",
+			Runtime:   "test",
+			Memory:    "256M",
+			DiskSpace: "1G",
 		}, Message{
 			Id:    "testboxer",
 			BoxId: 1,
@@ -417,7 +416,107 @@ func (s *BoxerSuite) TestStart(c *C) {
 	})
 }
 
-func (s *BoxerSuite) TestStartSetIptablesRule(c *C) {
+func (s *BoxerSuite) TestStartSetsPublicKeys(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+		message, box := s.receiveMessages("mclovins-container-1", Message{
+			Id:         "testboxer",
+			BoxId:      1,
+			Type:       "aio:create",
+			Name:       "mclovins-container",
+			Runtime:    "test",
+			Memory:     "256M",
+			DiskSpace:  "1G",
+			PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
+		}, Message{
+			Id:    "testboxer",
+			BoxId: 1,
+			Type:  "aio:start",
+			Name:  "mclovins-container-1",
+		})
+		defer box.Destroy()
+
+		c.Assert(message.Type, Equals, "aio:started")
+		c.Assert(message.Success, Equals, true)
+		DoesContain(c, map[string][]string{
+			box.LxcPath() + "/rootfs/etc/ssh/univ_public_keys": {
+				"ssh-rsa QWER",
+				"ssh-rsa ASDF",
+			},
+		})
+	})
+}
+
+// Tests that starting a box that has no public keys in its record will read
+// and save the keys from the public keys file in the box's rootfs.
+func (s *BoxerSuite) TestStartPersistsPublicKeysFromFile(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+
+		// First, we start a box with no public keys.
+		message, box := s.receiveMessages("mclovins-container-1", Message{
+			Id:        "testboxer",
+			BoxId:     1,
+			Type:      "aio:create",
+			Name:      "mclovins-container",
+			Runtime:   "test",
+			Memory:    "256M",
+			DiskSpace: "1G",
+		}, Message{
+			Id:    "testboxer",
+			BoxId: 1,
+			Type:  "aio:start",
+			Name:  "mclovins-container-1",
+		})
+		defer box.Destroy()
+
+		c.Assert(message.Type, Equals, "aio:started")
+		c.Assert(message.Success, Equals, true)
+		DoesExist(c, []string{
+			box.LxcPath() + "/rootfs/etc/ssh/univ_public_keys",
+		})
+		c.Assert(box.PublicKeys, DeepEquals, []string(nil))
+
+		// Then, manually add public keys to the box's public key file to simulate
+		// an old box from before we started persisting public keys.
+		box.WritePublicKeys([]string{"ssh-rsa QWER", "ssh-rsa ASDF"}...)
+		DoesContain(c, map[string][]string{
+			box.LxcPath() + "/rootfs/etc/ssh/univ_public_keys": {
+				"ssh-rsa QWER",
+				"ssh-rsa ASDF",
+			},
+		})
+		c.Assert(box.PublicKeys, DeepEquals, []string(nil))
+
+		// Then, we stop and start the box and verify that it's now consistent, i.e.
+		// 1. public keys are written to file, and
+		// 2. the same public keys are persisted.
+		message, box = s.receiveMessages("mclovins-container-1", Message{
+			Id:    "testboxer",
+			BoxId: 1,
+			Type:  "aio:stop",
+			Name:  "mclovins-container-1",
+		}, Message{
+			Id:    "testboxer",
+			BoxId: 1,
+			Type:  "aio:start",
+			Name:  "mclovins-container-1",
+		})
+		defer box.Destroy()
+
+		c.Assert(message.Type, Equals, "aio:started")
+		c.Assert(message.Success, Equals, true)
+		DoesContain(c, map[string][]string{
+			box.LxcPath() + "/rootfs/etc/ssh/univ_public_keys": {
+				"ssh-rsa QWER",
+				"ssh-rsa ASDF",
+			},
+		})
+		c.Assert(box.PublicKeys, DeepEquals, []string{"ssh-rsa QWER", "ssh-rsa ASDF"})
+	})
+}
+
+func (s *BoxerSuite) TestStartSetsIptablesRule(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
 		_, box := s.receiveMessages("mclovins-container-1", Message{
