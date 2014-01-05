@@ -170,7 +170,6 @@ func CreateBoxHandler(m Message, boxer *Boxer) Message {
 		CpuShares:        m.CpuShares,
 		VirtualMemory:    m.VirtualMemory,
 		Premium:          m.Premium,
-		CpuSet:           boxer.CpuSet,
 	}
 	box.boxer = boxer
 	box.Prepare()
@@ -221,7 +220,6 @@ func StartBoxHandler(m Message, boxer *Boxer) Message {
 	}
 	spec := box.CurrentSpec()
 	spec.MergeData(m)
-	box.CpuQuota = boxer.BoxCPUQuota(box)
 
 	if err := box.Start(spec); err != nil {
 		logger.Printf("ERROR: Fail to start %v, err: %v\n", box, err)
@@ -280,7 +278,6 @@ func RestartBoxHandler(m Message, boxer *Boxer) Message {
 	}
 	spec := box.CurrentSpec()
 	spec.MergeData(m)
-	box.CpuQuota = boxer.BoxCPUQuota(box)
 
 	if err := box.Restart(spec); err != nil {
 		logger.Printf("ERROR: Fail to restart box %v, err: %v\n", box, err)
@@ -531,13 +528,16 @@ func (boxer *Boxer) Init() error {
 	return boxer.StartAll(boxes)
 }
 
-// wrapper around ResourcePool#FindBox so we can set Boxer property of box
+// Wraps around ResourcePool#FindBox to set Boxer property of box and
+// Boxer-dependent runtime properties.
 func (boxer *Boxer) findBox(name string) (*Box, error) {
 	box, err := boxer.ResourcePool.FindBox(name)
 	if err != nil {
 		return nil, err
 	}
 	box.boxer = boxer
+	box.CpuQuota = boxer.BoxCPUQuota(box)
+	box.CpuSet = boxer.CpuSet
 	return box, nil
 }
 

@@ -75,7 +75,7 @@ type Box struct {
 	Runtime          string   `json:"-"`
 	SnapshotURL      string   `json:"-"`
 	PublicKeys       []string `json:"-"`
-	CpuSet           []int    // the same for all boxes for now
+	CpuSet           []int
 	CpuQuota         float64
 	// hold a reference to boxer so that we can access mutex capabilities
 	boxer *Boxer

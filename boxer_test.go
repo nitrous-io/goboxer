@@ -282,44 +282,17 @@ func (s *BoxerSuite) TestCreateBox(c *C) {
 	})
 }
 
-func (s *BoxerSuite) TestCreateBoxWithCpuRange(c *C) {
-	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
-		stratValue testProvisionStrategy) {
-		// reset cpu set to make results consistent
-		s.Boxer.SetCpuSet(3)
-		message, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:         "testboxer",
-			BoxId:      1,
-			Type:       "aio:create",
-			Name:       "mclovins-container",
-			Runtime:    "test",
-			Memory:     "256M",
-			DiskSpace:  "1G",
-			PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
-			CpuShares:  2048,
-		})
-		defer box.Destroy()
-
-		c.Assert(message.Type, Equals, "aio:created")
-		c.Assert(message.Id, Equals, "testboxer")
-		DoesContain(c, map[string][]string{
-			box.LxcPath() + "/config": {"lxc.cgroup.cpuset.cpus = 1,2"},
-		})
-	})
-}
-
 func (s *BoxerSuite) TestCreateWithDefaultCpuShares(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
 		_, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:         "testboxer",
-			BoxId:      1,
-			Type:       "aio:create",
-			Name:       "mclovins-container",
-			Runtime:    "test",
-			Memory:     "256M",
-			DiskSpace:  "1G",
-			PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
+			Id:        "testboxer",
+			BoxId:     1,
+			Type:      "aio:create",
+			Name:      "mclovins-container",
+			Runtime:   "test",
+			Memory:    "256M",
+			DiskSpace: "1G",
 		})
 		defer box.Destroy()
 		DoesContain(c, map[string][]string{
@@ -340,7 +313,6 @@ func (s *BoxerSuite) TestCreateWithVirtualMemory(c *C) {
 			Memory:        "256M",
 			DiskSpace:     "1G",
 			VirtualMemory: "1024",
-			PublicKeys:    []string{"ssh-key QWER", "ssh-key ASDF"},
 		})
 		defer box.Destroy()
 		// total memory = memory + virtual memory
@@ -357,15 +329,14 @@ func (s *BoxerSuite) TestCreatePremiumBox(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
 		_, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:         "testboxer",
-			BoxId:      1,
-			Type:       "aio:create",
-			Name:       "mclovins-container",
-			Runtime:    "test",
-			Memory:     "256M",
-			DiskSpace:  "1G",
-			Premium:    true,
-			PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
+			Id:        "testboxer",
+			BoxId:     1,
+			Type:      "aio:create",
+			Name:      "mclovins-container",
+			Runtime:   "test",
+			Memory:    "256M",
+			DiskSpace: "1G",
+			Premium:   true,
 		})
 		defer box.Destroy()
 
@@ -382,14 +353,13 @@ func (s *BoxerSuite) TestStop(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
 		message, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:         "testboxer",
-			BoxId:      1,
-			Type:       "aio:create",
-			Name:       "mclovins-container",
-			Runtime:    "test",
-			Memory:     "256M",
-			DiskSpace:  "1G",
-			PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
+			Id:        "testboxer",
+			BoxId:     1,
+			Type:      "aio:create",
+			Name:      "mclovins-container",
+			Runtime:   "test",
+			Memory:    "256M",
+			DiskSpace: "1G",
 		}, Message{
 			Id:    "testboxer",
 			BoxId: 1,
@@ -453,15 +423,15 @@ func (s *BoxerSuite) TestStartSetIptablesRule(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
 		_, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:         "testboxer",
-			BoxId:      1,
-			Type:       "aio:create",
-			Name:       "mclovins-container",
-			Runtime:    "test",
-			Memory:     "256M",
-			DiskSpace:  "1G",
-			PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
+			Id:        "testboxer",
+			BoxId:     1,
+			Type:      "aio:create",
+			Name:      "mclovins-container",
+			Runtime:   "test",
+			Memory:    "256M",
+			DiskSpace: "1G",
 		})
+		defer box.Destroy()
 		box.unsetPortForwarding()
 
 		AssertIptablesOutput(c, "192.168.254.2:22", false)
@@ -491,14 +461,13 @@ func (s *BoxerSuite) TestStartWithNewSpecs(c *C) {
 			&mockData)
 
 		message, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:         "testboxer",
-			BoxId:      1,
-			Type:       "aio:create",
-			Name:       "mclovins-container",
-			Runtime:    "test",
-			Memory:     "256M",
-			DiskSpace:  "1G",
-			PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
+			Id:        "testboxer",
+			BoxId:     1,
+			Type:      "aio:create",
+			Name:      "mclovins-container",
+			Runtime:   "test",
+			Memory:    "256M",
+			DiskSpace: "1G",
 		}, Message{
 			Id:    "testboxer",
 			BoxId: 1,
@@ -536,6 +505,41 @@ func (s *BoxerSuite) TestStartWithNewSpecs(c *C) {
 	})
 }
 
+func (s *BoxerSuite) TestStartSetsCpuSet(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+
+		// Explicitly set cpu set on Boxer to make results consistent.
+		// This cannot be more than the number of CPUs where this test is run
+		// otherwise lxc won't be able to start the container.
+		s.Boxer.SetCpuSet(1)
+
+		message, box := s.receiveMessages("mclovins-container-1", Message{
+			Id:        "testboxer",
+			BoxId:     1,
+			Type:      "aio:create",
+			Name:      "mclovins-container",
+			Runtime:   "test",
+			Memory:    "256M",
+			DiskSpace: "1G",
+		}, Message{
+			Id:    "testboxer",
+			BoxId: 1,
+			Type:  "aio:start",
+			Name:  "mclovins-container-1",
+		})
+		defer box.Destroy()
+
+		c.Assert(message.Type, Equals, "aio:started")
+		c.Assert(message.Id, Equals, "testboxer")
+		c.Assert(message.BoxId, Equals, 1)
+		c.Assert(message.Success, Equals, true)
+		DoesContain(c, map[string][]string{
+			box.LxcPath() + "/config": {"lxc.cgroup.cpuset.cpus = 0"},
+		})
+	})
+}
+
 func (s *BoxerSuite) TestStartWithDefaultCPUQuotaNotConfigured(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
@@ -543,14 +547,13 @@ func (s *BoxerSuite) TestStartWithDefaultCPUQuotaNotConfigured(c *C) {
 		s.Boxer.DefaultCPUQuota = 0.0
 
 		message, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:         "testboxer",
-			BoxId:      1,
-			Type:       "aio:create",
-			Name:       "mclovins-container",
-			Runtime:    "test",
-			Memory:     "256M",
-			DiskSpace:  "1G",
-			PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
+			Id:        "testboxer",
+			BoxId:     1,
+			Type:      "aio:create",
+			Name:      "mclovins-container",
+			Runtime:   "test",
+			Memory:    "256M",
+			DiskSpace: "1G",
 		}, Message{
 			Id:    "testboxer",
 			BoxId: 1,
@@ -581,14 +584,13 @@ func (s *BoxerSuite) TestStartWithPremiumCPUQuotaNotConfigured(c *C) {
 		s.Boxer.PremiumCPUQuota = 0.0
 
 		message, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:         "testboxer",
-			BoxId:      1,
-			Type:       "aio:create",
-			Name:       "mclovins-container",
-			Runtime:    "test",
-			Memory:     "256M",
-			DiskSpace:  "1G",
-			PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
+			Id:        "testboxer",
+			BoxId:     1,
+			Type:      "aio:create",
+			Name:      "mclovins-container",
+			Runtime:   "test",
+			Memory:    "256M",
+			DiskSpace: "1G",
 		}, Message{
 			Id:       "testboxer",
 			BoxId:    1,
@@ -722,14 +724,13 @@ func (s *BoxerSuite) TestRestartWithNewSpec(c *C) {
 			[]byte("{\"memory\":\"640M\",\"virtualMemory\":\"1280M\",\"cpuShares\":1536}"),
 			&mockData)
 		message, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:         "testboxer",
-			BoxId:      1,
-			Type:       "aio:create",
-			Name:       "mclovins-container",
-			Runtime:    "test",
-			Memory:     "256M",
-			DiskSpace:  "1G",
-			PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
+			Id:        "testboxer",
+			BoxId:     1,
+			Type:      "aio:create",
+			Name:      "mclovins-container",
+			Runtime:   "test",
+			Memory:    "256M",
+			DiskSpace: "1G",
 		}, Message{
 			Id:    "testboxer",
 			BoxId: 1,
@@ -758,6 +759,64 @@ func (s *BoxerSuite) TestRestartWithNewSpec(c *C) {
 		c.Assert(box.Memory, Equals, "640M")
 
 		s.assertBoxState(c, box, "running")
+	})
+}
+
+func (s *BoxerSuite) TestRestartSetsCpuSet(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+
+		// This cannot be more than the number of CPUs where this test is run
+		// otherwise lxc won't be able to start the container.
+		s.Boxer.SetCpuSet(1)
+
+		message, box := s.receiveMessages("mclovins-container-1", Message{
+			Id:        "testboxer",
+			BoxId:     1,
+			Type:      "aio:create",
+			Name:      "mclovins-container",
+			Runtime:   "test",
+			Memory:    "256M",
+			DiskSpace: "1G",
+		}, Message{
+			Id:    "testboxer",
+			BoxId: 1,
+			Type:  "aio:start",
+			Name:  "mclovins-container-1",
+		})
+		defer box.Destroy()
+
+		c.Assert(message.Type, Equals, "aio:started")
+		c.Assert(message.Id, Equals, "testboxer")
+		c.Assert(message.BoxId, Equals, 1)
+		c.Assert(message.Success, Equals, true)
+		DoesContain(c, map[string][]string{
+			box.LxcPath() + "/config": {"lxc.cgroup.cpuset.cpus = 0"},
+		})
+
+		// Manually remove cpuset.cpus config from the lxc config file so we can
+		// verify that restarting a box will set it.
+		box.CpuSet = []int{}
+		box.writeConfig()
+		DoesNotContain(c, map[string][]string{
+			box.LxcPath() + "/config": {"lxc.cgroup.cpuset.cpus"},
+		})
+
+		message, box = s.receiveMessages("mclovins-container-1", Message{
+			Id:    "testboxer",
+			BoxId: 1,
+			Type:  "aio:restart",
+			Name:  "mclovins-container-1",
+		})
+		defer box.Destroy()
+
+		c.Assert(message.Type, Equals, "aio:restarted")
+		c.Assert(message.Id, Equals, "testboxer")
+		c.Assert(message.BoxId, Equals, 1)
+		c.Assert(message.Success, Equals, true)
+		DoesContain(c, map[string][]string{
+			box.LxcPath() + "/config": {"lxc.cgroup.cpuset.cpus = 0"},
+		})
 	})
 }
 
@@ -809,6 +868,7 @@ func (s *BoxerSuite) TestRestartNewlyPremiumBox(c *C) {
 			Type:  "aio:restart",
 			Name:  "mclovins-container-1",
 		})
+		defer box.Destroy()
 
 		c.Assert(message.Type, Equals, "aio:restarted")
 		c.Assert(message.Id, Equals, "testboxer")
@@ -880,6 +940,7 @@ func (s *BoxerSuite) TestRestartNewlyFreeBox(c *C) {
 			Type:  "aio:restart",
 			Name:  "mclovins-container-1",
 		})
+		defer box.Destroy()
 
 		c.Assert(message.Type, Equals, "aio:restarted")
 		c.Assert(message.Id, Equals, "testboxer")
@@ -949,6 +1010,7 @@ func (s *BoxerSuite) TestStopStartNewlyPremiumBox(c *C) {
 			Type:  "aio:start",
 			Name:  "mclovins-container-1",
 		})
+		defer box.Destroy()
 
 		c.Assert(message.Type, Equals, "aio:started")
 		c.Assert(message.Id, Equals, "testboxer")
@@ -1107,6 +1169,8 @@ func (s *BoxerSuite) TestChangeBoxSpecsPass(c *C) {
 			DiskSpace:  "1024M",
 			PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
 		})
+		defer box.Destroy()
+
 		quotaProvisioner := quota.Provisioner.GetQuota(stratValue.QuotaMethod)
 		limit, _ := quotaProvisioner.ViewLimit(quota.QuotaArg{
 			Id:   "1",
@@ -1128,7 +1192,6 @@ func (s *BoxerSuite) TestChangeBoxSpecsPass(c *C) {
 			Data:     mockData,
 			Name:     "mclovins-container-1",
 		})
-		defer box.Destroy()
 
 		c.Assert(message.Type, Equals, "aio:configured")
 		c.Assert(message.Id, Equals, "testboxer")
@@ -1432,6 +1495,8 @@ func (s *BoxerSuite) TestChangeBoxSpecsFail(c *C) {
 			DiskSpace:  "1024M",
 			PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
 		})
+		defer box.Destroy()
+
 		quotaProvisioner := quota.Provisioner.GetQuota(stratValue.QuotaMethod)
 		limit, _ := quotaProvisioner.ViewLimit(box.quotaArg())
 		// approximate the limit as lvm strategy will not report the whole
@@ -1452,7 +1517,6 @@ func (s *BoxerSuite) TestChangeBoxSpecsFail(c *C) {
 			},
 			Name: "mclovins-container-1",
 		})
-		defer box.Destroy()
 
 		c.Assert(message.Type, Equals, "aio:configured")
 		c.Assert(message.Success, Equals, false)
@@ -1500,6 +1564,8 @@ func (s *BoxerSuite) TestChangeBoxSpecsLvmFail(c *C) {
 			DiskSpace:  "30M",
 			PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
 		})
+		defer box.Destroy()
+
 		quotaProvisioner := quota.Provisioner.GetQuota(stratValue.QuotaMethod)
 		limit, _ := quotaProvisioner.ViewLimit(box.quotaArg())
 
@@ -1519,7 +1585,6 @@ func (s *BoxerSuite) TestChangeBoxSpecsLvmFail(c *C) {
 			},
 			Name: "mclovins-container-1",
 		})
-		defer box.Destroy()
 
 		c.Assert(message.Type, Equals, "aio:configured")
 		c.Assert(message.Success, Equals, false)
