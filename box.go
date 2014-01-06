@@ -183,7 +183,7 @@ func (b *Box) Start(spec *BoxSpec) error {
 	if err := b.Mount(b.boxer.Root); err != nil {
 		return err
 	}
-	if len(b.PublicKeys) == 0 {
+	if b.PublicKeys == []string(nil) {
 		// If a box's Redis record doesn't have public keys, it probably means that
 		// this box was created before we started persisting public keys to Redis.
 		// We'll need to read the keys from box's rootfs/etc/ssh/univ_public_keys
