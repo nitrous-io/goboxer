@@ -13,7 +13,7 @@ import (
 )
 
 const WAIT_TIME = 1 * time.Second
-const TIMEOUT = 30 * time.Second
+const TIMEOUT = 5 * time.Second
 
 func run(cmd string, args ...string) error {
 	return exec.Command(cmd, args...).Run()
