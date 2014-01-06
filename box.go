@@ -407,9 +407,10 @@ func (b *Box) AddPublicKey(key string) error {
 func (b *Box) RemovePublicKey(key string) error {
 	key = strings.TrimSpace(key)
 	var newKeys []string
-	for _, k := range b.PublicKeys {
-		if k != key {
-			newKeys = append(newKeys, k)
+	for _, elem := range b.PublicKeys {
+		elem = strings.TrimSpace(elem)
+		if elem != key {
+			newKeys = append(newKeys, elem)
 		}
 	}
 	b.PublicKeys = newKeys
