@@ -4,11 +4,16 @@
 package lxc
 
 import (
-	"bufio"
 	"fmt"
 	"os/exec"
+	"strconv"
 	"strings"
+	"syscall"
+	"time"
 )
+
+const WAIT_TIME = 1 * time.Second
+const TIMEOUT = 10 * time.Second
 
 func run(cmd string, args ...string) error {
 	return exec.Command(cmd, args...).Run()
@@ -29,39 +34,65 @@ func Start(name string) error {
 	return waitLxc(name, "RUNNING")
 }
 
+// implementation of lxc-shutdown
+//
+// - first, we locate the init process of the container via lxc-info
+// - then  we send SIGPWR to that process indicate that we want the container
+// to shutdown /poweroff
+// - then we wait until either the container status become stopped, or
+// `TIMEOUT` is up which we execute lxc-stop immediately
 func Stop(name string) error {
-	// FIXME: once lxc-shutdown is upgraded to a new version, restore the error
-	// checking here
-	run("lxc-shutdown", "-n", name, "-t", "30")
-	waitLxc(name, "STOPPED")
-	state, err := Status(name)
-	if err != nil || state != "STOPPED" {
-		return fmt.Errorf("lxc: stop failed %v %v %v", name, state, err)
+	pid, err := getContainerPid(name)
+	// if we cant find pid, the container is probably not running
+	if err != nil || pid == -1 {
+		return nil
+	}
+	if err = syscall.Kill(pid, syscall.SIGPWR); err != nil {
+		return err
+	}
+	c := make(chan bool, 1)
+	go func(name string) {
+		for {
+			status, err := Status(name)
+			if err != nil || status == "STOPPED" {
+				c <- true
+				break
+			}
+			time.Sleep(WAIT_TIME)
+		}
+	}(name)
+	select {
+	case _ = <-c:
+		return nil
+	case <-time.After(TIMEOUT):
+		run("lxc-stop", "-n", name)
+		return waitLxc(name, "STOPPED")
 	}
 	return nil
 }
 
 func Status(name string) (string, error) {
-	cmd := exec.Command("lxc-info", "-n", name)
-	stdout, err := cmd.StdoutPipe()
+	cmd := exec.Command("lxc-info", "-s", "-n", name)
+	output, err := cmd.Output()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("lxc: failed to get %s status: %v", name, err)
 	}
-	if err := cmd.Start(); err != nil {
-		return "", err
+	fields := strings.Fields(string(output))
+	if len(fields) <= 1 {
+		return "", fmt.Errorf("lxc: failed to get %s status: %v", name, fields)
 	}
-	scanner := bufio.NewScanner(stdout)
-	for scanner.Scan() {
-		line := scanner.Text()
-		fields := strings.Fields(line)
-		// found the current state of the container
-		// return immediately
-		if fields[0] == "state:" {
-			return fields[1], nil
-		}
+	return strings.TrimSpace(fields[1]), nil
+}
+
+func getContainerPid(name string) (int, error) {
+	cmd := exec.Command("lxc-info", "-n", name, "-p")
+	output, err := cmd.Output()
+	if err != nil {
+		return -1, fmt.Errorf("lxc: failed to get %s pid: %v", name, err)
 	}
-	if err := cmd.Wait(); err != nil {
-		return "", err
+	fields := strings.Fields(string(output))
+	if len(fields) <= 1 {
+		return -1, fmt.Errorf("lxc: failed to get %s pid: %v", name, fields)
 	}
-	return "", fmt.Errorf("lxc: Status failed %v", name)
+	return strconv.Atoi(fields[1])
 }

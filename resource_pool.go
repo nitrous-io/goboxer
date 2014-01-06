@@ -97,6 +97,12 @@ func (rp *ResourcePool) DeleteBox(box *Box) (err error) {
 // Find all instance of `Box` that has `containerState` equals to `running` in
 // the redis database
 func (rp *ResourcePool) FindRunningBoxes() ([]*Box, error) {
+	return rp.FindAllBoxes("running")
+}
+
+// find all boxes with the specified state. if the state is empty, then return
+// all boxes
+func (rp *ResourcePool) FindAllBoxes(state string) ([]*Box, error) {
 	conn := rp.Pool.Get()
 	defer conn.Close()
 	var boxes []*Box
@@ -109,7 +115,7 @@ func (rp *ResourcePool) FindRunningBoxes() ([]*Box, error) {
 		if err != nil {
 			return []*Box{}, err
 		}
-		if box.State == "running" {
+		if len(state) == 0 || box.State == state {
 			boxes = append(boxes, box)
 		}
 	}
