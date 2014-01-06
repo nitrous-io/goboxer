@@ -155,7 +155,7 @@ func (s *BoxerSuite) receiveMessages(name string, messages ...Message) (Message,
 		returnMsg = s.Boxer.Receive(msg)
 		// sleep for some time here to prevent lxc chocking when we execute
 		// stuff too fast
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(500 * time.Millisecond)
 	}
 	box := s.findBox(name)
 	return returnMsg, box
