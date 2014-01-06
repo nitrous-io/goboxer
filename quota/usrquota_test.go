@@ -24,28 +24,28 @@ func (s *UsrQuotaSuite) TearDownTest(c *C) {
 
 func (s *UsrQuotaSuite) TestSetLimit(c *C) {
 	q := UsrQuota{}
-	arg := QuotaArg{Id: "999", Disk: "/lxc/disk2", Limit: "1M"}
+	arg := QuotaArg{Id: "999", Disk: "/lxc/disk2", Limit: "10M"}
 	q.SetLimit(arg)
 	defer q.RemoveLimit(arg)
 	info, _ := q.ViewLimit(arg)
 	c.Assert(info.Used, NotNil)
-	c.Assert(info.Limit, Equals, 1024)
+	c.Assert(info.Limit, Equals, 10240)
 }
 
 func (s *UsrQuotaSuite) TestSetLimitMultipleTimes(c *C) {
 	q := UsrQuota{}
-	arg := QuotaArg{Id: "999", Disk: "/lxc/disk2", Limit: "3M"}
+	arg := QuotaArg{Id: "999", Disk: "/lxc/disk2", Limit: "30M"}
 	q.SetLimit(arg)
 	q.SetLimit(arg)
 	defer q.RemoveLimit(arg)
 
 	info, _ := q.ViewLimit(arg)
-	c.Assert(info.Limit, Equals, 3*1024)
+	c.Assert(info.Limit, Equals, 30*1024)
 }
 
 func (s *UsrQuotaSuite) TestRemoveQuotaLimit(c *C) {
 	q := UsrQuota{}
-	arg := QuotaArg{Id: "999", Disk: "/lxc/disk2", Limit: "1M"}
+	arg := QuotaArg{Id: "999", Disk: "/lxc/disk2", Limit: "10M"}
 	q.SetLimit(arg)
 	q.RemoveLimit(arg)
 	info, _ := q.ViewLimit(arg)
@@ -54,27 +54,27 @@ func (s *UsrQuotaSuite) TestRemoveQuotaLimit(c *C) {
 
 func (s *UsrQuotaSuite) TestChangeQuotaLimit(c *C) {
 	q := UsrQuota{}
-	oldArg := QuotaArg{Id: "999", Disk: "/lxc/disk2", Limit: "1M"}
-	newArg := QuotaArg{Id: "999", Disk: "/lxc/disk2", Limit: "3M"}
+	oldArg := QuotaArg{Id: "999", Disk: "/lxc/disk2", Limit: "10M"}
+	newArg := QuotaArg{Id: "999", Disk: "/lxc/disk2", Limit: "30M"}
 	q.SetLimit(oldArg)
 	defer q.RemoveLimit(newArg)
 	q.SetLimit(newArg)
 
 	info, _ := q.ViewLimit(newArg)
 	c.Assert(info.Used, NotNil)
-	c.Assert(info.Limit, Equals, 3072)
+	c.Assert(info.Limit, Equals, 30*1024)
 }
 
 func (s *UsrQuotaSuite) TestChangeInvalidLimit(c *C) {
 	q := UsrQuota{}
-	oldArg := QuotaArg{Id: "999", Disk: "/lxc/disk2", Limit: "3M"}
-	newArg := QuotaArg{Id: "999", Disk: "/lxc/disk2", Limit: "1M"}
+	oldArg := QuotaArg{Id: "999", Disk: "/lxc/disk2", Limit: "30M"}
+	newArg := QuotaArg{Id: "999", Disk: "/lxc/disk2", Limit: "10M"}
 	q.SetLimit(oldArg)
 	defer q.RemoveLimit(oldArg)
 
-	// write 2M to test
+	// write 20M to test
 	exec.Command("dd", "if=/dev/zero", "of=/lxc/disk2/test_quota/test_file",
-		"bs=1024", "count=2048").Run()
+		"bs=1024", "count=20480").Run()
 	exec.Command("chown", "15999", "/lxc/disk2/test_quota/test_file").Run()
 	exec.Command("sync").Run()
 
@@ -82,6 +82,6 @@ func (s *UsrQuotaSuite) TestChangeInvalidLimit(c *C) {
 	c.Assert(err, NotNil)
 
 	info, _ := q.ViewLimit(oldArg)
-	c.Assert((info.Used-2*1024) > 0, Equals, true)
-	c.Assert(info.Limit, Equals, 3*1024)
+	c.Assert((info.Used-20*1024) > 0, Equals, true)
+	c.Assert(info.Limit, Equals, 30*1024)
 }
