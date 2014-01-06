@@ -55,6 +55,8 @@ func (q UsrQuota) RemoveLimit(arg QuotaArg) error {
 	return nil
 }
 
+// Return QuotaInfo which describes current used space as well as limit of the
+// current user. The number is measured in 1024 bytes (i.e. 1KB) by default.
 func (q UsrQuota) ViewLimit(arg QuotaArg) (QuotaInfo, error) {
 	quota := QuotaInfo{}
 	userId, err := uid(arg.Id)
