@@ -578,6 +578,9 @@ func (s *BoxerSuite) TestStartWithDefaultCPUQuotaNotConfigured(c *C) {
 }
 
 func (s *BoxerSuite) TestStartWithPremiumCPUQuotaNotConfigured(c *C) {
+	fakeCartman := s.setupFakeCartman()
+	defer fakeCartman.Close()
+
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
 

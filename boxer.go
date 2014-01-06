@@ -466,7 +466,7 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 			return message
 		}
 		if err := boxer.Cartman.InvalidateCache(box.ContainerName()); err != nil {
-			logger.Printf("ERROR: invalide cartman %v, err: %v\n", box, err)
+			logger.Printf("ERROR: invalid cartman %v, err: %v\n", box, err)
 			message.Success = false
 			return message
 		}
