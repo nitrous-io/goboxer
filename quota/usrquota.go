@@ -4,6 +4,9 @@ package quota
 #include <sys/quota.h>
 #include <stdlib.h>
 
+// we need to define a helper function here as cgo cant access QCMD macro
+// alternative way is to re-define QCMD in golang but it seems that this is
+// actually nicer.
 static int get_quota(const char *special, int id, caddr_t addr) {
   return quotactl(QCMD(Q_GETQUOTA, USRQUOTA), special, id, addr);
 }
@@ -63,6 +66,8 @@ func (q UsrQuota) ViewLimit(arg QuotaArg) (QuotaInfo, error) {
 	if err != nil {
 		return quota, err
 	}
+	// even if info is a C struct, it should be managed by go runtime, hence we
+	// dont have to manually malloc/dealloc it here
 	var info C.struct_dqblk
 	device, err := getDevice(arg.Disk)
 	if err != nil {
