@@ -381,7 +381,7 @@ func (b *Box) setPublicKeysFromFile() error {
 	if err != nil {
 		return err
 	}
-	b.PublicKeys = strings.Split(string(content), "\n")
+	b.PublicKeys = strings.Split(strings.TrimSpace(string(content)), "\n")
 	return b.boxer.ResourcePool.SaveBox(b)
 }
 
@@ -389,6 +389,7 @@ func (b *Box) setPublicKeysFromFile() error {
 // record is updated with the new key, and an attempt is made to write the new
 // key into the box if its root filesystem is mounted.
 func (b *Box) AddPublicKey(key string) error {
+	key = strings.TrimSpace(key)
 	for _, elem := range b.PublicKeys {
 		if elem == key {
 			return nil
@@ -404,6 +405,7 @@ func (b *Box) AddPublicKey(key string) error {
 // Remove a public key from a box's record in Redis, and attempt to write the
 // new set of public keys into the box if its root filesystem is mounted.
 func (b *Box) RemovePublicKey(key string) error {
+	key = strings.TrimSpace(key)
 	var newKeys []string
 	for _, k := range b.PublicKeys {
 		if k != key {

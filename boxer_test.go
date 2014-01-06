@@ -1200,6 +1200,11 @@ func (s *BoxerSuite) TestAddPublicKey(c *C) {
 		c.Assert(message.BoxId, Equals, 1)
 		c.Assert(message.Success, Equals, true)
 
+		c.Assert(box.PublicKeys, DeepEquals, []string{
+			"ssh-rsa QWER",
+			"ssh-rsa ASDF",
+			"ssh-rsa publickey",
+		})
 		DoesContain(c, map[string][]string{
 			box.LxcPath() + "/rootfs/etc/ssh/univ_public_keys": {
 				"ssh-rsa QWER",
@@ -1256,6 +1261,52 @@ func (s *BoxerSuite) TestAddPublicKeyToStoppedBox(c *C) {
 	})
 }
 
+func (s *BoxerSuite) TestAddPublicKeyStripsNewlines(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+		message, box := s.receiveMessages("mclovins-container-1",
+			Message{
+				Id:         "testboxer",
+				BoxId:      1,
+				Type:       "aio:create",
+				Name:       "mclovins-container",
+				Runtime:    "test",
+				Memory:     "256M",
+				DiskSpace:  "1G",
+				PublicKeys: []string{"ssh-rsa QWER"},
+			}, Message{
+				Id:    "testboxer",
+				BoxId: 1,
+				Type:  "aio:start",
+				Name:  "mclovins-container-1",
+			}, Message{
+				Id:       "testboxer",
+				BoxId:    1,
+				Type:     "aio:configure",
+				DataType: "aio:configure:add_public_key",
+				Data:     "ssh-rsa publickey\n\n",
+				Name:     "mclovins-container-1",
+			})
+
+		c.Assert(message.Type, Equals, "aio:configured")
+		c.Assert(message.DataType, Equals, "aio:configured:add_public_key")
+		c.Assert(message.Id, Equals, "testboxer")
+		c.Assert(message.BoxId, Equals, 1)
+		c.Assert(message.Success, Equals, true)
+
+		c.Assert(box.PublicKeys, DeepEquals, []string{
+			"ssh-rsa QWER",
+			"ssh-rsa publickey",
+		})
+		DoesContain(c, map[string][]string{
+			box.LxcPath() + "/rootfs/etc/ssh/univ_public_keys": {
+				"ssh-rsa QWER",
+				"ssh-rsa publickey",
+			},
+		})
+	})
+}
+
 func (s *BoxerSuite) TestRemovePublicKey(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
@@ -1287,6 +1338,8 @@ func (s *BoxerSuite) TestRemovePublicKey(c *C) {
 		c.Assert(message.Id, Equals, "testboxer")
 		c.Assert(message.BoxId, Equals, 1)
 		c.Assert(message.Success, Equals, true)
+
+		c.Assert(box.PublicKeys, DeepEquals, []string{"ssh-rsa ASDF"})
 
 		DoesContain(c, map[string][]string{
 			box.LxcPath() + "/rootfs/etc/ssh/univ_public_keys": {
