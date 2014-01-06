@@ -39,8 +39,8 @@ func Start(name string) error {
 // - first, we locate the init process of the container via lxc-info
 // - then  we send SIGPWR to that process indicate that we want the container
 // to shutdown /poweroff
-// - then we wait until either the container status become stopped, or 10
-// seconds is up which we execute lxc-stop immediately
+// - then we wait until either the container status become stopped, or
+// `TIMEOUT` is up which we execute lxc-stop immediately
 func Stop(name string) error {
 	pid, err := getContainerPid(name)
 	// if we cant find pid, the container is probably not running
