@@ -44,7 +44,6 @@ func Start(name string) error {
 func Stop(name string) error {
 	pid, err := getContainerPid(name)
 	// if we cant find pid, the container is probably not running
-	fmt.Println(pid, name)
 	if err != nil || pid == -1 {
 		return nil
 	}
@@ -55,7 +54,6 @@ func Stop(name string) error {
 	go func(name string) {
 		for {
 			status, err := Status(name)
-			fmt.Println(status, err)
 			if err != nil || status == "STOPPED" {
 				c <- true
 				break
