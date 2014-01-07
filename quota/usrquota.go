@@ -28,6 +28,9 @@ import (
 // calculate it with this
 const UidStart = 15000
 
+// kb in byte
+const KB = 1024
+
 type UsrQuota struct{}
 
 func uid(id string) (uid int, err error) {
@@ -79,7 +82,9 @@ func (q UsrQuota) ViewLimit(arg QuotaArg) (QuotaInfo, error) {
 		(C.caddr_t)(unsafe.Pointer(&info))) == 1 {
 		return quota, fmt.Errorf("Failed to get quota: %v", arg)
 	}
-	quota.Used = int(info.dqb_curspace)
+	// dqb_curspace is stored in bytes instead of quota block size
+	quota.Used = int(info.dqb_curspace / KB)
+	// dqb_bhardlimit is stored in quota block size which is 1 kb
 	quota.Limit = int(info.dqb_bhardlimit)
 	return quota, nil
 }

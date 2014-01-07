@@ -3,6 +3,7 @@ package quota
 
 import (
 	. "launchpad.net/gocheck"
+	"math"
 	"os"
 	"os/exec"
 )
@@ -82,6 +83,10 @@ func (s *UsrQuotaSuite) TestChangeInvalidLimit(c *C) {
 	c.Assert(err, NotNil)
 
 	info, _ := q.ViewLimit(oldArg)
-	c.Assert((info.Used-20*1024) > 0, Equals, true)
+	c.Assert(within(info.Used, 20*1024, 10), Equals, true)
 	c.Assert(info.Limit, Equals, 30*1024)
+}
+
+func within(a, b, someRange int) bool {
+	return math.Abs(float64(a-b)) < float64(someRange)
 }
