@@ -1324,7 +1324,21 @@ func (s *BoxerSuite) TestRemovePublicKey(c *C) {
 			BoxId: 1,
 			Type:  "aio:start",
 			Name:  "mclovins-container-1",
-		}, Message{
+		})
+
+		c.Assert(message.Type, Equals, "aio:started")
+		c.Assert(message.BoxId, Equals, 1)
+		c.Assert(message.Success, Equals, true)
+
+		c.Assert(box.PublicKeys, DeepEquals, []string{"ssh-rsa QWER", "ssh-rsa ASDF"})
+		DoesContain(c, map[string][]string{
+			box.LxcPath() + "/rootfs/etc/ssh/univ_public_keys": {
+				"ssh-rsa QWER",
+				"ssh-rsa ASDF",
+			},
+		})
+
+		message, box = s.receiveMessages("mclovins-container-1", Message{
 			Id:       "testboxer",
 			BoxId:    1,
 			Type:     "aio:configure",
@@ -1340,16 +1354,11 @@ func (s *BoxerSuite) TestRemovePublicKey(c *C) {
 		c.Assert(message.Success, Equals, true)
 
 		c.Assert(box.PublicKeys, DeepEquals, []string{"ssh-rsa ASDF"})
-
 		DoesContain(c, map[string][]string{
-			box.LxcPath() + "/rootfs/etc/ssh/univ_public_keys": {
-				"ssh-rsa ASDF",
-			},
+			box.LxcPath() + "/rootfs/etc/ssh/univ_public_keys": {"ssh-rsa ASDF"},
 		})
 		DoesNotContain(c, map[string][]string{
-			box.LxcPath() + "/rootfs/etc/ssh/univ_public_keys": {
-				"ssh-rsa QWER",
-			},
+			box.LxcPath() + "/rootfs/etc/ssh/univ_public_keys": {"ssh-rsa QWER"},
 		})
 	})
 }

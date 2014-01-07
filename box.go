@@ -345,7 +345,7 @@ func (b *Box) TotalMemory() string {
 
 // Writes public keys into a box's root filesystem.
 func (b *Box) WritePublicKeys(keys ...string) error {
-	f, err := os.OpenFile(b.PublicKeysPath(), os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(b.PublicKeysPath(), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 	if err != nil {
 		return err
 	}
