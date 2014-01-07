@@ -93,6 +93,8 @@ func getContainerPid(name string) (int, error) {
 	return strconv.Atoi(fields[1])
 }
 
+// wait until the container has the expected status or `TIMEOUT` which we
+// return an error and let the caller decide what to do with it.
 func waitForStatus(name, expectedStatus string) error {
 	c := make(chan error, 1)
 	go func() {
