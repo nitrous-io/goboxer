@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-const WAIT_TIME = 1 * time.Second
+const WAIT_TIME = 500 * time.Millisecond
 const TIMEOUT = 10 * time.Second
 const LOG_PREFIX = "/var/log/containers/"
 
@@ -25,7 +25,7 @@ func output(cmd string, args ...string) ([]byte, error) {
 	return exec.Command(cmd, args...).CombinedOutput()
 }
 
-func ExecStop(name string) error {
+func Stop(name string) error {
 	return run("lxc-stop", "-n", name)
 }
 
@@ -45,17 +45,13 @@ func Start(namespace, containerName string) error {
 		"-o", logFile, "-l", "INFO"); err != nil {
 		return err
 	}
-	return waitForStatus(containerName, "RUNNING")
+	// wait time is much shorter so some lxc process can perform works
+	// before declaring the container status. Im looking at you lxc-start
+	return waitForStatus(containerName, "RUNNING", 50*time.Millisecond)
 }
 
-// implementation of lxc-shutdown
-//
-// - first, we locate the init process of the container via lxc-info
-// - then  we send SIGPWR to that process indicate that we want the container
-// to shutdown /poweroff
-// - then we wait until either the container status become stopped, or
-// `TIMEOUT` is up which we execute lxc-stop immediately
-func Stop(name string) error {
+// send SIGPWR to the init process of the container to poweroff the container
+func Poweroff(name string) error {
 	pid, err := getContainerPid(name)
 	// if we cant find pid, the container is probably not running
 	if err != nil || pid == -1 {
@@ -65,10 +61,7 @@ func Stop(name string) error {
 		return err
 	}
 	// SIGPWR cant stop the container, do the hard-work here
-	if waitForStatus(name, "STOPPED") != nil {
-		return ExecStop(name)
-	}
-	return nil
+	return waitForStatus(name, "STOPPED", WAIT_TIME)
 }
 
 func Status(name string) (string, error) {
@@ -99,17 +92,19 @@ func getContainerPid(name string) (int, error) {
 
 // wait until the container has the expected status or `TIMEOUT` which we
 // return an error and let the caller decide what to do with it.
-func waitForStatus(name, expectedStatus string) error {
+func waitForStatus(name, expectedStatus string, waitTime time.Duration) error {
 	c := make(chan error, 1)
 	go func() {
+
 		// we dont want this to run forever, just until `TIMEOUT` is fine
 		for now := time.Now(); time.Since(now) < TIMEOUT; {
 			status, err := Status(name)
 			if err != nil || status == expectedStatus {
 				c <- nil
 				return
+			} else {
+				time.Sleep(waitTime)
 			}
-			time.Sleep(WAIT_TIME)
 		}
 	}()
 	select {

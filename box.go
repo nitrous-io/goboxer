@@ -205,6 +205,12 @@ func (b *Box) Start(spec *BoxSpec) error {
 	return lxc.Start(b.ContainerName(), b.MountName())
 }
 
+// implementation of lxc-shutdown
+//
+// - then  we try to poweroff the container
+// - if that cant stop the container, force-kill all current user
+// processes as sometimes defunct processes can stop the container from
+// shutting down, then stop the container again
 func (b *Box) Stop() error {
 	defer logger.LogDuration(
 		fmt.Sprintf("%s:Stop %s", b.ContainerName(), b.MountName()),
@@ -213,8 +219,9 @@ func (b *Box) Stop() error {
 		// ignore error from unset port forwarding here as its not harmful
 		logger.Printf("%s:Destroy - unsetPortForwarding %v \n", err)
 	}
-	if err := lxc.Stop(b.MountName()); err != nil {
-		return err
+	if lxc.Poweroff(b.MountName()) != nil {
+		utils.RunCommand("pkill", "-u", b.Uid())
+		return lxc.Stop(b.MountName())
 	}
 	return b.Unmount(b.boxer.Root)
 }
