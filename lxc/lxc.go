@@ -5,6 +5,7 @@ package lxc
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -14,6 +15,7 @@ import (
 
 const WAIT_TIME = 1 * time.Second
 const TIMEOUT = 10 * time.Second
+const LOG_PREFIX = "/var/log/containers/"
 
 func run(cmd string, args ...string) error {
 	return exec.Command(cmd, args...).Run()
@@ -27,11 +29,23 @@ func waitLxc(name, status string) error {
 	return run("lxc-wait", "-n", name, "-s", status)
 }
 
-func Start(name string) error {
-	if err := run("lxc-start", "-d", "-n", name); err != nil {
+// this accepts a namespace and a containerName which will be used to log
+// errors etc from the containers if happens
+// namespace is typically mclovins-container-1
+// containerName is typically mclovins-container-1-123456 with 123456 is the
+// uniqueId
+func Start(namespace, containerName string) error {
+	logDir := LOG_PREFIX + namespace
+	if err := os.MkdirAll(logDir, 0755); err != nil {
 		return err
 	}
-	return waitLxc(name, "RUNNING")
+	logFile := logDir + "/" + containerName + ".log"
+	// try to log as much as possible
+	if err := run("lxc-start", "-d", "-n", containerName, "-o", logFile, "-l",
+		"INFO"); err != nil {
+		return err
+	}
+	return waitLxc(containerName, "RUNNING")
 }
 
 // implementation of lxc-shutdown

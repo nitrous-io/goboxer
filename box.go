@@ -202,7 +202,7 @@ func (b *Box) Start(spec *BoxSpec) error {
 	if err := b.handleSpecChange(spec, true); err != nil {
 		return err
 	}
-	return lxc.Start(b.MountName())
+	return lxc.Start(b.ContainerName(), b.MountName())
 }
 
 func (b *Box) Stop() error {
