@@ -25,10 +25,6 @@ func output(cmd string, args ...string) ([]byte, error) {
 	return exec.Command(cmd, args...).CombinedOutput()
 }
 
-func waitLxc(name, status string) error {
-	return run("lxc-wait", "-n", name, "-s", status)
-}
-
 // this accepts a namespace and a containerName which will be used to log
 // errors etc from the containers if happens
 // namespace is typically mclovins-container-1
@@ -41,11 +37,11 @@ func Start(namespace, containerName string) error {
 	}
 	logFile := logDir + "/" + containerName + ".log"
 	// try to log as much as possible
-	if err := run("lxc-start", "-d", "-n", containerName, "-o", logFile, "-l",
-		"INFO"); err != nil {
+	if err := run("lxc-start", "-d", "-n", containerName,
+		"-o", logFile, "-l", "INFO"); err != nil {
 		return err
 	}
-	return waitLxc(containerName, "RUNNING")
+	return waitForStatus(containerName, "RUNNING")
 }
 
 // implementation of lxc-shutdown
@@ -64,23 +60,9 @@ func Stop(name string) error {
 	if err = syscall.Kill(pid, syscall.SIGPWR); err != nil {
 		return err
 	}
-	c := make(chan bool, 1)
-	go func(name string) {
-		for {
-			status, err := Status(name)
-			if err != nil || status == "STOPPED" {
-				c <- true
-				break
-			}
-			time.Sleep(WAIT_TIME)
-		}
-	}(name)
-	select {
-	case _ = <-c:
-		return nil
-	case <-time.After(TIMEOUT):
-		run("lxc-stop", "-n", name)
-		return waitLxc(name, "STOPPED")
+	// SIGPWR cant stop the container, do the hard-work here
+	if waitForStatus(name, "STOPPED") != nil {
+		return run("lxc-stop", "-n", name)
 	}
 	return nil
 }
@@ -109,4 +91,27 @@ func getContainerPid(name string) (int, error) {
 		return -1, fmt.Errorf("lxc: failed to get %s pid: %v", name, fields)
 	}
 	return strconv.Atoi(fields[1])
+}
+
+func waitForStatus(name, expectedStatus string) error {
+	c := make(chan error, 1)
+	go func() {
+		// we dont want this to run forever, just until `TIMEOUT` is fine
+		for now := time.Now(); time.Since(now) < TIMEOUT; {
+			status, err := Status(name)
+			if err != nil || status == expectedStatus {
+				c <- nil
+				return
+			}
+			time.Sleep(WAIT_TIME)
+		}
+	}()
+	select {
+	case _ = <-c:
+		return nil
+	case <-time.After(TIMEOUT):
+		return fmt.Errorf("lxc: %s failed to have status %s", name,
+			expectedStatus)
+	}
+	return nil
 }
