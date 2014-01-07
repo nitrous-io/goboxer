@@ -18,11 +18,20 @@ $script = <<SCRIPT
   sed -i 's/GRUB_CMDLINE_LINUX=""/GRUB_CMDLINE_LINUX="cgroup_enable=memory swapaccount=1"/g' /etc/default/grub
   update-grub
 
+  install_go() {
+    curl -s https://go.googlecode.com/files/go1.2.linux-amd64.tar.gz | tar -v -C /usr/local -xz
+  }
+
   if [[ ! -f /usr/local/go/bin/go ]]; then
-    # install go
-    curl -s https://go.googlecode.com/files/go1.1.2.linux-amd64.tar.gz | tar -v -C /usr/local -xz
+    install_go
     echo "export PATH=/usr/local/go/bin:/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin" >> /etc/profile
     echo "export GOPATH=/home/vagrant/gocode" >> /etc/profile
+  else
+    if [[ ! $(go version | grep go1.2) ]]; then
+      install_go
+      rm -rf $HOME/gocode/pkg
+      rm -rf $HOME/gocode/bin
+    fi
   fi
 
   cd $HOME
