@@ -25,6 +25,10 @@ func output(cmd string, args ...string) ([]byte, error) {
 	return exec.Command(cmd, args...).CombinedOutput()
 }
 
+func ExecStop(name string) error {
+	return run("lxc-stop", "-n", name)
+}
+
 // this accepts a namespace and a containerName which will be used to log
 // errors etc from the containers if happens
 // namespace is typically mclovins-container-1
@@ -62,7 +66,7 @@ func Stop(name string) error {
 	}
 	// SIGPWR cant stop the container, do the hard-work here
 	if waitForStatus(name, "STOPPED") != nil {
-		return run("lxc-stop", "-n", name)
+		return ExecStop(name)
 	}
 	return nil
 }
