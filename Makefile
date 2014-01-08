@@ -11,6 +11,9 @@ WARN_COLOR=\033[33;01m
 test:
 	@./script/test
 
+test_log:
+	@./script/test 2> test.log
+
 build:
 	@mkdir -p bin/
 	@echo "$(OK_COLOR)==> Installing dependencies$(NO_COLOR)"

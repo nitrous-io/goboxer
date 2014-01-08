@@ -416,6 +416,7 @@ func (s *BoxerSuite) TestStart(c *C) {
 		s.assertBoxState(c, box, "running")
 		DoesExist(c, []string{
 			box.LxcPath() + "/rootfs",
+			"/var/log/containers/mclovins-container-1/" + box.MountName() + ".log",
 		})
 	})
 }

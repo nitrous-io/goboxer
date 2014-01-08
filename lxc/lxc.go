@@ -5,6 +5,7 @@ package lxc
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -12,8 +13,9 @@ import (
 	"time"
 )
 
-const WAIT_TIME = 1 * time.Second
+const WAIT_TIME = 500 * time.Millisecond
 const TIMEOUT = 10 * time.Second
+const LOG_PREFIX = "/var/log/containers/"
 
 func run(cmd string, args ...string) error {
 	return exec.Command(cmd, args...).Run()
@@ -23,25 +25,33 @@ func output(cmd string, args ...string) ([]byte, error) {
 	return exec.Command(cmd, args...).CombinedOutput()
 }
 
-func waitLxc(name, status string) error {
-	return run("lxc-wait", "-n", name, "-s", status)
+func Stop(name string) error {
+	return run("lxc-stop", "-n", name)
 }
 
-func Start(name string) error {
-	if err := run("lxc-start", "-d", "-n", name); err != nil {
+// this accepts a namespace and a containerName which will be used to log
+// errors etc from the containers if happens
+// namespace is typically mclovins-container-1
+// containerName is typically mclovins-container-1-123456 with 123456 is the
+// uniqueId
+func Start(namespace, containerName string) error {
+	logDir := LOG_PREFIX + namespace
+	if err := os.MkdirAll(logDir, 0755); err != nil {
 		return err
 	}
-	return waitLxc(name, "RUNNING")
+	logFile := logDir + "/" + containerName + ".log"
+	// try to log as much as possible
+	if err := run("lxc-start", "-d", "-n", containerName,
+		"-o", logFile, "-l", "INFO"); err != nil {
+		return err
+	}
+	// wait time is much shorter so some lxc process can perform works
+	// before declaring the container status. Im looking at you lxc-start
+	return waitForStatus(containerName, "RUNNING", 50*time.Millisecond)
 }
 
-// implementation of lxc-shutdown
-//
-// - first, we locate the init process of the container via lxc-info
-// - then  we send SIGPWR to that process indicate that we want the container
-// to shutdown /poweroff
-// - then we wait until either the container status become stopped, or
-// `TIMEOUT` is up which we execute lxc-stop immediately
-func Stop(name string) error {
+// send SIGPWR to the init process of the container to poweroff the container
+func Poweroff(name string) error {
 	pid, err := getContainerPid(name)
 	// if we cant find pid, the container is probably not running
 	if err != nil || pid == -1 {
@@ -50,25 +60,8 @@ func Stop(name string) error {
 	if err = syscall.Kill(pid, syscall.SIGPWR); err != nil {
 		return err
 	}
-	c := make(chan bool, 1)
-	go func(name string) {
-		for {
-			status, err := Status(name)
-			if err != nil || status == "STOPPED" {
-				c <- true
-				break
-			}
-			time.Sleep(WAIT_TIME)
-		}
-	}(name)
-	select {
-	case _ = <-c:
-		return nil
-	case <-time.After(TIMEOUT):
-		run("lxc-stop", "-n", name)
-		return waitLxc(name, "STOPPED")
-	}
-	return nil
+	// SIGPWR cant stop the container, do the hard-work here
+	return waitForStatus(name, "STOPPED", WAIT_TIME)
 }
 
 func Status(name string) (string, error) {
@@ -95,4 +88,31 @@ func getContainerPid(name string) (int, error) {
 		return -1, fmt.Errorf("lxc: failed to get %s pid: %v", name, fields)
 	}
 	return strconv.Atoi(fields[1])
+}
+
+// wait until the container has the expected status or `TIMEOUT` which we
+// return an error and let the caller decide what to do with it.
+func waitForStatus(name, expectedStatus string, waitTime time.Duration) error {
+	c := make(chan error, 1)
+	go func() {
+
+		// we dont want this to run forever, just until `TIMEOUT` is fine
+		for now := time.Now(); time.Since(now) < TIMEOUT; {
+			status, err := Status(name)
+			if err != nil || status == expectedStatus {
+				c <- nil
+				return
+			} else {
+				time.Sleep(waitTime)
+			}
+		}
+	}()
+	select {
+	case _ = <-c:
+		return nil
+	case <-time.After(TIMEOUT):
+		return fmt.Errorf("lxc: %s failed to have status %s", name,
+			expectedStatus)
+	}
+	return nil
 }
