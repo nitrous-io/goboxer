@@ -16,8 +16,6 @@ test_log:
 
 build:
 	@mkdir -p bin/
-	@echo "$(OK_COLOR)==> Installing dependencies$(NO_COLOR)"
-	@go get -d -v ./...
 	@./script/build
 
 bin: test build
