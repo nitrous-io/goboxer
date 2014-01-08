@@ -8,47 +8,39 @@
 set -o errexit
 shopt -s nullglob
 
-NO_COLOR="\x1b[0m"
-OK_COLOR="\x1b[32;01m"
-ERROR_COLOR="\x1b[31;01m"
-WARN_COLOR="\x1b[33;01m"
-PACKAGE="github.com/action-io/goboxer"
-ARG=$1
-
-# get the parent directory of where this script is
-SOURCE="${BASH_SOURCE[0]}"
-while [ -h "$SOURCE" ] ; do SOURCE="$(readlink "$SOURCE")"; done
-DIR="$( cd -P "$( dirname "$SOURCE" )/.." && pwd )"
+# load helper
+current_dir=$(dirname "$BASH_SOURCE[0]")
+source $current_dir/helper
 
 # Change into that directory
-cd $DIR
+DIR=$(current_dir)
 ./script/build
 
-GIT_COMMIT=$(git rev-parse --short HEAD)
-
+ARG=$1
+GIT_COMMIT=$(latest_commit)
 # if an argument is defined, we only accept --no-tag and do an early exit if
 # encounter anything else
 if [[ $ARG ]]; then
   if [ "$ARG" == "--no-tag" ]; then
-    TAG=`git tag | grep -E "[0-9\.]+$" | sort -nr | head -n 1`
+    TAG=$(latest_tag)
   else
-    echo -e "${ERROR_COLOR}INVALID ARGUMENT: $ARG${NO_COLOR}"
+    error "INVALID ARGUMENT: $ARG"
     exit 1
   fi
 # otherwise, take the current date and add that as a tag to git
 else
-  echo -e "${OK_COLOR}--> ADDING GIT TAG!............${NO_COLOR}"
-  TAG=`date -u +"%d-%b-%Y-%H-%M"`
-  USER=`git config user.name`
+  ok "ADDING GIT TAG"
+  TAG=`generate_tag`
+  USER=`git_user`
   MSG="${USER} BUILT VERSION ${TAG} OF GOBOXER"
 
-  echo -e "${OK_COLOR}--> CHECKING NEW TAG TO GIT ${TAG}${NO_COLOR}"
+  ok "CHECKING NEW TAG TO GIT ${TAG}"
   git tag -m "${MSG}" ${TAG}
-  echo -e "${OK_COLOR}--> PUSHING NEW TAG TO GIT ${TAG}${NO_COLOR}"
+  ok "PUSHING NEW TAG TO GIT ${TAG}"
   git push origin ${TAG}
 fi
 
-BINRELEASE="goboxer_${TAG}.tgz"
+BINRELEASE="goboxer_${GIT_COMMIT}.tgz"
 
 echo -e "${OK_COLOR}--> PACKAGE GOBOXER!............${NO_COLOR}"
 cd bin

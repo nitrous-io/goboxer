@@ -6,33 +6,23 @@
 set -o errexit
 shopt -s nullglob
 
-NO_COLOR="\x1b[0m"
-OK_COLOR="\x1b[32;01m"
-ERROR_COLOR="\x1b[31;01m"
-WARN_COLOR="\x1b[33;01m"
-PACKAGE="github.com/action-io/goboxer"
+# load helper
+current_dir=$(dirname "$BASH_SOURCE[0]")
+source $current_dir/helper
+
+ok "Installing dependencies"
+go get -d -v ./...
 
 if [[ $(uname) == "Linux" ]]; then
   # get the parent directory of where this script is
-  SOURCE="${BASH_SOURCE[0]}"
-  while [ -h "$SOURCE" ] ; do SOURCE="$(readlink "$SOURCE")"; done
-  DIR="$( cd -P "$( dirname "$SOURCE" )/.." && pwd )"
-
-  GIT_COMMIT=$(git rev-parse --short HEAD)
-
+  DIR=$(current_dir)
+  GIT_COMMIT=$(latest_commit)
   # Change into that directory
   cd $DIR
-
-  echo -e "${OK_COLOR}--> GO BOXER $GIT_COMMIT!............${NO_COLOR}"
+  ok "GO BOXER $GIT_COMMIT"
   go install -ldflags "-X main.version ${GIT_COMMIT}" -v $PACKAGE/...
-  mkdir -p bin
-
-  if [ ! -z "$GOBIN" ]; then
-    cp $GOBIN/goboxer bin/goboxer
-  else
-    cp $GOPATH/bin/goboxer bin/goboxer
-  fi
+  cp_binary "goboxer"
 else
-  echo -e "${ERROR_COLOR}--> SHOULD BUILD IN LINUX ${NO_COLOR}"
+  error "SHOULD BUILD IN LINUX"
   exit 1
 fi
