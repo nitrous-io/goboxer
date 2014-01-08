@@ -16,6 +16,8 @@ import (
 const WAIT_TIME = 500 * time.Millisecond
 const TIMEOUT = 10 * time.Second
 const LOG_PREFIX = "/var/log/containers/"
+const RUNNING = "RUNNING"
+const STOPPED = "STOPPED"
 
 func run(cmd string, args ...string) error {
 	return exec.Command(cmd, args...).Run()
@@ -26,7 +28,9 @@ func output(cmd string, args ...string) ([]byte, error) {
 }
 
 func Stop(name string) error {
-	return run("lxc-stop", "-n", name)
+	run("lxc-stop", "-n", name)
+	// short wait-time here because we expect it to stop immediately
+	return waitForStatus(name, STOPPED, 50*time.Millisecond)
 }
 
 // this accepts a namespace and a containerName which will be used to log
@@ -47,7 +51,7 @@ func Start(namespace, containerName string) error {
 	}
 	// wait time is much shorter so some lxc process can perform works
 	// before declaring the container status. Im looking at you lxc-start
-	return waitForStatus(containerName, "RUNNING", 50*time.Millisecond)
+	return waitForStatus(containerName, RUNNING, 50*time.Millisecond)
 }
 
 // send SIGPWR to the init process of the container to poweroff the container
@@ -61,7 +65,7 @@ func Poweroff(name string) error {
 		return err
 	}
 	// SIGPWR cant stop the container, do the hard-work here
-	return waitForStatus(name, "STOPPED", WAIT_TIME)
+	return waitForStatus(name, STOPPED, WAIT_TIME)
 }
 
 func Status(name string) (string, error) {

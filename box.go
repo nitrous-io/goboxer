@@ -221,7 +221,9 @@ func (b *Box) Stop() error {
 	}
 	if lxc.Poweroff(b.MountName()) != nil {
 		utils.RunCommand("pkill", "-u", b.Uid())
-		return lxc.Stop(b.MountName())
+		if err := lxc.Stop(b.MountName()); err != nil {
+			return fmt.Errorf("lxc-stop failed %s: %v", b.MountName(), err)
+		}
 	}
 	return b.Unmount(b.boxer.Root)
 }
