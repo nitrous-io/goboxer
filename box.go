@@ -48,6 +48,10 @@ type BoxInfo struct {
 // UniqueId is the guaranteed unique id *only* for the current box over its lifetime
 // i.e. a box will be guaranteed not to have its mountpoint clash when
 // umount/remount when uid is implemented
+//
+// Special mode:
+// - Sudo: allow user to have sudo access but will requires recent lxc version
+// ( which supports id_map ), and also recent kernel with userns enabled
 type Box struct {
 	Id               int      `json:"id"`
 	UniqueId         string   `json:"uniqueId"`
@@ -77,6 +81,7 @@ type Box struct {
 	PublicKeys       []string `json:"publicKeys"`
 	CpuSet           []int
 	CpuQuota         float64
+	Sudo             bool // allow user to have sudo access
 	// hold a reference to boxer so that we can access mutex capabilities
 	boxer *Boxer
 }

@@ -35,6 +35,7 @@ lxc.cgroup.cpu.cfs_quota_us = {{.CpuQuotaMicroseconds}}
 {{if .CpuSet}}
 lxc.cgroup.cpuset.cpus = {{.CpuSetStr}}
 {{end}}
+
 lxc.cgroup.devices.deny = a
 # Allow any mknod (but not using the node)
 lxc.cgroup.devices.allow = c *:* m
@@ -71,6 +72,13 @@ lxc.utsname = {{.ContainerName}}
 {{$ROOTFS := .RootFS}}
 lxc.rootfs = {{$ROOTFS}}
 lxc.mount  = {{$LXCPATH}}/fstab
+
+{{if .Sudo}}
+# map 10000 ids for now. With this, there can be overlapping uids with the
+# host. We will look into that later
+lxc.id_map = u 0 {{.Uid}} 10000
+lxc.id_map = g 0 {{.Uid}} 10000
+{{end}}
 `
 const NetworkConfigTemplate = `
 auto lo
