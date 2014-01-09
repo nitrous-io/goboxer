@@ -5,6 +5,7 @@ $script = <<SCRIPT
   apt-get update
   apt-get install -yy python-software-properties
   add-apt-repository http://ppa.launchpad.net/brightbox/experimental/ubuntu
+  add-apt-repository ppa:ubuntu-lxc/daily
 
   apt-get update
   # install a newer kernel
@@ -13,6 +14,7 @@ $script = <<SCRIPT
   apt-get install -yy git-core bzr lxc bridge-utils curl redis-server build-essential xfsprogs lvm2 iptables aufs-tools mercurial
   apt-get install -yy quotatool thin-provisioning-tools
   apt-get install -yy s3cmd
+  apt-get -y upgrade
 
   # support for cgroup
   sed -i 's/GRUB_CMDLINE_LINUX=""/GRUB_CMDLINE_LINUX="cgroup_enable=memory swapaccount=1"/g' /etc/default/grub
