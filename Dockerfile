@@ -26,6 +26,7 @@ RUN apt-get install -yy build-essential autoconf curl wget git-core util-linux n
 
 RUN apt-get install -yy python-software-properties
 RUN add-apt-repository http://ppa.launchpad.net/brightbox/experimental/ubuntu
+RUN apt-get update
 
 RUN curl -s https://go.googlecode.com/files/go1.2.linux-amd64.tar.gz | tar -v -C /usr/local -xz
 
