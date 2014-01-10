@@ -16,6 +16,27 @@ func ToJSON(obj interface{}) (string, error) {
 	return string(b), err
 }
 
+// UnionSlices returns a union of 2 string slices.
+func UnionSlices(first []string, second []string) []string {
+	for _, elem := range second {
+		if !Contains(first, elem) {
+			first = append(first, elem)
+		}
+	}
+	return first
+}
+
+// Contains returns true if the given needle (a string) exists in the haystack
+// (a slice).
+func Contains(haystack []string, needle string) bool {
+	for _, elem := range haystack {
+		if elem == needle {
+			return true
+		}
+	}
+	return false
+}
+
 // append string content to a file
 func Appendln(location, content string) error {
 	f, err := os.OpenFile(location, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
