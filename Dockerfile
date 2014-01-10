@@ -45,9 +45,9 @@ RUN mkdir -p /home/$GOBOXER_USERNAME/gocode/src/github.com/action-io
 ADD ./ /home/$GOBOXER_USERNAME/gocode/src/github.com/action-io/goboxer
 
 RUN \
-  ln -fs /home/$GOBOXER_USERNAME/gocode/src/github.com/action-io/goboxer /home/$GOBOXER_USERNAME/goboxer
-  cd /home/$GOBOXER_USERNAME/gocode/src/github.com/action-io/goboxer
-  /usr/local/go/bin/go get
-  /usr/local/go/bin/go get launchpad.net/gocheck
-  chown -R $GOBOXER_USERNAME: /home/$GOBOXER_USERNAME/gocode
-  ./script/setup
+   ln -fs /home/$GOBOXER_USERNAME/gocode/src/github.com/action-io/goboxer /home/$GOBOXER_USERNAME/goboxer &&\
+   cd /home/$GOBOXER_USERNAME/gocode/src/github.com/action-io/goboxer &&\
+   /usr/local/go/bin/go get &&\
+   /usr/local/go/bin/go get launchpad.net/gocheck &&\
+   chown -R $GOBOXER_USERNAME: /home/$GOBOXER_USERNAME/gocode &&\
+   ./script/setup
