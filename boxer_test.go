@@ -472,25 +472,25 @@ func (s *BoxerSuite) TestStartPersistsPublicKeysFromFile(c *C) {
 			Type:  "aio:start",
 			Name:  "mclovins-container-1",
 		})
-		defer box.Destroy()
 
 		c.Assert(message.Type, Equals, "aio:started")
 		c.Assert(message.Success, Equals, true)
 		DoesExist(c, []string{
 			box.LxcPath() + "/rootfs/etc/ssh/univ_public_keys",
 		})
-		c.Assert(box.PublicKeys, DeepEquals, []string(nil))
+		c.Assert(box.PublicKeys, DeepEquals, []string{})
 
 		// Then, manually add public keys to the box's public key file to simulate
 		// an old box from before we started persisting public keys.
-		box.WritePublicKeys([]string{"ssh-rsa QWER", "ssh-rsa ASDF"}...)
+		box.PublicKeys = []string{"ssh-rsa QWER", "ssh-rsa ASDF"}
+		box.WritePublicKeys()
+		box.PublicKeys = []string(nil) // Reset to no keys in Redis.
 		DoesContain(c, map[string][]string{
 			box.LxcPath() + "/rootfs/etc/ssh/univ_public_keys": {
 				"ssh-rsa QWER",
 				"ssh-rsa ASDF",
 			},
 		})
-		c.Assert(box.PublicKeys, DeepEquals, []string(nil))
 
 		// Then, we stop and start the box and verify that it's now consistent, i.e.
 		// 1. public keys are written to file, and
@@ -506,7 +506,6 @@ func (s *BoxerSuite) TestStartPersistsPublicKeysFromFile(c *C) {
 			Type:  "aio:start",
 			Name:  "mclovins-container-1",
 		})
-		defer box.Destroy()
 
 		c.Assert(message.Type, Equals, "aio:started")
 		c.Assert(message.Success, Equals, true)
