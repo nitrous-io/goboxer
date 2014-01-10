@@ -183,16 +183,7 @@ func (b *Box) Start(spec *BoxSpec) error {
 	if err := b.Mount(b.boxer.Root); err != nil {
 		return err
 	}
-	if b.PublicKeys == []string(nil) {
-		// If a box's Redis record doesn't have public keys, it probably means that
-		// this box was created before we started persisting public keys to Redis.
-		// We'll need to read the keys from box's rootfs/etc/ssh/univ_public_keys
-		// file and save them to Redis.
-		if err := b.setPublicKeysFromFile(); err != nil {
-			return err
-		}
-	}
-	if err := b.WritePublicKeys(b.PublicKeys...); err != nil {
+	if err := b.WritePublicKeys(); err != nil {
 		return err
 	}
 	if err := b.setPortForwarding(); err != nil {
@@ -352,8 +343,28 @@ func (b *Box) TotalMemory() string {
 	return quota.SumValueUnitMb(m, vm).ToString()
 }
 
-// Writes public keys into a box's root filesystem.
-func (b *Box) WritePublicKeys(keys ...string) error {
+// Returns the union of a box's keys from Redis and from its root filesystem.
+func (b *Box) GetPublicKeys() []string {
+	// Merge box's public keys from Redis record and from
+	// rootfs/etc/ssh/univ_public_keys (removing any duplicates).
+	return utils.UnionSlices(b.publicKeysFromFile(), b.PublicKeys)
+}
+
+// Unions a box's keys from Redis and from its root filesystem, and writes
+// those keys into its root filesystem and to Redis.
+func (b *Box) WritePublicKeys() error {
+	b.PublicKeys = b.GetPublicKeys()
+
+	// Write to Redis.
+	if err := b.boxer.ResourcePool.SaveBox(b); err != nil {
+		return err
+	}
+
+	// Write to public key file.
+	return b.writePublicKeysFile(b.PublicKeys)
+}
+
+func (b *Box) writePublicKeysFile(keys []string) error {
 	f, err := os.OpenFile(b.PublicKeysPath(), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 	if err != nil {
 		return err
@@ -363,35 +374,41 @@ func (b *Box) WritePublicKeys(keys ...string) error {
 	return err
 }
 
-// Like WritePublicKeys(), except nothing is done if the public keys file
+// Like writePublicKeysFile(), except nothing is done if the public keys file
 // doesn't already exist.
-func (b *Box) WritePublicKeysIfFileExists(keys ...string) error {
+func (b *Box) writePublicKeysFileIfExists(keys []string) error {
 	if _, err := os.Stat(b.PublicKeysPath()); err != nil {
 		if os.IsNotExist(err) {
 			return nil
 		}
 		return err
 	}
-
-	return b.WritePublicKeys(keys...)
+	return b.writePublicKeysFile(keys)
 }
 
-// Sets public keys of a box from the public key file in its rootfs, if the file
-// exists. The box's record is updated with the read public keys.
-func (b *Box) setPublicKeysFromFile() error {
+// Reads public keys of a box from the public key file in its rootfs.
+// If the file doesn't exist or if there's any errors reading the file, an
+// empty slice is returned.
+func (b *Box) publicKeysFromFile() []string {
+	keys := make([]string, 0)
 	filepath := b.PublicKeysPath()
 	if _, err := os.Stat(filepath); err != nil {
 		if os.IsNotExist(err) {
-			return nil
+			return keys
 		}
-		return err
+		return keys
 	}
 	content, err := ioutil.ReadFile(filepath)
 	if err != nil {
-		return err
+		return keys
 	}
-	b.PublicKeys = strings.Split(strings.TrimSpace(string(content)), "\n")
-	return b.boxer.ResourcePool.SaveBox(b)
+	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
+	for _, line := range lines {
+		if line != "" {
+			keys = append(keys, line)
+		}
+	}
+	return keys
 }
 
 // Adds a public key to a box only if the key doesn't already exist. The box's
@@ -399,16 +416,16 @@ func (b *Box) setPublicKeysFromFile() error {
 // key into the box if its root filesystem is mounted.
 func (b *Box) AddPublicKey(key string) error {
 	key = strings.TrimSpace(key)
-	for _, elem := range b.PublicKeys {
+	for _, elem := range b.GetPublicKeys() {
 		if elem == key {
 			return nil
 		}
 	}
-	b.PublicKeys = append(b.PublicKeys, key)
+	b.PublicKeys = append(b.GetPublicKeys(), key)
 	if err := b.boxer.ResourcePool.SaveBox(b); err != nil {
 		return err
 	}
-	return b.WritePublicKeysIfFileExists(b.PublicKeys...)
+	return b.writePublicKeysFileIfExists(b.PublicKeys)
 }
 
 // Remove a public key from a box's record in Redis, and attempt to write the
@@ -416,7 +433,7 @@ func (b *Box) AddPublicKey(key string) error {
 func (b *Box) RemovePublicKey(key string) error {
 	key = strings.TrimSpace(key)
 	var newKeys []string
-	for _, elem := range b.PublicKeys {
+	for _, elem := range b.GetPublicKeys() {
 		elem = strings.TrimSpace(elem)
 		if elem != key {
 			newKeys = append(newKeys, elem)
@@ -426,7 +443,7 @@ func (b *Box) RemovePublicKey(key string) error {
 	if err := b.boxer.ResourcePool.SaveBox(b); err != nil {
 		return err
 	}
-	return b.WritePublicKeysIfFileExists(b.PublicKeys...)
+	return b.writePublicKeysFileIfExists(b.PublicKeys)
 }
 
 func (b *Box) SetQuota() error {
