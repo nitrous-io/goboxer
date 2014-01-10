@@ -350,10 +350,10 @@ func (b *Box) GetPublicKeys() []string {
 	return utils.UnionSlices(b.publicKeysFromFile(), b.PublicKeys)
 }
 
-// Unions a box's keys from Redis and from its root filesystem, and writes
-// those keys into its root filesystem and to Redis.
-func (b *Box) WritePublicKeys() error {
-	b.PublicKeys = b.GetPublicKeys()
+// Sets a box's public keys to the given keys, writes those keys into its root
+// filesystem and to Redis.
+func (b *Box) SetPublicKeys(keys []string) error {
+	b.PublicKeys = keys
 
 	// Write to Redis.
 	if err := b.boxer.ResourcePool.SaveBox(b); err != nil {
@@ -362,6 +362,12 @@ func (b *Box) WritePublicKeys() error {
 
 	// Write to public key file.
 	return b.writePublicKeysFile(b.PublicKeys)
+}
+
+// Unions a box's keys from Redis and from its root filesystem, and writes
+// those keys into its root filesystem and to Redis.
+func (b *Box) WritePublicKeys() error {
+	return b.SetPublicKeys(b.GetPublicKeys())
 }
 
 func (b *Box) writePublicKeysFile(keys []string) error {

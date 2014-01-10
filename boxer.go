@@ -174,10 +174,10 @@ func CreateBoxHandler(m Message, boxer *Boxer) Message {
 	box.boxer = boxer
 	box.Prepare()
 	if err := box.Create(); err != nil {
-		logger.Printf("ERROR: Fail to create %v, err: %v\n", box, err)
-		// tries to destroy the box
+		logger.Printf("ERROR: Failed to create %v, err: %v\n", box, err)
+		// Try to destroy the box.
 		if err = box.Destroy(); err != nil {
-			logger.Printf("ERROR: Fail to destroy %v, err: %v\n", box, err)
+			logger.Printf("ERROR: Failed to destroy %v, err: %v\n", box, err)
 		}
 		logger.Printf("%s")
 		boxer.ResourcePool.Release(resource.Ip)
@@ -185,7 +185,7 @@ func CreateBoxHandler(m Message, boxer *Boxer) Message {
 		return msg
 	}
 	if err := boxer.ResourcePool.SaveBox(box); err != nil {
-		logger.Printf("ERROR: Fail to save %v, err: %v\n", box, err)
+		logger.Printf("ERROR: Failed to save %v, err: %v\n", box, err)
 		msg.Success = false
 		return msg
 	}
@@ -218,6 +218,11 @@ func StartBoxHandler(m Message, boxer *Boxer) Message {
 		ReturnVars: m.ReturnVars,
 		Success:    true,
 	}
+
+	if len(m.PublicKeys) > 0 {
+		box.SetPublicKeys(m.PublicKeys)
+	}
+
 	spec := box.CurrentSpec()
 	spec.MergeData(m)
 

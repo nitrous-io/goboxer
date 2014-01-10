@@ -451,6 +451,38 @@ func (s *BoxerSuite) TestStartSetsPublicKeys(c *C) {
 	})
 }
 
+func (s *BoxerSuite) TestStartAcceptsPublicKeys(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+		message, box := s.receiveMessages("mclovins-container-1", Message{
+			Id:         "testboxer",
+			BoxId:      1,
+			Type:       "aio:create",
+			Name:       "mclovins-container",
+			Runtime:    "test",
+			Memory:     "256M",
+			DiskSpace:  "1G",
+			PublicKeys: []string{"ssh-rsa first"},
+		}, Message{
+			Id:         "testboxer",
+			BoxId:      1,
+			Type:       "aio:start",
+			Name:       "mclovins-container-1",
+			PublicKeys: []string{"ssh-rsa second", "ssh-rsa third"},
+		})
+
+		c.Assert(message.Type, Equals, "aio:started")
+		c.Assert(message.Success, Equals, true)
+		DoesContain(c, map[string][]string{
+			box.LxcPath() + "/rootfs/etc/ssh/univ_public_keys": {
+				"ssh-rsa second",
+				"ssh-rsa third",
+			},
+		})
+		c.Assert(box.PublicKeys, DeepEquals, []string{"ssh-rsa second", "ssh-rsa third"})
+	})
+}
+
 // Tests that starting a box that has no public keys in its record will read
 // and save the keys from the public keys file in the box's rootfs.
 func (s *BoxerSuite) TestStartPersistsPublicKeysFromFile(c *C) {
