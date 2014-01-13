@@ -11,9 +11,10 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/action-io/goboxer/utils"
 )
 
-const WAIT_TIME = 500 * time.Millisecond
 const TIMEOUT = 10 * time.Second
 const LOG_PREFIX = "/var/log/containers/"
 const RUNNING = "RUNNING"
@@ -51,7 +52,7 @@ func Start(namespace, containerName string) error {
 	}
 	// wait time is much shorter so some lxc process can perform works
 	// before declaring the container status. Im looking at you lxc-start
-	return waitForStatus(containerName, RUNNING, 50*time.Millisecond)
+	return waitForStatus(containerName, RUNNING, TIMEOUT)
 }
 
 // send SIGPWR to the init process of the container to poweroff the container
@@ -65,7 +66,7 @@ func Poweroff(name string) error {
 		return err
 	}
 	// SIGPWR cant stop the container, do the hard-work here
-	return waitForStatus(name, STOPPED, WAIT_TIME)
+	return waitForStatus(name, STOPPED, TIMEOUT)
 }
 
 func Status(name string) (string, error) {
@@ -96,27 +97,7 @@ func getContainerPid(name string) (int, error) {
 
 // wait until the container has the expected status or `TIMEOUT` which we
 // return an error and let the caller decide what to do with it.
-func waitForStatus(name, expectedStatus string, waitTime time.Duration) error {
-	c := make(chan error, 1)
-	go func() {
-
-		// we dont want this to run forever, just until `TIMEOUT` is fine
-		for now := time.Now(); time.Since(now) < TIMEOUT; {
-			status, err := Status(name)
-			if err != nil || status == expectedStatus {
-				c <- nil
-				return
-			} else {
-				time.Sleep(waitTime)
-			}
-		}
-	}()
-	select {
-	case _ = <-c:
-		return nil
-	case <-time.After(TIMEOUT):
-		return fmt.Errorf("lxc: %s failed to have status %s", name,
-			expectedStatus)
-	}
-	return nil
+func waitForStatus(name, expectedStatus string, timeout time.Duration) error {
+	cmd := exec.Command("lxc-wait", "-n", name, "-s", expectedStatus)
+	return utils.Exec(cmd, timeout)
 }
