@@ -15,7 +15,7 @@ import (
 	"github.com/action-io/goboxer/utils"
 )
 
-const TIMEOUT = 10 * time.Second
+const TIMEOUT = 30 * time.Second
 const LOG_PREFIX = "/var/log/containers/"
 const RUNNING = "RUNNING"
 const STOPPED = "STOPPED"
