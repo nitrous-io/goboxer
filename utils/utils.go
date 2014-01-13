@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 // Convert a struct to its json string representation
@@ -101,4 +102,25 @@ func RunCommand(cmd string, args ...string) error {
 		return err
 	}
 	return nil
+}
+
+// exec the command with timeout
+// - if the command fails to start, returns its error
+// - if the command finishes before timeout, returns its error
+// - if the command times out, returns the timeout error
+func Exec(cmd *exec.Cmd, timeout time.Duration) error {
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	c := make(chan error, 1)
+	go func() {
+		c <- cmd.Wait()
+	}()
+	select {
+	case <-time.After(timeout):
+		cmd.Process.Kill()
+		return fmt.Errorf("%v: timed out", cmd)
+	case err := <-c:
+		return err
+	}
 }
