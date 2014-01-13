@@ -3,3 +3,4 @@ bin
 tags
 .vagrant
 *.log
+config.json
