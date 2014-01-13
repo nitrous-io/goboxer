@@ -30,8 +30,7 @@ func output(cmd string, args ...string) ([]byte, error) {
 
 func Stop(name string) error {
 	run("lxc-stop", "-n", name)
-	// short wait-time here because we expect it to stop immediately
-	return waitForStatus(name, STOPPED, 50*time.Millisecond)
+	return waitForStatus(name, STOPPED, TIMEOUT)
 }
 
 // this accepts a namespace and a containerName which will be used to log
