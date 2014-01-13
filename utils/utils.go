@@ -110,7 +110,7 @@ func RunCommand(cmd string, args ...string) error {
 // - if the command times out, returns the timeout error
 func Exec(cmd *exec.Cmd, timeout time.Duration) error {
 	if err := cmd.Start(); err != nil {
-		return err
+		return fmt.Errorf("%v: invalid cmd, %v", cmd, err)
 	}
 	c := make(chan error, 1)
 	go func() {
