@@ -33,7 +33,7 @@ RUN curl -s https://go.googlecode.com/files/go1.2.linux-amd64.tar.gz | tar -v -C
 
 # Install Redis dependencies
 
-RUN apt-get install -yy aufs-tools bridge-utils bzr redis-server xfsprogs lvm2 mercurial quotatool thin-provisioning-tools s3cmd
+RUN apt-get install -yy aufs-tools bridge-utils bzr redis-server xfsprogs lvm2 mercurial lxc quotatool thin-provisioning-tools s3cmd
 
 # Create goboxer user
 
@@ -56,3 +56,14 @@ RUN \
    /usr/local/go/bin/go get &&\
    /usr/local/go/bin/go get launchpad.net/gocheck &&\
    chown -R $GOBOXER_USERNAME: ${HOME}/gocode
+
+# Get disks made:
+
+RUN dd if=/dev/zero of=$HOME/lxc_disk.img bs=1024 count=5000000
+RUN dd if=/dev/zero of=$HOME/xfs_disk.img bs=1024 count=5000000
+RUN dd if=/dev/zero of=$HOME/ext4_disk.img bs=1024 count=5000000
+
+# Get wrapdocker inside:
+
+ADD ./script/wrapdocker /usr/local/bin/wrapdocker
+CMD wrapdocker
