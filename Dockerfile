@@ -10,7 +10,8 @@ ENV REDIS_USERNAME redis
 
 ENV PATH /usr/local/go/bin:$PATH
 ENV GOBOXER_USERNAME app_runner
-ENV GOPATH /home/${GOBOXER_USERNAME}/gocode
+ENV HOME /home/${GOBOXER_USERNAME}
+ENV GOPATH ${HOME}/gocode
 
 
 # Set working directory to /var/apps/goboxer (that is where the app will be built from)
@@ -37,12 +38,12 @@ RUN apt-get install -yy aufs-tools bridge-utils bzr redis-server xfsprogs lvm2 m
 # Create goboxer user
 
 RUN useradd -U -m $GOBOXER_USERNAME
-RUN mkdir /home/$GOBOXER_USERNAME/gocode
-RUN chown $GOBOXER_USERNAME: /home/$GOBOXER_USERNAME/gocode
-RUN mkdir -p /home/$GOBOXER_USERNAME/gocode/src/github.com/action-io
+RUN mkdir ${HOME}/gocode
+RUN chown $GOBOXER_USERNAME: ${HOME}/gocode
+RUN mkdir -p ${HOME}/gocode/src/github.com/action-io
 
 # "Mount" the current directory in /var/apps/goboxer
-ADD ./ /home/$GOBOXER_USERNAME/gocode/src/github.com/action-io/goboxer
+ADD ./ ${HOME}/gocode/src/github.com/action-io/goboxer
 
 # Disable udev for LVM:
 
@@ -50,9 +51,8 @@ RUN sed -i 's/udev_sync = 1/udev_sync = 0/' /etc/lvm/lvm.conf
 RUN sed -i 's/udev_rules = 1/udev_rules = 0/' /etc/lvm/lvm.conf
 
 RUN \
-   ln -fs /home/$GOBOXER_USERNAME/gocode/src/github.com/action-io/goboxer /home/$GOBOXER_USERNAME/goboxer &&\
-   cd /home/$GOBOXER_USERNAME/gocode/src/github.com/action-io/goboxer &&\
+   ln -fs ${HOME}/gocode/src/github.com/action-io/goboxer ${HOME}/goboxer &&\
+   cd ${HOME}/gocode/src/github.com/action-io/goboxer &&\
    /usr/local/go/bin/go get &&\
    /usr/local/go/bin/go get launchpad.net/gocheck &&\
-   chown -R $GOBOXER_USERNAME: /home/$GOBOXER_USERNAME/gocode &&\
-   ./script/setup
+   chown -R $GOBOXER_USERNAME: ${HOME}/gocode

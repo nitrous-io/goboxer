@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# Get absolute path to this script
+SCRIPT=$(readlink -f $0)
+SCRIPTPATH=$(dirname $SCRIPT)
+
+# Run setup first:
+
+$SCRIPTPATH/setup
+
+# Now run tests:
+cd $SCRIPTPATH/.. && go test
