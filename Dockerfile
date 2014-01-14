@@ -44,6 +44,11 @@ RUN mkdir -p /home/$GOBOXER_USERNAME/gocode/src/github.com/action-io
 # "Mount" the current directory in /var/apps/goboxer
 ADD ./ /home/$GOBOXER_USERNAME/gocode/src/github.com/action-io/goboxer
 
+# Disable udev for LVM:
+
+RUN sed -i 's/udev_sync = 1/udev_sync = 0/' /etc/lvm/lvm.conf
+RUN sed -i 's/udev_rules = 1/udev_rules = 0/' /etc/lvm/lvm.conf
+
 RUN \
    ln -fs /home/$GOBOXER_USERNAME/gocode/src/github.com/action-io/goboxer /home/$GOBOXER_USERNAME/goboxer &&\
    cd /home/$GOBOXER_USERNAME/gocode/src/github.com/action-io/goboxer &&\
