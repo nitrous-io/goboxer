@@ -1,0 +1,2 @@
+#!/bin/bash
+sudo $GOPATH/bin/goboxer -c config.json
