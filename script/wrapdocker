@@ -78,3 +78,6 @@ do
 	esac
 done
 popd >/dev/null
+
+# Get redis-server started.
+/etc/init.d/redis-server start
