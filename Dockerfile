@@ -15,7 +15,7 @@ ENV GOPATH ${HOME}/gocode
 
 
 # Set working directory to /var/apps/goboxer (that is where the app will be built from)
-WORKDIR /var/apps/goboxer
+WORKDIR ${HOME}/goboxer
 
 RUN echo "deb http://archive.ubuntu.com/ubuntu precise main universe" > /etc/apt/sources.list
 RUN apt-get update
