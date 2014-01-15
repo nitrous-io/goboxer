@@ -56,7 +56,7 @@ RUN dd if=/dev/zero of=$HOME/ext4_disk.img bs=1024 count=5000000
 # Get wrapdocker inside:
 
 ADD ./script/wrapdocker /usr/local/bin/wrapdocker
-CMD wrapdocker
+CMD ["wrapdocker"]
 
 ### MUTABLE BITS: THIS MUST BE AT THE END SO THE CACHE DOES NOT GET
 ### BUSTED!
