@@ -10,6 +10,7 @@ import (
 	"github.com/action-io/goboxer/cartman"
 	"github.com/action-io/goboxer/host"
 	"runtime"
+	"time"
 )
 
 var handlers map[string]MessageHandler
@@ -48,12 +49,20 @@ type Boxer struct {
 	Cartman         *cartman.Cartman
 	PremiumCPUQuota float64
 	DefaultCPUQuota float64
+	StartTimeout    time.Duration // in seconds
+	StopTimeout     time.Duration // in seconds
 }
 
 func (boxer *Boxer) Configure() {
 	boxer.Handles = handlers
 	boxer.SetCpuSet(runtime.NumCPU())
 	boxer.locker = BoxLocker{}
+	if boxer.StartTimeout == 0 {
+		boxer.StartTimeout = 30 * time.Second
+	}
+	if boxer.StopTimeout == 0 {
+		boxer.StopTimeout = 30 * time.Second
+	}
 }
 
 func (boxer *Boxer) Lock(id int) {

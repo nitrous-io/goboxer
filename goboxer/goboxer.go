@@ -65,6 +65,8 @@ func main() {
 		Cartman:         cartman,
 		PremiumCPUQuota: config.PremiumCPUQuota,
 		DefaultCPUQuota: config.DefaultCPUQuota,
+		StartTimeout:    time.Duration(config.StartTimeout) * time.Second,
+		StopTimeout:     time.Duration(config.StopTimeout) * time.Second,
 	}
 	boxer.Configure()
 
