@@ -61,6 +61,8 @@ CMD ["wrapdocker"]
 ### MUTABLE BITS: THIS MUST BE AT THE END SO THE CACHE DOES NOT GET
 ### BUSTED!
 
+VOLUME /var/lib/lxc
+
 # "Mount" the goboxer directory into the container
 ADD ./ ${HOME}/gocode/src/github.com/action-io/goboxer
 
