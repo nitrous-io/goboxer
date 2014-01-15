@@ -23,7 +23,7 @@ RUN apt-get update
 # Install global dependencies
 RUN apt-get install -yy build-essential autoconf curl wget git-core util-linux ntp tar
 
-# Install goboxer dependencies
+# Install goboxer/redis dependencies
 
 RUN apt-get install -yy python-software-properties
 RUN add-apt-repository http://ppa.launchpad.net/brightbox/experimental/ubuntu
@@ -31,9 +31,7 @@ RUN apt-get update
 
 RUN curl -s https://go.googlecode.com/files/go1.2.linux-amd64.tar.gz | tar -v -C /usr/local -xz
 
-# Install Redis dependencies
-
-RUN apt-get install -yy aufs-tools bridge-utils bzr redis-server xfsprogs lvm2 mercurial lxc quotatool thin-provisioning-tools s3cmd
+RUN apt-get install -yy aufs-tools bridge-utils bzr redis-server xfsprogs lvm2 mercurial lxc quotatool thin-provisioning-tools s3cmd iptables ca-certificates
 
 # Create goboxer user
 
