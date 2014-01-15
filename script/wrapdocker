@@ -5,6 +5,8 @@
 # First, make sure that cgroups are mounted correctly.
 CGROUP=/sys/fs/cgroup
 
+cat /proc/mounts > /etc/mtab
+
 [ -d $CGROUP ] ||
 	mkdir $CGROUP
 
