@@ -47,13 +47,6 @@ RUN mkdir -p ${HOME}/gocode/src/github.com/action-io
 RUN sed -i 's/udev_sync = 1/udev_sync = 0/' /etc/lvm/lvm.conf
 RUN sed -i 's/udev_rules = 1/udev_rules = 0/' /etc/lvm/lvm.conf
 
-RUN \
-   ln -fs ${HOME}/gocode/src/github.com/action-io/goboxer ${HOME}/goboxer &&\
-   cd ${HOME}/gocode/src/github.com/action-io/goboxer &&\
-   /usr/local/go/bin/go get &&\
-   /usr/local/go/bin/go get launchpad.net/gocheck &&\
-   chown -R $GOBOXER_USERNAME: ${HOME}/gocode
-
 # Get disks made:
 
 RUN dd if=/dev/zero of=$HOME/lxc_disk.img bs=1024 count=5000000
@@ -70,3 +63,12 @@ CMD wrapdocker
 
 # "Mount" the goboxer directory into the container
 ADD ./ ${HOME}/gocode/src/github.com/action-io/goboxer
+
+# Prep the codebase
+
+RUN \
+   ln -fs ${HOME}/gocode/src/github.com/action-io/goboxer ${HOME}/goboxer &&\
+   cd ${HOME}/gocode/src/github.com/action-io/goboxer &&\
+   /usr/local/go/bin/go get &&\
+   /usr/local/go/bin/go get launchpad.net/gocheck &&\
+   chown -R $GOBOXER_USERNAME: ${HOME}/gocode
