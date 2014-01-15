@@ -107,6 +107,8 @@ func (s *BoxerSuite) mergeProvisionStrategy(p testProvisionStrategy) {
 	s.Boxer.SelectedDisk = p.SelectedDisk
 	s.Boxer.QuotaMethod = p.QuotaMethod
 	s.Boxer.SelectedVG = p.SelectedVG
+	s.Boxer.StartTimeout = 5 * time.Second
+	s.Boxer.StopTimeout = 5 * time.Second
 	s.Boxer.Configure()
 }
 
