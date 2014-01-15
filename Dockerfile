@@ -42,9 +42,6 @@ RUN mkdir ${HOME}/gocode
 RUN chown $GOBOXER_USERNAME: ${HOME}/gocode
 RUN mkdir -p ${HOME}/gocode/src/github.com/action-io
 
-# "Mount" the current directory in /var/apps/goboxer
-ADD ./ ${HOME}/gocode/src/github.com/action-io/goboxer
-
 # Disable udev for LVM:
 
 RUN sed -i 's/udev_sync = 1/udev_sync = 0/' /etc/lvm/lvm.conf
@@ -67,3 +64,9 @@ RUN dd if=/dev/zero of=$HOME/ext4_disk.img bs=1024 count=5000000
 
 ADD ./script/wrapdocker /usr/local/bin/wrapdocker
 CMD wrapdocker
+
+### MUTABLE BITS: THIS MUST BE AT THE END SO THE CACHE DOES NOT GET
+### BUSTED!
+
+# "Mount" the goboxer directory into the container
+ADD ./ ${HOME}/gocode/src/github.com/action-io/goboxer
