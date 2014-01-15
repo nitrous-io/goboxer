@@ -15,6 +15,8 @@ import (
 	"github.com/action-io/goboxer/utils"
 )
 
+// base timeout for all lxc commands. This is not the timeout that we want
+// for container to reach their expected status
 const TIMEOUT = 30 * time.Second
 const LOG_PREFIX = "/var/log/containers/"
 const RUNNING = "RUNNING"
@@ -24,13 +26,9 @@ func run(cmd string, args ...string) error {
 	return exec.Command(cmd, args...).Run()
 }
 
-func output(cmd string, args ...string) ([]byte, error) {
-	return exec.Command(cmd, args...).CombinedOutput()
-}
-
 func Stop(name string) error {
-	run("lxc-stop", "-n", name)
-	return waitForStatus(name, STOPPED, TIMEOUT)
+	cmd := exec.Command("lxc-stop", "-n", name)
+	return utils.Exec(cmd, TIMEOUT)
 }
 
 // this accepts a namespace and a containerName which will be used to log
@@ -45,13 +43,9 @@ func Start(namespace, containerName string) error {
 	}
 	logFile := logDir + "/" + containerName + ".log"
 	// try to log as much as possible
-	if err := run("lxc-start", "-d", "-n", containerName,
-		"-o", logFile, "-l", "INFO"); err != nil {
-		return err
-	}
-	// wait time is much shorter so some lxc process can perform works
-	// before declaring the container status. Im looking at you lxc-start
-	return waitForStatus(containerName, RUNNING, TIMEOUT)
+	cmd := exec.Command("lxc-start", "-d", "-n", containerName,
+		"-o", logFile, "-l", "INFO")
+	return utils.Exec(cmd, TIMEOUT)
 }
 
 // send SIGPWR to the init process of the container to poweroff the container
@@ -61,11 +55,7 @@ func Poweroff(name string) error {
 	if err != nil || pid == -1 {
 		return nil
 	}
-	if err = syscall.Kill(pid, syscall.SIGPWR); err != nil {
-		return err
-	}
-	// SIGPWR cant stop the container, do the hard-work here
-	return waitForStatus(name, STOPPED, TIMEOUT)
+	return syscall.Kill(pid, syscall.SIGPWR)
 }
 
 func Status(name string) (string, error) {
@@ -81,6 +71,13 @@ func Status(name string) (string, error) {
 	return strings.TrimSpace(fields[1]), nil
 }
 
+// wait until the container has the expected status or `TIMEOUT` which we
+// return an error and let the caller decide what to do with it.
+func Wait(name, expectedStatus string, timeout time.Duration) error {
+	cmd := exec.Command("lxc-wait", "-n", name, "-s", expectedStatus)
+	return utils.Exec(cmd, timeout)
+}
+
 func getContainerPid(name string) (int, error) {
 	cmd := exec.Command("lxc-info", "-n", name, "-p")
 	output, err := cmd.Output()
@@ -92,11 +89,4 @@ func getContainerPid(name string) (int, error) {
 		return -1, fmt.Errorf("lxc: failed to get %s pid: %v", name, fields)
 	}
 	return strconv.Atoi(fields[1])
-}
-
-// wait until the container has the expected status or `TIMEOUT` which we
-// return an error and let the caller decide what to do with it.
-func waitForStatus(name, expectedStatus string, timeout time.Duration) error {
-	cmd := exec.Command("lxc-wait", "-n", name, "-s", expectedStatus)
-	return utils.Exec(cmd, timeout)
 }
