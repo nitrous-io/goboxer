@@ -193,7 +193,10 @@ func (b *Box) Start(spec *BoxSpec) error {
 	if err := b.handleSpecChange(spec, true); err != nil {
 		return err
 	}
-	return lxc.Start(b.ContainerName(), b.MountName())
+	if err := lxc.Start(b.ContainerName(), b.MountName()); err != nil {
+		return err
+	}
+	return lxc.Wait(b.MountName(), lxc.RUNNING, b.boxer.StartTimeout)
 }
 
 // implementation of lxc-shutdown
@@ -208,12 +211,21 @@ func (b *Box) Stop() error {
 	)(time.Now())
 	if err := b.unsetPortForwarding(); err != nil {
 		// ignore error from unset port forwarding here as its not harmful
-		logger.Printf("%s:Destroy - unsetPortForwarding %v \n", err)
+		logger.Printf("%s:Destroy - unsetPortForwarding %v \n",
+			b.ContainerName(), err)
 	}
-	if lxc.Poweroff(b.MountName()) != nil {
+	if err := lxc.Poweroff(b.MountName()); err != nil {
+		logger.Printf("%s:Poweroff - err: %v\n", b.ContainerName(), err)
+		return err
+	}
+	timeout := b.boxer.StopTimeout
+	if err := lxc.Wait(b.MountName(), lxc.STOPPED, timeout); err != nil {
 		utils.RunCommand("pkill", "-u", b.Uid())
 		if err := lxc.Stop(b.MountName()); err != nil {
 			return fmt.Errorf("lxc-stop failed %s: %v", b.MountName(), err)
+		}
+		if err := lxc.Wait(b.MountName(), lxc.STOPPED, timeout); err != nil {
+			return fmt.Errorf("lxc-stop timed out %s: %v", b.MountName(), err)
 		}
 	}
 	return b.Unmount(b.boxer.Root)
