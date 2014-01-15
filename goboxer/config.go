@@ -29,8 +29,8 @@ type Config struct {
 	CartmanPort     string            `json:"cartmanPort"`
 	PremiumCPUQuota float64           `json:"premiumCPUQuota"`
 	DefaultCPUQuota float64           `json:"defaultCPUQuota"`
-	StartTimeout    float64           `json:startTimeout` // in seconds
-	StopTimeout     float64           `json:stopTimeout`  // in seconds
+	StartTimeout    float64           `json:"startTimeout"` // in seconds
+	StopTimeout     float64           `json:"stopTimeout"`  // in seconds
 }
 
 func (c Config) RedisMQAddr() string {

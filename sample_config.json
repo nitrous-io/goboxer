@@ -23,5 +23,7 @@
     "test": "test_container_template"
   },
   "premiumCPUQuota": 1.0,
-  "defaultCPUQuota": 0.5
+  "defaultCPUQuota": 0.5,
+  "startTimeout": 30,
+  "stopTimeout": 30
 }
