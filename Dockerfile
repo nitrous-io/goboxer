@@ -13,10 +13,6 @@ ENV GOBOXER_USERNAME app_runner
 ENV HOME /home/${GOBOXER_USERNAME}
 ENV GOPATH ${HOME}/gocode
 
-
-# Set working directory to /var/apps/goboxer (that is where the app will be built from)
-WORKDIR /home/app_runner/goboxer
-
 RUN echo "deb http://archive.ubuntu.com/ubuntu precise main universe" > /etc/apt/sources.list
 RUN apt-get update
 
@@ -72,3 +68,6 @@ RUN \
    /usr/local/go/bin/go get &&\
    /usr/local/go/bin/go get launchpad.net/gocheck &&\
    chown -R $GOBOXER_USERNAME: ${HOME}/gocode
+
+# Set working directory to /home/app_runner/goboxer (that is where the app will be built from)
+WORKDIR /home/app_runner/goboxer
