@@ -17,7 +17,7 @@ RUN echo "deb http://archive.ubuntu.com/ubuntu precise main universe" > /etc/apt
 RUN apt-get update
 
 # Install global dependencies
-RUN apt-get install -yy build-essential autoconf curl wget git-core util-linux ntp tar
+RUN apt-get install -yy build-essential autoconf curl wget git-core util-linux ntp tar net-tools
 
 # Install goboxer/redis dependencies
 

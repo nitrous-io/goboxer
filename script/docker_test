@@ -4,10 +4,6 @@
 SCRIPT=$(readlink -f $0)
 SCRIPTPATH=$(dirname $SCRIPT)
 
-# Get Docker specific stuff installed first:
-
-apt-get install -yy net-tools
-
 # Run setup first:
 
 $SCRIPTPATH/setup
