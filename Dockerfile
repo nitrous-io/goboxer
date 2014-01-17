@@ -69,5 +69,5 @@ RUN \
    /usr/local/go/bin/go get launchpad.net/gocheck &&\
    chown -R $GOBOXER_USERNAME: ${HOME}/gocode
 
-# Set working directory to /home/app_runner/goboxer (that is where the app will be built from)
-WORKDIR /home/app_runner/goboxer
+# Set working directory to /home/app_runner
+WORKDIR /home/app_runner
