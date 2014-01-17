@@ -47,6 +47,11 @@ RUN dd if=/dev/zero of=$HOME/lxc_disk.img bs=1024 count=5000000
 RUN dd if=/dev/zero of=$HOME/xfs_disk.img bs=1024 count=5000000
 RUN dd if=/dev/zero of=$HOME/ext4_disk.img bs=1024 count=5000000
 
+# HACK: touch /etc/projid and /etc/projects to get a few tests to pass.
+
+RUN touch /etc/projects
+RUN touch /etc/projid
+
 # Get wrapdocker inside:
 
 ADD ./script/wrapdocker /usr/local/bin/wrapdocker

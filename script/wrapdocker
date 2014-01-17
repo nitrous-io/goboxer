@@ -7,6 +7,8 @@ CGROUP=/sys/fs/cgroup
 
 cat /proc/mounts > /etc/mtab
 
+mount -t tmpfs none /tmp
+
 [ -d $CGROUP ] ||
 	mkdir $CGROUP
 
