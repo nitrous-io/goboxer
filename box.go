@@ -239,7 +239,12 @@ func (b *Box) Destroy() error {
 	if err := b.UnsetQuota(); err != nil {
 		return err
 	}
-	return b.DeleteContainerData()
+	// if golang failed to remove container, drops into cmdline as it seems to
+	// work all the times. We just prefer to do it in golang first.
+	if err := b.DeleteContainerData(); err != nil {
+		return utils.RunCommand("rm", "-r", "-f", b.ContainerFS())
+	}
+	return nil
 }
 
 func (b *Box) UpdateAuth(auth BoxAuth) error {

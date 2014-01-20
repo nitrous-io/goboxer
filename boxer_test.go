@@ -17,6 +17,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -851,6 +852,43 @@ func (s *BoxerSuite) TestDestroy(c *C) {
 		defer conn.Close()
 		availableIp, _ := redis.String(conn.Do("RPOP", "aio:available_resources"))
 		c.Assert(availableIp, Equals, "192.168.254.2")
+	})
+}
+
+func (s *BoxerSuite) TestDestroyWithDeeplyNestedPath(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+		message, box := s.receiveMessages("mclovins-container-1", Message{
+			Id:         "testboxer",
+			BoxId:      1,
+			Type:       "aio:create",
+			Name:       "mclovins-container",
+			Runtime:    "test",
+			Memory:     "256M",
+			DiskSpace:  "1G",
+			PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
+		}, Message{
+			Id:    "testboxer",
+			BoxId: 1,
+			Type:  "aio:start",
+			Name:  "mclovins-container-1",
+		})
+		// create a deeply nested path
+		paths := []string{box.ContainerDeltaPath()}
+		for i := 0; i < 1000; i++ {
+			paths = append(paths, "holla")
+		}
+		path := filepath.Join(paths...)
+		exec.Command("mkdir", "-p", path).Run()
+
+		message, _ = s.receiveMessages("mclovins-container-1", Message{
+			Id:    "testboxer",
+			BoxId: 1,
+			Type:  "aio:destroy",
+			Name:  "mclovins-container-1",
+		})
+		c.Assert(message.Type, Equals, "aio:destroyed")
+		c.Assert(message.Success, Equals, true)
 	})
 }
 
