@@ -11,7 +11,7 @@ $script = <<SCRIPT
   # install a newer kernel
   apt-get install -q -y linux-image-generic-lts-raring linux-headers-generic-lts-raring
   apt-get install -yy build-essential
-  apt-get install lxc=1.0.0~alpha2+master~20131019-0306-0ubuntu1~ppa1~precise1
+  apt-get install -yy lxc=1.0.0~alpha2+master~20131019-0306-0ubuntu1~ppa1~precise1
   apt-get install -yy git-core bzr bridge-utils curl redis-server build-essential xfsprogs lvm2 iptables aufs-tools mercurial
   apt-get install -yy quotatool thin-provisioning-tools
   apt-get install -yy s3cmd
