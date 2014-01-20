@@ -28,9 +28,15 @@ func output(cmd string, args ...string) ([]byte, error) {
 	return exec.Command(cmd, args...).CombinedOutput()
 }
 
-func Stop(name string) error {
-	run("lxc-stop", "-n", name)
-	return waitForStatus(name, STOPPED, TIMEOUT)
+func Stop(namespace, containerName string) error {
+	logDir, err := createLogDir(namespace)
+	if err != nil {
+		return err
+	}
+	logFile := logDir + "/" + containerName + ".lxc-stop.log"
+
+	run("lxc-stop", "-n", containerName, "-o", logFile, "-l", "INFO")
+	return waitForStatus(containerName, STOPPED, TIMEOUT)
 }
 
 // this accepts a namespace and a containerName which will be used to log
@@ -39,12 +45,12 @@ func Stop(name string) error {
 // containerName is typically mclovins-container-1-123456 with 123456 is the
 // uniqueId
 func Start(namespace, containerName string) error {
-	logDir := LOG_PREFIX + namespace
-	if err := os.MkdirAll(logDir, 0755); err != nil {
+	logDir, err := createLogDir(namespace)
+	if err != nil {
 		return err
 	}
-	logFile := logDir + "/" + containerName + ".log"
-	// try to log as much as possible
+	logFile := logDir + "/" + containerName + ".lxc-start.log"
+
 	if err := run("lxc-start", "-d", "-n", containerName,
 		"-o", logFile, "-l", "INFO"); err != nil {
 		return err
@@ -64,7 +70,6 @@ func Poweroff(name string) error {
 	if err = syscall.Kill(pid, syscall.SIGPWR); err != nil {
 		return err
 	}
-	// SIGPWR cant stop the container, do the hard-work here
 	return waitForStatus(name, STOPPED, TIMEOUT)
 }
 
@@ -99,4 +104,12 @@ func getContainerPid(name string) (int, error) {
 func waitForStatus(name, expectedStatus string, timeout time.Duration) error {
 	cmd := exec.Command("lxc-wait", "-n", name, "-s", expectedStatus)
 	return utils.Exec(cmd, timeout)
+}
+
+func createLogDir(namespace string) (string, error) {
+	directory := LOG_PREFIX + namespace
+	if err := os.MkdirAll(directory, 0755); err != nil {
+		return "", err
+	}
+	return directory, nil
 }
