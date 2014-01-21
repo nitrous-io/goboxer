@@ -146,3 +146,17 @@ func (s *BoxSuite) TestCpuQuotaMicroseconds(c *C) {
 	b = &Box{CpuQuota: 0}
 	c.Assert(b.CpuQuotaMicroseconds(), Equals, 0)
 }
+
+func (s *BoxSuite) TestStringer(c *C) {
+	b := &Box{Id: 1, Name: "fogell", UniqueId: "1234", State: "stopped", Ip: "192.168.1.100", Port: 10000, Disk: "/lxc/disk1", MountMethod: "aufs", BoxerId: "testboxer", Premium: false}
+	c.Assert(b.String(), Contains, "Id:1")
+	c.Assert(b.String(), Contains, "Name:fogell")
+	c.Assert(b.String(), Contains, "UniqueId:1234")
+	c.Assert(b.String(), Contains, "State:stopped")
+	c.Assert(b.String(), Contains, "Ip:192.168.1.100")
+	c.Assert(b.String(), Contains, "Port:10000")
+	c.Assert(b.String(), Contains, "Disk:/lxc/disk1")
+	c.Assert(b.String(), Contains, "MountMethod:aufs")
+	c.Assert(b.String(), Contains, "BoxerId:testboxer")
+	c.Assert(b.String(), Contains, "Premium:false")
+}
