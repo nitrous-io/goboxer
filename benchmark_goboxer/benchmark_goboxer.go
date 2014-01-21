@@ -76,6 +76,12 @@ func main() {
 					fmt.Println("Failed to decode redis message", string(v.Data))
 				}
 				if message.Type == "aio:created" {
+					m := startMessage(message.BoxId)
+					_, err := pubConn.Do("PUBLISH", BOXER_CHANNEL, m)
+					if err != nil {
+						fmt.Println("Err", err)
+					}
+				} else if message.Type == "aio:started" {
 					dm := destroyMessage(message.BoxId)
 					_, err := pubConn.Do("PUBLISH", BOXER_CHANNEL, dm)
 					if err != nil {
@@ -119,6 +125,18 @@ func createMessage(id int) string {
 		Memory:     "384M",
 		DiskSpace:  "750M",
 		PublicKeys: []string{"ssh-rsa qwer", "ssh-rsa asdf"},
+	}
+	b, _ := json.Marshal(m)
+	return string(b)
+}
+
+// return json-formatted message to start a box
+func startMessage(id int) string {
+	m := goboxer.Message{
+		Type:  "aio:start",
+		Id:    config.BoxerId,
+		BoxId: id,
+		Name:  config.BoxName + "-" + strconv.Itoa(id),
 	}
 	b, _ := json.Marshal(m)
 	return string(b)

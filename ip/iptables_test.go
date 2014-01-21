@@ -3,7 +3,9 @@ package ip
 import (
 	. "launchpad.net/gocheck"
 	"os/exec"
+	"strconv"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -57,4 +59,19 @@ func (s *IptablesSuite) TestOpenCloseInVagrant(c *C) {
 	defer CloseInVagrant("80", "192.168.0.1", "10001")
 	c.Assert(prerouting.exists(), Equals, true)
 	c.Assert(output.exists(), Equals, true)
+}
+
+func (s *IptablesSuite) TestConcurrentIptablesOpenClose(c *C) {
+	var wg sync.WaitGroup
+	for i := 1; i < 100; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			port := strconv.Itoa(10000 + i)
+			ip := "192.168.0." + strconv.Itoa(i)
+			c.Assert(Open("80", ip, port), IsNil)
+			c.Assert(Close("80", ip, port), IsNil)
+		}(i)
+	}
+	wg.Wait()
 }
