@@ -3,7 +3,14 @@ package ip
 import (
 	"github.com/action-io/goboxer/utils"
 	"os/exec"
+	"sync"
 )
+
+type locker struct {
+	sync.Mutex
+}
+
+var lock = locker{}
 
 type natRule struct {
 	Chain string
@@ -28,17 +35,23 @@ func (n natRule) create() error {
 	if n.exists() {
 		return nil
 	}
+	lock.Lock()
+	defer lock.Unlock()
 	return utils.RunCommand("iptables", n.args("-A")...)
 }
 
 func (n natRule) destroy() error {
 	if n.exists() {
+		lock.Lock()
+		defer lock.Unlock()
 		return utils.RunCommand("iptables", n.args("-D")...)
 	}
 	return nil
 }
 
 func (n natRule) exists() bool {
+	lock.Lock()
+	defer lock.Unlock()
 	cmd := exec.Command("iptables", n.args("-C")...)
 	cmd.Run()
 	return cmd.ProcessState.Success()
