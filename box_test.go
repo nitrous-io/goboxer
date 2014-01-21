@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"github.com/action-io/goboxer/utils"
 	. "launchpad.net/gocheck"
+	"strings"
 )
 
 type BoxSuite struct{}
@@ -145,4 +146,18 @@ func (s *BoxSuite) TestCpuQuotaMicroseconds(c *C) {
 	c.Assert(b.CpuQuotaMicroseconds(), Equals, 1000000)
 	b = &Box{CpuQuota: 0}
 	c.Assert(b.CpuQuotaMicroseconds(), Equals, 0)
+}
+
+func (s *BoxSuite) TestStringer(c *C) {
+	b := &Box{Id: 1, Name: "fogell", UniqueId: "1234", State: "stopped", Ip: "192.168.1.100", Port: 10000, Disk: "/lxc/disk1", MountMethod: "aufs", BoxerId: "testboxer", Premium: false}
+	c.Assert(strings.Contains(b.String(), "Id:1"), Equals, true)
+	c.Assert(strings.Contains(b.String(), "Name:fogell"), Equals, true)
+	c.Assert(strings.Contains(b.String(), "UniqueId:1234"), Equals, true)
+	c.Assert(strings.Contains(b.String(), "State:stopped"), Equals, true)
+	c.Assert(strings.Contains(b.String(), "Ip:192.168.1.100"), Equals, true)
+	c.Assert(strings.Contains(b.String(), "Port:10000"), Equals, true)
+	c.Assert(strings.Contains(b.String(), "Disk:/lxc/disk1"), Equals, true)
+	c.Assert(strings.Contains(b.String(), "MountMethod:aufs"), Equals, true)
+	c.Assert(strings.Contains(b.String(), "BoxerId:testboxer"), Equals, true)
+	c.Assert(strings.Contains(b.String(), "Premium:false"), Equals, true)
 }

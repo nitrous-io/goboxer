@@ -912,3 +912,18 @@ func (b *Box) generateUniqueId() error {
 	b.UniqueId = strconv.FormatInt(time.Now().UnixNano(), 10)
 	return b.boxer.ResourcePool.SaveBox(b)
 }
+
+func (b *Box) String() string {
+	return fmt.Sprintf("&{Id:%v Name:%v UniqueId:%v State:%v Ip:%v Port:%v Disk:%v MountMethod:%v BoxerId:%v Premium:%v}",
+		b.Id,
+		b.Name,
+		b.UniqueId,
+		b.State,
+		b.Ip,
+		b.Port,
+		b.Disk,
+		b.MountMethod,
+		b.BoxerId,
+		b.Premium,
+	)
+}
