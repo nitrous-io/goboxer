@@ -5,6 +5,7 @@ package lxc
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"strconv"
@@ -37,6 +38,7 @@ func Stop(namespace, containerName string) error {
 	// if the container is stopped, then we dont have to stop it again
 	status, _ := Status(containerName)
 	if strings.ToLower(status) == "stopped" {
+		log.Printf("goboxer: Stop a stopped container %v\n", containerName)
 		return nil
 	}
 	run("lxc-stop", "-n", containerName, "-o", logFile, "-l", "INFO")
@@ -57,6 +59,7 @@ func Start(namespace, containerName string) error {
 	// if the container is running, then we dont have to start it again
 	status, _ := Status(containerName)
 	if strings.ToLower(status) == "running" {
+		log.Printf("goboxer: Start a running container %v\n", containerName)
 		return nil
 	}
 	if err := run("lxc-start", "-d", "-n", containerName,
