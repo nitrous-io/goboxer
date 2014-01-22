@@ -34,7 +34,11 @@ func Stop(namespace, containerName string) error {
 		return err
 	}
 	logFile := logDir + "/" + containerName + ".lxc-stop.log"
-
+	// if the container is stopped, then we dont have to stop it again
+	status, _ := Status(containerName)
+	if strings.ToLower(status) == "stopped" {
+		return nil
+	}
 	run("lxc-stop", "-n", containerName, "-o", logFile, "-l", "INFO")
 	return waitForStatus(containerName, STOPPED, TIMEOUT)
 }
@@ -50,7 +54,11 @@ func Start(namespace, containerName string) error {
 		return err
 	}
 	logFile := logDir + "/" + containerName + ".lxc-start.log"
-
+	// if the container is running, then we dont have to start it again
+	status, _ := Status(containerName)
+	if strings.ToLower(status) == "running" {
+		return nil
+	}
 	if err := run("lxc-start", "-d", "-n", containerName,
 		"-o", logFile, "-l", "INFO"); err != nil {
 		return err
