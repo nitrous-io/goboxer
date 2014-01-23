@@ -71,6 +71,11 @@ lxc.utsname = {{.ContainerName}}
 {{$ROOTFS := .RootFS}}
 lxc.rootfs = {{$ROOTFS}}
 lxc.mount  = {{$LXCPATH}}/fstab
+
+# lxc >= 1.0.0 needs this to start
+lxc.mount.entry = /sys/fs/fuse/connections sys/fs/fuse/connections none bind,optional 0 0
+lxc.mount.entry = /sys/kernel/debug sys/kernel/debug none bind,optional 0 0
+lxc.mount.entry = /sys/kernel/security sys/kernel/security none bind,optional 0 0
 `
 const NetworkConfigTemplate = `
 auto lo
