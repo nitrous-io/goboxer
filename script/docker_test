@@ -4,6 +4,12 @@
 SCRIPT=$(readlink -f $0)
 SCRIPTPATH=$(dirname $SCRIPT)
 
+# Get some pre-setup stuff setup first
+
+chroot /var/lib/lxc/base_container_template/rootfs useradd action -m -s /bin/bash -d /home/action
+chroot /var/lib/lxc/base_container_template/rootfs rm -rf /dev/null
+chroot /var/lib/lxc/base_container_template/rootfs mknod -m 666 /dev/null c 1 3
+
 # Run setup first:
 
 cd $SCRIPTPATH/.. && $SCRIPTPATH/setup
