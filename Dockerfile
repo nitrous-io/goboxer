@@ -47,12 +47,6 @@ RUN dd if=/dev/zero of=$HOME/lxc_disk.img bs=1024 count=5000000
 RUN dd if=/dev/zero of=$HOME/xfs_disk.img bs=1024 count=5000000
 RUN dd if=/dev/zero of=$HOME/ext4_disk.img bs=1024 count=5000000
 
-# Get template created ahead of time
-
-ADD ./script/lxc_default.conf /tmp/lxc_default.conf
-
-RUN lxc-create -n base_container_template -t ubuntu -f /tmp/lxc_default.conf -- -r precise
-
 # HACK: touch /etc/projid and /etc/projects to get a few tests to pass.
 
 RUN touch /etc/projects
