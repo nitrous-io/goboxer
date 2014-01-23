@@ -73,19 +73,19 @@ func Start(namespace, containerName string) error {
 
 // send SIGPWR to the init process of the container to poweroff the container
 func Poweroff(name string) error {
-	fmt.Sprintf("REMOVEME: Setting pid, err for %s", name)
+	logger.Printf("REMOVEME: Setting pid, err for %s", name)
 	pid, err := getContainerPid(name)
-	fmt.Sprintf("REMOVEME: pid: %s, err: %s", pid, err)
+	logger.Printf("REMOVEME: pid: %s, err: %s", pid, err)
 	// if we cant find pid, the container is probably not running
 	if err != nil || pid == -1 {
-		fmt.Sprintf("REMOVEME: err != nil || pid == -1")
+		logger.Printf("REMOVEME: err != nil || pid == -1")
 		return nil
 	}
 	if err = syscall.Kill(pid, syscall.SIGPWR); err != nil {
-		fmt.Sprintf("REMOVEME: err = syscall.Kill(pid, syscall.SIGPWR); err != nil")
+		logger.Printf("REMOVEME: err = syscall.Kill(pid, syscall.SIGPWR); err != nil")
 		return err
 	}
-	fmt.Sprintf("REMOVEME: waitForStatus(name, STOPPED, TIMEOUT)")
+	logger.Printf("REMOVEME: waitForStatus(name, STOPPED, TIMEOUT)")
 	return waitForStatus(name, STOPPED, TIMEOUT)
 }
 
