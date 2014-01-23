@@ -70,7 +70,12 @@ lxc.utsname = {{.ContainerName}}
 {{$LXCPATH := .LxcPath}}
 {{$ROOTFS := .RootFS}}
 lxc.rootfs = {{$ROOTFS}}
-lxc.mount  = {{$LXCPATH}}/fstab
+lxc.mount.entry = proc proc proc nodev,noexec,nosuid 0 0
+lxc.mount.entry = sysfs sys sysfs defaults 0 0
+lxc.mount.entry = /sys/fs/fuse/connections sys/fs/fuse/connections none bind,optional 0 0
+lxc.mount.entry = /sys/kernel/debug sys/kernel/debug none bind 0 0
+lxc.mount.entry = /sys/kernel/security sys/kernel/security none bind 0 0
+
 `
 const NetworkConfigTemplate = `
 auto lo
