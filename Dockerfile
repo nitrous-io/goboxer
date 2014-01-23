@@ -49,7 +49,9 @@ RUN dd if=/dev/zero of=$HOME/ext4_disk.img bs=1024 count=5000000
 
 # Get template created ahead of time
 
-RUN lxc-create -n base_container_template -t ubuntu -f $HOME/goboxer/script/lxc_default.conf -- -r precise
+ADD ./script/lxc_default.conf /tmp/lxc_default.conf
+
+RUN lxc-create -n base_container_template -t ubuntu -f /tmp/lxc_default.conf -- -r precise
 RUN chroot /var/lib/lxc/base_container_template/rootfs useradd action -m -s /bin/bash -d /home/action
 RUN chroot /var/lib/lxc/base_container_template/rootfs rm -rf /dev/null
 RUN chroot /var/lib/lxc/base_container_template/rootfs mknod -m 666 /dev/null c 1 3
