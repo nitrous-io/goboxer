@@ -6,12 +6,12 @@ SCRIPTPATH=$(dirname $SCRIPT)
 
 # Run setup first:
 
-$SCRIPTPATH/setup
+cd $SCRIPTPATH/.. && $SCRIPTPATH/setup
 
 # Then other setup stuff (because fucking Docker. How else are we going
 # to start redis-server sanely?):
 
-$SCRIPTPATH/wrapdocker
+cd $SCRIPTPATH/.. && $SCRIPTPATH/wrapdocker
 
 /etc/init.d/redis-server start
 
