@@ -81,6 +81,15 @@ type Box struct {
 	boxer *Boxer
 }
 
+type BoxOpError struct {
+	Op  string // Box operation.
+	Err error
+}
+
+func (e *BoxOpError) Error() string {
+	return "box " + e.Op + ": " + e.Err.Error()
+}
+
 // Given a []byte representation of json, convert it into a box instance
 func BoxFromJSON(boxJSON []byte) (*Box, error) {
 	box := &Box{}
@@ -130,40 +139,40 @@ func (b *Box) Create() error {
 		fmt.Sprintf("%s:Create", b.ContainerName()),
 	)(time.Now())
 	if err := b.generateUniqueId(); err != nil {
-		return err
+		return &BoxOpError{Op: "generate unique ID", Err: err}
 	}
 	if err := b.Mount(b.boxer.Root); err != nil {
 		return err
 	}
 	if err := b.writeConfig(); err != nil {
-		return err
+		return &BoxOpError{Op: "write lxc config", Err: err}
 	}
 	if err := b.extractTemplate(); err != nil {
-		return err
+		return &BoxOpError{Op: "extract template", Err: err}
 	}
 	if err := b.setEtcAction(); err != nil {
-		return err
+		return &BoxOpError{Op: "create /etc/action", Err: err}
 	}
 	if err := b.UpdatePremiumStatus(); err != nil {
 		return err
 	}
 	if err := b.setHostname(); err != nil {
-		return err
+		return &BoxOpError{Op: "set host name", Err: err}
 	}
 	if err := b.setHosts(); err != nil {
-		return err
+		return &BoxOpError{Op: "set /etc/hosts", Err: err}
 	}
 	if err := b.setNetworkInterface(); err != nil {
-		return err
+		return &BoxOpError{Op: "set network interface", Err: err}
 	}
 	if err := b.setWorkspace(); err != nil {
-		return err
+		return &BoxOpError{Op: "set workspace", Err: err}
 	}
 	if err := b.setDefaultKeyPair(); err != nil {
-		return err
+		return &BoxOpError{Op: "set default key pair", Err: err}
 	}
 	if err := b.setPermission(); err != nil {
-		return err
+		return &BoxOpError{Op: "set permission", Err: err}
 	}
 	// as the initial lvm volume is created in mount step, we dont need to
 	// reset quota here
@@ -184,16 +193,20 @@ func (b *Box) Start(spec *BoxSpec) error {
 		return err
 	}
 	if err := b.WritePublicKeys(); err != nil {
-		return err
+		return &BoxOpError{Op: "write public keys", Err: err}
 	}
 	if err := b.setPortForwarding(); err != nil {
-		return err
+		return &BoxOpError{Op: "set port forwarding", Err: err}
 	}
 	// this change spec without restarting the box
 	if err := b.handleSpecChange(spec, true); err != nil {
-		return err
+		return &BoxOpError{Op: "spec change", Err: err}
 	}
-	return lxc.Start(b.ContainerName(), b.MountName())
+	err := lxc.Start(b.ContainerName(), b.MountName())
+	if err != nil {
+		return &BoxOpError{Op: "lxc-start " + b.MountName(), Err: err}
+	}
+	return nil
 }
 
 // implementation of lxc-shutdown
@@ -208,12 +221,12 @@ func (b *Box) Stop() error {
 	)(time.Now())
 	if err := b.unsetPortForwarding(); err != nil {
 		// ignore error from unset port forwarding here as its not harmful
-		logger.Printf("%s:Destroy - unsetPortForwarding %v \n", err)
+		logger.Printf("%v", &BoxOpError{Op: "unset port forwarding", Err: err})
 	}
 	if lxc.Poweroff(b.MountName()) != nil {
 		utils.RunCommand("pkill", "-u", b.Uid())
 		if err := lxc.Stop(b.ContainerName(), b.MountName()); err != nil {
-			return fmt.Errorf("lxc-stop failed %s: %v", b.MountName(), err)
+			return &BoxOpError{Op: "lxc-stop " + b.MountName(), Err: err}
 		}
 	}
 	return b.Unmount(b.boxer.Root)
@@ -237,7 +250,7 @@ func (b *Box) Destroy() error {
 		return err
 	}
 	if err := b.UnsetQuota(); err != nil {
-		return err
+		return &BoxOpError{Op: "unset quota", Err: err}
 	}
 	return b.DeleteContainerData()
 }
@@ -544,34 +557,40 @@ func (b *Box) Mount(root string) error {
 		boxPath := b.ContainerFS()
 		baseContainerPath := path.Join(b.Disk, "base_container_template")
 		if err := mount.Union(b.getMountMethod(), boxPath, boxDeltaPath, baseContainerPath); err != nil {
-			return fmt.Errorf("box:Mount failed %v", err)
+			return &BoxOpError{Op: "overlayfs/aufs mount", Err: err}
 		}
 		// FIXME: MountBind to make it similar to boxer. Ideally we probably
 		// want to symlink as it doesnt make any difference and seems to be
 		// more stable. Less mountpoint is better
-		return mount.MountBind(boxPath, lxcBoxPath)
+		err := mount.MountBind(boxPath, lxcBoxPath)
+		if err != nil {
+			return &BoxOpError{Op: "overlayfs/aufs mount-bind", Err: err}
+		}
+		return err
 	case "lvm":
 		// lvm strategy
 		// we are going to create an independent thin pool lv with size equals
 		// to DiskSpace, format it as ext4 volume and mount the volume as the
 		// box delta folder
-		if err := lvm.CreateVolume(b.SelectedVG, THIN_VG, b.DiskSpace,
-			b.ContainerName()); err != nil {
-			return err
+		if err := lvm.CreateVolume(b.SelectedVG, THIN_VG, b.DiskSpace, b.ContainerName()); err != nil {
+			return &BoxOpError{Op: "lvm create volume", Err: err}
 		}
 		deviceName := fmt.Sprintf("/dev/%s/%s", b.SelectedVG, b.ContainerName())
 		device := fs.Ext4Device{Name: deviceName, BytesPerInode: "8192"}
 		if err := fs.MkfsExt4(device); err != nil {
-			return err
+			return &BoxOpError{Op: "lvm mkfs", Err: err}
 		}
 		baseContainerPath := path.Join(root, "base_container_template")
-		err := mount.Mount(deviceName, boxDeltaPath, "ext4")
-		if err != nil {
-			return err
+		if err := mount.Mount(deviceName, boxDeltaPath, "ext4"); err != nil {
+			return &BoxOpError{Op: "lvm mount", Err: err}
 		}
-		return mount.Union("aufs", lxcBoxPath, boxDeltaPath, baseContainerPath)
+		err := mount.Union("aufs", lxcBoxPath, boxDeltaPath, baseContainerPath)
+		if err != nil {
+			return &BoxOpError{Op: "lvm mount union", Err: err}
+		}
+		return nil
 	default:
-		return fmt.Errorf("%s is not a supported mount method", mountMethod)
+		return fmt.Errorf("box: %s is not a supported mount method", mountMethod)
 	}
 }
 
@@ -587,20 +606,19 @@ func (b *Box) Unmount(root string) error {
 	defer b.generateUniqueId()
 	mountMethod := b.getMountMethod()
 	if err := mount.Unmount(mountMethod, b.LxcPath()); err != nil {
-		logger.Println("Unmount: err %v", err)
+		logger.Println(&BoxOpError{Op: mountMethod + " unmount", Err: err})
 	}
 	switch mountMethod {
 	case "overlayfs", "aufs":
 		if err := mount.Unmount(mountMethod, b.ContainerFS()); err != nil {
-			logger.Println("Unmount: err %v", err)
+			logger.Println(&BoxOpError{Op: mountMethod + " unmount", Err: err})
 		}
 	case "lvm":
 		if err := mount.Unmount(mountMethod, b.ContainerDeltaPath()); err != nil {
-			logger.Println("Unmount: err %v", err)
+			logger.Println(&BoxOpError{Op: mountMethod + " unmount", Err: err})
 		}
 	default:
-		return fmt.Errorf("%s is not a supported unmount method",
-			mountMethod)
+		return fmt.Errorf("%s is not a supported unmount method", mountMethod)
 	}
 	return nil
 }
@@ -608,7 +626,7 @@ func (b *Box) Unmount(root string) error {
 func (b *Box) DeleteContainerData() error {
 	if b.getMountMethod() == "lvm" {
 		if err := lvm.DestroyVolume(b.SelectedVG, b.ContainerName()); err != nil {
-			return err
+			return &BoxOpError{Op: "lvm destroy volume", Err: err}
 		}
 	}
 	// if golang failed to remove container, drops into cmdline as it seems to
@@ -616,10 +634,14 @@ func (b *Box) DeleteContainerData() error {
 	if err := os.RemoveAll(b.ContainerDeltaPath()); err != nil {
 		err = utils.RunCommand("rm", "-r", "-f", b.ContainerDeltaPath())
 		if err != nil {
-			return err
+			return &BoxOpError{Op: "remove container delta", Err: err}
 		}
 	}
-	return os.RemoveAll(b.ContainerFS())
+	err := os.RemoveAll(b.ContainerFS())
+	if err != nil {
+		return &BoxOpError{Op: "remove container FS", Err: err}
+	}
+	return nil
 }
 
 // Return current memory usage of the box as memory cgroup reported it
@@ -715,7 +737,7 @@ func (b *Box) handleSpecChange(spec *BoxSpec, forceWriteConfig bool) error {
 	}
 	if willWriteConfig || forceWriteConfig {
 		if err := b.writeConfig(); err != nil {
-			return err
+			return &BoxOpError{Op: "write lxc config", Err: err}
 		}
 	}
 	if len(spec.DiskSpace) > 0 && spec.DiskSpace != b.DiskSpace {
@@ -723,7 +745,7 @@ func (b *Box) handleSpecChange(spec *BoxSpec, forceWriteConfig bool) error {
 		b.DiskSpace = spec.DiskSpace
 		if err := b.SetQuota(); err != nil {
 			b.DiskSpace = oldDiskSpace
-			return err
+			return &BoxOpError{Op: "set disk quota", Err: err}
 		}
 	}
 	return nil
