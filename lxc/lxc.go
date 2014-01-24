@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/action-io/goboxer/utils"
-	"log" // REMOVEME
 )
 
 const TIMEOUT = 30 * time.Second
