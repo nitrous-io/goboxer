@@ -16,4 +16,4 @@ cd $SCRIPTPATH/.. && $SCRIPTPATH/wrapdocker
 /etc/init.d/redis-server start
 
 # Now run tests:
-cd $SCRIPTPATH/.. && go test
+cd $SCRIPTPATH/.. && go test -timeout 3000
