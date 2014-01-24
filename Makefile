@@ -9,10 +9,10 @@ ERROR_COLOR=\033[31;01m
 WARN_COLOR=\033[33;01m
 
 test:
-	@./script/test
+	@sudo GOPATH=${GOPATH} ./script/test
 
 test_log:
-	@./script/test 2> test.log
+	@sudo ./script/test 2> test.log
 
 build:
 	@mkdir -p bin/
