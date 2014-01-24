@@ -88,7 +88,7 @@ func (s *BoxerSuite) insertResource(ip, gateway, networkInterface, port string) 
 func (s *BoxerSuite) assertBoxState(c *C, b *Box, state string) {
 	state = strings.ToLower(state)
 	c.Assert(b.State, Equals, state)
-	stdout, _ := exec.Command("sudo", "lxc-info", "-n", b.MountName()).CombinedOutput()
+	stdout, _ := exec.Command("lxc-info", "-n", b.MountName()).CombinedOutput()
 	info := strings.ToLower(string(stdout))
 	c.Assert(strings.Contains(info, state), Equals, true)
 }
@@ -158,18 +158,22 @@ type testFunction func(s *BoxerSuite, c *C, stratName string, stratValue testPro
 
 func (s *BoxerSuite) testEachStrategy(c *C, test testFunction) {
 	for stratName, stratValue := range strategies {
-		conn := s.Redis.Get()
-		conn.Do("FLUSHDB")
-		s.insertResource("192.168.254.2", "192.168.254.1", "br-lxc-254", "10002")
-		conn.Close()
+		func() {
+			conn := s.Redis.Get()
+			conn.Do("FLUSHDB")
+			defer func() {
+				boxes, _ := s.ResourcePool.FindAllBoxes()
+				for _, box := range boxes {
+					box.boxer = s.Boxer
+					box.Destroy()
+				}
+			}()
+			s.insertResource("192.168.254.2", "192.168.254.1", "br-lxc-254", "10002")
+			conn.Close()
 
-		s.mergeProvisionStrategy(stratValue)
-		test(s, c, stratName, stratValue)
-		boxes, _ := s.ResourcePool.FindAllBoxes()
-		for _, box := range boxes {
-			box.boxer = s.Boxer
-			box.Destroy()
-		}
+			s.mergeProvisionStrategy(stratValue)
+			test(s, c, stratName, stratValue)
+		}()
 	}
 }
 
