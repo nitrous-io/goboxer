@@ -217,7 +217,6 @@ func (b *Box) Start(spec *BoxSpec) error {
 // processes as sometimes defunct processes can stop the container from
 // shutting down, then stop the container again
 func (b *Box) Stop() error {
-	logger.Printf("REMOVEME: Entered Stop()")
 	defer logger.LogDuration(
 		fmt.Sprintf("%s:Stop %s", b.ContainerName(), b.MountName()),
 	)(time.Now())
@@ -226,7 +225,6 @@ func (b *Box) Stop() error {
 		logger.Printf("%v", &BoxOpError{Op: "unset port forwarding", Err: err})
 	}
 	if lxc.Poweroff(b.MountName()) != nil {
-		logger.Printf("REMOVEME: pkill -u %s", b.Uid())
 		utils.RunCommand("pkill", "-u", b.Uid())
 		if err := lxc.Stop(b.ContainerName(), b.MountName()); err != nil {
 			return &BoxOpError{Op: "lxc-stop " + b.MountName(), Err: err}
