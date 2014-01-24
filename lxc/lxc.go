@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/action-io/goboxer/utils"
+	"log" // REMOVEME
 )
 
 const TIMEOUT = 30 * time.Second
@@ -73,19 +74,19 @@ func Start(namespace, containerName string) error {
 
 // send SIGPWR to the init process of the container to poweroff the container
 func Poweroff(name string) error {
-	logger.Printf("REMOVEME: Setting pid, err for %s", name)
+	log.Printf("REMOVEME: Setting pid, err for %s", name)
 	pid, err := getContainerPid(name)
-	logger.Printf("REMOVEME: pid: %s, err: %s", pid, err)
+	log.Printf("REMOVEME: pid: %s, err: %s", pid, err)
 	// if we cant find pid, the container is probably not running
 	if err != nil || pid == -1 {
-		logger.Printf("REMOVEME: err != nil || pid == -1")
+		log.Printf("REMOVEME: err != nil || pid == -1")
 		return nil
 	}
 	if err = syscall.Kill(pid, syscall.SIGPWR); err != nil {
-		logger.Printf("REMOVEME: err = syscall.Kill(pid, syscall.SIGPWR); err != nil")
+		log.Printf("REMOVEME: err = syscall.Kill(pid, syscall.SIGPWR); err != nil")
 		return err
 	}
-	logger.Printf("REMOVEME: waitForStatus(name, STOPPED, TIMEOUT)")
+	log.Printf("REMOVEME: waitForStatus(name, STOPPED, TIMEOUT)")
 	return waitForStatus(name, STOPPED, TIMEOUT)
 }
 
