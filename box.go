@@ -691,28 +691,12 @@ func (b *Box) DeleteContainerData() error {
 // 1024 * 1024
 func (b *Box) MemoryUsageInBytes() (int, error) {
 	name := b.MountName()
-	filename := fmt.Sprintf("/sys/fs/cgroup/memory/lxc/%s/memory.usage_in_bytes",
-		name)
-	_, err := os.Stat(filename)
+	output, err := exec.Command("lxc-cgroup", "-n", name,
+		"memory.usage_in_bytes").CombinedOutput()
 	if err != nil {
-		if os.IsNotExist(err) {
-			alternate := fmt.Sprintf(
-				"/sys/fs/cgroup/memory/sysdefault/lxc/%s/memory.usage_in_bytes",
-				name)
-			content, err := ioutil.ReadFile(alternate)
-			if err == nil {
-				return strconv.Atoi(string(content))
-			}
-		}
-		logger.Printf("%s: Failed to read memory usage, err: %v", name, err)
 		return 0, err
 	}
-	content, err := ioutil.ReadFile(filename)
-	if err != nil {
-		logger.Printf("%s: Failed to read memory usage, err: %v\n", name, err)
-		return 0, err
-	}
-	return strconv.Atoi(strings.TrimSpace(string(content)))
+	return strconv.Atoi(strings.TrimSpace(string(output)))
 }
 
 func (b *Box) Info() (BoxInfo, error) {
