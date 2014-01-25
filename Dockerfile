@@ -35,6 +35,7 @@ RUN useradd -U -m $GOBOXER_USERNAME
 RUN mkdir ${HOME}/gocode
 RUN chown $GOBOXER_USERNAME: ${HOME}/gocode
 RUN mkdir -p ${HOME}/gocode/src/github.com/action-io
+WORKDIR /home/app_runner
 
 # Disable udev for LVM:
 
@@ -73,6 +74,3 @@ RUN \
    /usr/local/go/bin/go get &&\
    /usr/local/go/bin/go get launchpad.net/gocheck &&\
    chown -R $GOBOXER_USERNAME: ${HOME}/gocode
-
-# Set working directory to /home/app_runner
-WORKDIR /home/app_runner
