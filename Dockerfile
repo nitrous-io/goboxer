@@ -32,10 +32,10 @@ RUN apt-get install -yy aufs-tools bridge-utils bzr redis-server xfsprogs lvm2 m
 # Create goboxer user
 
 RUN useradd -U -m $GOBOXER_USERNAME
+WORKDIR /home/app_runner
 RUN mkdir ${HOME}/gocode
 RUN chown $GOBOXER_USERNAME: ${HOME}/gocode
 RUN mkdir -p ${HOME}/gocode/src/github.com/action-io
-WORKDIR /home/app_runner
 
 # Disable udev for LVM:
 
