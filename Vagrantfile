@@ -24,8 +24,8 @@ $script = <<SCRIPT
 
   if [[ ! -f /usr/local/go/bin/go ]]; then
     install_go
-    echo "export PATH=/usr/local/go/bin:/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin" >> /etc/profile
     echo "export GOPATH=/home/vagrant/gocode" >> /etc/profile
+    echo "export PATH=$GOPATH/bin:/usr/local/go/bin:/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin" >> /etc/profile
   else
     if [[ ! $(go version | grep go1.2) ]]; then
       install_go
