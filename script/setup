@@ -2,7 +2,7 @@
 
 # setup lvm
 if [[ ! -f $HOME/lxc_disk.img ]]; then
-  dd if=/dev/zero of=$HOME/lxc_disk.img bs=1024 count=5000000
+  dd if=/dev/zero of=$HOME/lxc_disk.img bs=1024 count=1000000
 fi
 if [[ ! `losetup -a | grep /dev/loop0` ]]; then
   losetup /dev/loop0 $HOME/lxc_disk.img
@@ -13,7 +13,7 @@ lvcreate -L 4G --poolmetadatasize 200M --type thin-pool --thinpool boxes aio_box
 
 # setup xfs
 if [[ ! -f $HOME/xfs_disk.img ]]; then
-  dd if=/dev/zero of=$HOME/xfs_disk.img bs=1024 count=5000000
+  dd if=/dev/zero of=$HOME/xfs_disk.img bs=1024 count=1000000
 fi
 if [[ ! `losetup -a | grep /dev/loop1` ]]; then
   losetup /dev/loop1 $HOME/xfs_disk.img
@@ -27,7 +27,7 @@ mount -t xfs -o defaults,prjquota /dev/loop1 /lxc/disk1
 
 # setup ext4
 if [[ ! -f $HOME/ext4_disk.img ]]; then
-  dd if=/dev/zero of=$HOME/ext4_disk.img bs=1024 count=5000000
+  dd if=/dev/zero of=$HOME/ext4_disk.img bs=1024 count=1000000
 fi
 if [[ ! `losetup -a | grep /dev/loop2` ]]; then
   losetup /dev/loop2 $HOME/ext4_disk.img
