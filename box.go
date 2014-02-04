@@ -168,6 +168,9 @@ func (b *Box) Create() error {
 	if err := b.setWorkspace(); err != nil {
 		return &BoxOpError{Op: "set workspace", Err: err}
 	}
+	if err := b.addReadme(); err != nil {
+		return &BoxOpError{Op: "add readme", Err: err}
+	}
 	if err := b.setDefaultKeyPair(); err != nil {
 		return &BoxOpError{Op: "set default key pair", Err: err}
 	}
@@ -910,6 +913,16 @@ func (b *Box) setNetworkInterface() error {
 func (b *Box) setWorkspace() error {
 	workspacePath := path.Join(b.RootFS(), "home", "action", "workspace")
 	return os.MkdirAll(workspacePath, 0755)
+}
+
+func (b *Box) addReadme() error {
+	readmePath := path.Join(b.RootFS(), "home", "action", "README.md")
+	readme, err := os.Create(readmePath)
+	if err != nil {
+		return err
+	}
+	defer readme.Close()
+	return ReadmeTemplateCompiled.Execute(readme, b)
 }
 
 func (b *Box) setDefaultKeyPair() error {
