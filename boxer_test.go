@@ -246,6 +246,7 @@ func (s *BoxerSuite) TestCreateBox(c *C) {
 				root,
 				root + "/rootfs",
 				root + "/rootfs/home/action/workspace",
+				root + "/rootfs/home/action/README.md",
 				root + "/rootfs/home/action/.ssh",
 				root + "/rootfs/home/action/.ssh/id_rsa",
 				root + "/rootfs/home/action/.ssh/id_rsa.pub",
