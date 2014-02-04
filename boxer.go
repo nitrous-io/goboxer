@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"github.com/action-io/goboxer/cartman"
 	"github.com/action-io/goboxer/host"
+	"github.com/action-io/goboxer/s3"
 	"runtime"
 )
 
@@ -48,6 +49,9 @@ type Boxer struct {
 	Cartman         *cartman.Cartman
 	PremiumCPUQuota float64
 	DefaultCPUQuota float64
+	S3Auth          s3.AuthInterface
+	S3Region        string
+	S3Bucket        string
 }
 
 func (boxer *Boxer) Configure() {
