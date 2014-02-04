@@ -11,6 +11,7 @@ import (
 	"github.com/action-io/goboxer/cartman"
 	"github.com/action-io/goboxer/mount"
 	"github.com/action-io/goboxer/quota"
+	"github.com/action-io/goboxer/s3"
 	"github.com/garyburd/redigo/redis"
 	. "launchpad.net/gocheck"
 	"net/http"
@@ -108,6 +109,9 @@ func (s *BoxerSuite) mergeProvisionStrategy(p testProvisionStrategy) {
 	s.Boxer.SelectedDisk = p.SelectedDisk
 	s.Boxer.QuotaMethod = p.QuotaMethod
 	s.Boxer.SelectedVG = p.SelectedVG
+	s.Boxer.S3Auth = s3.AuthTest{}
+	s.Boxer.S3Region = "ap-southeast-1"
+	s.Boxer.S3Bucket = "staging-bucket"
 	s.Boxer.Configure()
 }
 
@@ -2085,5 +2089,31 @@ func (s *BoxerSuite) TestRemoveAuth(c *C) {
 		c.Assert(message.Success, Equals, true)
 		c.Assert(box.AuthUsername, Equals, "")
 		c.Assert(box.AuthPassword, Equals, "")
+	})
+}
+
+func (s *BoxerSuite) TestSnapshot(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+		message, _ := s.receiveMessages("mclovins-container-1", Message{
+			Id:         "testboxer",
+			BoxId:      1,
+			Type:       "aio:create",
+			Name:       "mclovins-container",
+			Runtime:    "test",
+			Memory:     "256M",
+			DiskSpace:  "1024M",
+			PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
+		}, Message{
+			Id:    "testboxer",
+			BoxId: 1,
+			Type:  "aio:snapshot",
+			Name:  "mclovins-container-1",
+		})
+
+		c.Assert(message.Success, Equals, true)
+		c.Assert(message.Type, Equals, "aio:snapshotted")
+		c.Assert(strings.Contains(message.SnapshotURL,
+			"s3://staging-bucket/mclovins-container-1"), Equals, true)
 	})
 }

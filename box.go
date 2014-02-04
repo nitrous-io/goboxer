@@ -258,6 +258,33 @@ func (b *Box) Destroy() error {
 	return b.DeleteContainerData()
 }
 
+func (b *Box) Snapshot() (snapshotUrl string, err error) {
+	defer logger.LogDuration(
+		fmt.Sprintf("%s:Snapshot %s", b.ContainerName(), b.MountName()),
+	)(time.Now())
+	tarName := fmt.Sprintf("%s-%v.tar.gz", b.ContainerName(), time.Now().Unix())
+	tarPath, err := Tar(tarName, b.ContainerDeltaPath())
+	if err != nil {
+		err = fmt.Errorf("Snapshot: failed to compress delta %v", err)
+		return
+	}
+	// delete the tar path after finishing the upload process success or not
+	defer os.RemoveAll(tarPath)
+	// upload tarPath to s3
+	boxer := b.boxer
+	client, err := boxer.S3Auth.NewClient(boxer.S3Region, boxer.S3Bucket)
+	if err != nil {
+		err = fmt.Errorf("Snapshot: failed to create s3 client %v", err)
+		return
+	}
+	snapshotUrl, err = client.Upload(tarName, tarPath)
+	if err != nil {
+		err = fmt.Errorf("Snapshot: failed to upload to s3 %v", err)
+		return
+	}
+	return
+}
+
 func (b *Box) UpdateAuth(auth BoxAuth) error {
 	b.AuthUsername = auth.Username
 	b.AuthPassword = auth.Password
