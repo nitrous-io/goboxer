@@ -922,6 +922,7 @@ func (b *Box) addReadme() error {
 		return err
 	}
 	defer readme.Close()
+	ReadmeTemplateCompiled.Parse(RuntimeTemplates[b.Runtime])
 	return ReadmeTemplateCompiled.Execute(readme, b)
 }
 

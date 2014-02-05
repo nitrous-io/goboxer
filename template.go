@@ -155,13 +155,18 @@ others.  You can read more about it here:
 
 http://help.nitrous.io/categories/deployment/
 
-{{ if eq .Runtime "test" }}
+{{template "runtime"}}
+`
+const TestTemplate = `
+{{define "runtime"}}
 ## Test Template
 
 This is the test template
+{{end}}
+`
 
-{{ else if eq .Runtime "rails" }}
-
+const RailsTemplate = `
+{{define "runtime"}}
 ## Ruby / Rails
 
 Ruby on this box is managed using [RVM](http://rvm.io) . You can install
@@ -175,9 +180,11 @@ This Ruby box also comes installed with Node.JS which is managed using
 you can upgrade/downgrade node.js here:
 
 https://github.com/creationix/nvm#usage
+{{end}}
+`
 
-{{ else if eq .Runtime "django" }}
-
+const DjangoTemplate = `
+{{template "runtime"}}
 ## Python
 
 This box comes installed with virtualenv and you can use other versions
@@ -188,9 +195,11 @@ http://help.nitrous.io/python-versions-with-virtualenv/
 You can also read more about creating a Django app here:
 
 http://help.nitrous.io/django-app/
+{{end}}
+`
 
-{{ else if eq .Runtime "nodejs" }}
-
+const NodejsTemplate = `
+{{template "runtime"}}
 ## Node.JS
 
 Node.JS on this box is managed using
@@ -206,16 +215,17 @@ http://help.nitrous.io/node-connect-server/
 Or deploying to Nodejitsu here:
 
 http://help.nitrous.io/nodejitsu/
+{{end}}
+`
 
-{{ else if eq .Runtime "go" }}
-
+const GoTemplate = `
+{{template "runtime"}}
 ## Go
 
 The Go binary is installed here:
 
 /home/action/.go/bin/go
-
-{{ end }}
+{{end}}
 `
 
 var NetworkConfigCompiled *template.Template
@@ -223,10 +233,17 @@ var LxcTemplateCompiled *template.Template
 var HostsTemplateCompiled *template.Template
 var ReadmeTemplateCompiled *template.Template
 
+var RuntimeTemplates map[string]string = map[string]string{
+	"test":   TestTemplate,
+	"rails":  RailsTemplate,
+	"django": DjangoTemplate,
+	"nodejs": NodejsTemplate,
+	"go":     GoTemplate,
+}
+
 func init() {
 	HostsTemplateCompiled = template.Must(template.New("hosts").Parse(HostsTemplate))
 	NetworkConfigCompiled = template.Must(template.New("network").Parse(NetworkConfigTemplate))
 	LxcTemplateCompiled = template.Must(template.New("lxc").Parse(LxcTemplate))
-
 	ReadmeTemplateCompiled = template.Must(template.New("readme").Parse(ReadmeTemplate))
 }
