@@ -41,7 +41,7 @@ func Stop(namespace, containerName string) error {
 		log.Printf("lxc: Stop() - container %v already stopped\n", containerName)
 		return nil
 	}
-	run("lxc-stop", "-n", containerName, "-o", logFile, "-l", "INFO")
+	run("lxc-stop", "-n", containerName, "-o", logFile, "-l", "INFO", "--kill")
 	return waitForStatus(containerName, STOPPED, TIMEOUT)
 }
 
