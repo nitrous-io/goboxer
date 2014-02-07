@@ -25,6 +25,7 @@ func init() {
 		"aio:destroy":      logger.LogHandler("aio:destroy", DestroyBoxHandler),
 		"aio:configure":    logger.LogHandler("aio:configure", ConfigureBoxHandler),
 		"aio:info_request": logger.LogHandler("aio:info_request", InfoRequestBoxHandler),
+		"aio:snapshot":     logger.LogHandler("aio:snapshot", SnapshotBoxHandler),
 	}
 }
 
@@ -502,6 +503,27 @@ func InfoRequestBoxHandler(m Message, boxer *Boxer) Message {
 		return message
 	}
 	message.Info = info
+	message.Success = true
+	return message
+}
+
+func SnapshotBoxHandler(m Message, boxer *Boxer) Message {
+	box, err := boxer.findBox(m.Name)
+	if err != nil {
+		return boxer.NewInvalidParamMessage()
+	}
+	message := Message{
+		Type:       "aio:snapshotted",
+		Id:         boxer.Id,
+		BoxId:      box.Id,
+		ReturnVars: m.ReturnVars,
+	}
+	url, err := box.Snapshot()
+	if err != nil {
+		message.Success = false
+		return message
+	}
+	message.SnapshotURL = url
 	message.Success = true
 	return message
 }
