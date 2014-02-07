@@ -9,6 +9,7 @@ import (
 	"github.com/action-io/goboxer/lxc"
 	"github.com/action-io/goboxer/mount"
 	"github.com/action-io/goboxer/quota"
+	"github.com/action-io/goboxer/s3"
 	"github.com/action-io/goboxer/utils"
 	"io/ioutil"
 	"os"
@@ -147,8 +148,34 @@ func (b *Box) Create() error {
 	if err := b.writeConfig(); err != nil {
 		return &BoxOpError{Op: "write lxc config", Err: err}
 	}
-	if err := b.extractTemplate(); err != nil {
-		return &BoxOpError{Op: "extract template", Err: err}
+	if len(b.SnapshotURL) > 0 {
+		// parse snapshot url which should be an s3 path
+		url, err := s3.ParseUrl(b.SnapshotURL)
+		if err != nil {
+			return err
+		}
+		client, err := b.boxer.S3Auth.NewClient(url.Region, url.Bucket)
+		if err != nil {
+			return err
+		}
+		stream, err := client.Download(url.File)
+		if err != nil {
+			return err
+		}
+		boxHomePath := path.Join(b.RootFS(), "home", "action")
+		if err := UntarStream(stream, boxHomePath); err != nil {
+			return err
+		}
+	} else {
+		if err := b.extractTemplate(); err != nil {
+			return &BoxOpError{Op: "extract template", Err: err}
+		}
+		if err := b.setWorkspace(); err != nil {
+			return &BoxOpError{Op: "set workspace", Err: err}
+		}
+		if err := b.addReadme(); err != nil {
+			return &BoxOpError{Op: "add readme", Err: err}
+		}
 	}
 	if err := b.setEtcAction(); err != nil {
 		return &BoxOpError{Op: "create /etc/action", Err: err}
@@ -164,12 +191,6 @@ func (b *Box) Create() error {
 	}
 	if err := b.setNetworkInterface(); err != nil {
 		return &BoxOpError{Op: "set network interface", Err: err}
-	}
-	if err := b.setWorkspace(); err != nil {
-		return &BoxOpError{Op: "set workspace", Err: err}
-	}
-	if err := b.addReadme(); err != nil {
-		return &BoxOpError{Op: "add readme", Err: err}
 	}
 	if err := b.setDefaultKeyPair(); err != nil {
 		return &BoxOpError{Op: "set default key pair", Err: err}
