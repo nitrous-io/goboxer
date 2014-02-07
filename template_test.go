@@ -63,7 +63,7 @@ func (s *TemplateSuite) TestReadmeTemplateWhichHasRuntimeMapping(c *C) {
 	box := &Box{
 		Id:               1,
 		Name:             "mclovins-container",
-		Runtime:          "test",
+		Runtime:          "django",
 		Template:         "test_container_template",
 		Memory:           "256M",
 		DiskSpace:        "1G",
@@ -80,7 +80,7 @@ func (s *TemplateSuite) TestReadmeTemplateWhichHasRuntimeMapping(c *C) {
 	checkContainsContent := map[string][]string{}
 	checkContainsContent[tmpFile.Name()] = []string{
 		"Welcome to Nitrous.IO",
-		"Test Template",
+		"## Python",
 	}
 	DoesContain(c, checkContainsContent)
 }

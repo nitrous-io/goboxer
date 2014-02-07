@@ -184,7 +184,7 @@ https://github.com/creationix/nvm#usage
 `
 
 const DjangoTemplate = `
-{{template "runtime"}}
+{{define "runtime"}}
 ## Python
 
 This box comes installed with virtualenv and you can use other versions
@@ -199,7 +199,7 @@ http://help.nitrous.io/django-app/
 `
 
 const NodejsTemplate = `
-{{template "runtime"}}
+{{define "runtime"}}
 ## Node.JS
 
 Node.JS on this box is managed using
@@ -219,7 +219,7 @@ http://help.nitrous.io/nodejitsu/
 `
 
 const GoTemplate = `
-{{template "runtime"}}
+{{define "runtime"}}
 ## Go
 
 The Go binary is installed here:
