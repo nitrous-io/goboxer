@@ -331,7 +331,7 @@ func (s *BoxerSuite) TestCreateWithSnapshot(c *C) {
 				root,
 				root + "/rootfs",
 				// because the stub s3 data has it
-				root + "/rootfs/home/action/test.txt",
+				root + "/test.txt",
 				root + "/rootfs/home/action/.ssh",
 				root + "/rootfs/home/action/.ssh/id_rsa",
 				root + "/rootfs/home/action/.ssh/id_rsa.pub",
