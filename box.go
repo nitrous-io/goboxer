@@ -143,35 +143,10 @@ func (b *Box) Create() error {
 		return &BoxOpError{Op: "generate unique ID", Err: err}
 	}
 	if err := b.Mount(b.boxer.Root); err != nil {
-		return err
+		return &BoxOpError{Op: "mount box", Err: err}
 	}
-	if len(b.SnapshotURL) > 0 {
-		// parse snapshot url which should be an s3 path
-		url, err := s3.ParseUrl(b.SnapshotURL)
-		if err != nil {
-			return err
-		}
-		client, err := b.boxer.S3Auth.NewClient(url.Region, url.Bucket)
-		if err != nil {
-			return err
-		}
-		stream, err := client.Download(url.File)
-		if err != nil {
-			return err
-		}
-		if err := UntarStream(stream, b.ContainerDeltaPath()); err != nil {
-			return err
-		}
-	} else {
-		if err := b.extractTemplate(); err != nil {
-			return &BoxOpError{Op: "extract template", Err: err}
-		}
-		if err := b.setWorkspace(); err != nil {
-			return &BoxOpError{Op: "set workspace", Err: err}
-		}
-		if err := b.addReadme(); err != nil {
-			return &BoxOpError{Op: "add readme", Err: err}
-		}
+	if err := b.generateUserContent(); err != nil {
+		return &BoxOpError{Op: "generate user content", Err: err}
 	}
 	if err := b.writeConfig(); err != nil {
 		return &BoxOpError{Op: "write lxc config", Err: err}
@@ -993,6 +968,40 @@ func (b *Box) setDefaultKeyPair() error {
 func (b *Box) generateUniqueId() error {
 	b.UniqueId = strconv.FormatInt(time.Now().UnixNano(), 10)
 	return b.boxer.ResourcePool.SaveBox(b)
+}
+
+// this is used in Create() to generate the user content for the box. User
+// content can come from a snapshot on s3, or from predefined template
+func (b *Box) generateUserContent() error {
+	if len(b.SnapshotURL) > 0 {
+		// parse snapshot url which should be an s3 path
+		url, err := s3.ParseUrl(b.SnapshotURL)
+		if err != nil {
+			return &BoxOpError{Op: "parse s3 url", Err: err}
+		}
+		client, err := b.boxer.S3Auth.NewClient(url.Region, url.Bucket)
+		if err != nil {
+			return &BoxOpError{Op: "create s3 client", Err: err}
+		}
+		stream, err := client.Download(url.File)
+		if err != nil {
+			return &BoxOpError{Op: "download s3 stream", Err: err}
+		}
+		if err := UntarStream(stream, b.ContainerDeltaPath()); err != nil {
+			return &BoxOpError{Op: "untar s3 stream", Err: err}
+		}
+	} else {
+		if err := b.extractTemplate(); err != nil {
+			return &BoxOpError{Op: "extract template", Err: err}
+		}
+		if err := b.setWorkspace(); err != nil {
+			return &BoxOpError{Op: "set workspace", Err: err}
+		}
+		if err := b.addReadme(); err != nil {
+			return &BoxOpError{Op: "add readme", Err: err}
+		}
+	}
+	return nil
 }
 
 func (b *Box) String() string {
