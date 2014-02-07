@@ -1,6 +1,7 @@
 package goboxer
 
 import (
+	"fmt"
 	"text/template"
 )
 
@@ -154,19 +155,17 @@ cloud services such as Heroku, Google App Engine, Nodejitsu, Azure and
 others.  You can read more about it here:
 
 http://help.nitrous.io/categories/deployment/
-
-{{template "runtime"}}
 `
-const TestTemplate = `
-{{define "runtime"}}
+
+var TestTemplate = fmt.Sprintf(`
+%s
 ## Test Template
 
 This is the test template
-{{end}}
-`
+`, ReadmeTemplate)
 
-const RailsTemplate = `
-{{define "runtime"}}
+var RailsTemplate = fmt.Sprintf(`
+%s
 ## Ruby / Rails
 
 Ruby on this box is managed using [RVM](http://rvm.io) . You can install
@@ -180,11 +179,10 @@ This Ruby box also comes installed with Node.JS which is managed using
 you can upgrade/downgrade node.js here:
 
 https://github.com/creationix/nvm#usage
-{{end}}
-`
+`, ReadmeTemplate)
 
-const DjangoTemplate = `
-{{define "runtime"}}
+var DjangoTemplate = fmt.Sprintf(`
+%s
 ## Python
 
 This box comes installed with virtualenv and you can use other versions
@@ -195,11 +193,10 @@ http://help.nitrous.io/python-versions-with-virtualenv/
 You can also read more about creating a Django app here:
 
 http://help.nitrous.io/django-app/
-{{end}}
-`
+`, ReadmeTemplate)
 
-const NodejsTemplate = `
-{{define "runtime"}}
+var NodejsTemplate = fmt.Sprintf(`
+%s
 ## Node.JS
 
 Node.JS on this box is managed using
@@ -215,35 +212,58 @@ http://help.nitrous.io/node-connect-server/
 Or deploying to Nodejitsu here:
 
 http://help.nitrous.io/nodejitsu/
-{{end}}
-`
+`, ReadmeTemplate)
 
-const GoTemplate = `
-{{define "runtime"}}
+var GoTemplate = fmt.Sprintf(`
+%s
 ## Go
 
 The Go binary is installed here:
 
 /home/action/.go/bin/go
-{{end}}
-`
+`, ReadmeTemplate)
 
 var NetworkConfigCompiled *template.Template
 var LxcTemplateCompiled *template.Template
 var HostsTemplateCompiled *template.Template
-var ReadmeTemplateCompiled *template.Template
 
-var RuntimeTemplates map[string]string = map[string]string{
-	"test":   TestTemplate,
-	"rails":  RailsTemplate,
-	"django": DjangoTemplate,
-	"nodejs": NodejsTemplate,
-	"go":     GoTemplate,
+var (
+	ReadmeTemplateCompiled *template.Template
+	TestTemplateCompiled   *template.Template
+	RailsTemplateCompiled  *template.Template
+	DjangoTemplateCompiled *template.Template
+	NodejsTemplateCompiled *template.Template
+	GoTemplateCompiled     *template.Template
+	RuntimeTemplates       ReadmeTemplates
+)
+
+type ReadmeTemplates map[string]*template.Template
+
+func (r ReadmeTemplates) Get(name string) *template.Template {
+	t, ok := r[name]
+	if !ok {
+		return ReadmeTemplateCompiled
+	}
+	return t
 }
 
 func init() {
 	HostsTemplateCompiled = template.Must(template.New("hosts").Parse(HostsTemplate))
 	NetworkConfigCompiled = template.Must(template.New("network").Parse(NetworkConfigTemplate))
 	LxcTemplateCompiled = template.Must(template.New("lxc").Parse(LxcTemplate))
-	ReadmeTemplateCompiled = template.Must(template.New("readme").Parse(ReadmeTemplate))
+
+	ReadmeTemplateCompiled = template.Must(template.New("readme_template").Parse(ReadmeTemplate))
+	TestTemplateCompiled = template.Must(template.New("test_template").Parse(TestTemplate))
+	RailsTemplateCompiled = template.Must(template.New("rails_template").Parse(RailsTemplate))
+	DjangoTemplateCompiled = template.Must(template.New("django_template").Parse(DjangoTemplate))
+	NodejsTemplateCompiled = template.Must(template.New("nodejs_template").Parse(NodejsTemplate))
+	GoTemplateCompiled = template.Must(template.New("go_template").Parse(GoTemplate))
+
+	RuntimeTemplates = ReadmeTemplates{
+		"test":   TestTemplateCompiled,
+		"rails":  RailsTemplateCompiled,
+		"django": DjangoTemplateCompiled,
+		"nodejs": NodejsTemplateCompiled,
+		"go":     GoTemplateCompiled,
+	}
 }

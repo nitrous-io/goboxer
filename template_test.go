@@ -74,8 +74,7 @@ func (s *TemplateSuite) TestReadmeTemplateWhichHasRuntimeMapping(c *C) {
 	}
 	tmpFile, _ := ioutil.TempFile("/tmp", "readme")
 	defer os.Remove(tmpFile.Name())
-	ReadmeTemplateCompiled.Parse(RuntimeTemplates[box.Runtime])
-	ReadmeTemplateCompiled.Execute(tmpFile, box)
+	RuntimeTemplates.Get(box.Runtime).Execute(tmpFile, box)
 
 	checkContainsContent := map[string][]string{}
 	checkContainsContent[tmpFile.Name()] = []string{
@@ -100,8 +99,7 @@ func (s *TemplateSuite) TestReadmeTemplateWhichDoesntHaveRuntimeMapping(c *C) {
 	}
 	tmpFile, _ := ioutil.TempFile("/tmp", "readme")
 	defer os.Remove(tmpFile.Name())
-	ReadmeTemplateCompiled.Parse(RuntimeTemplates[box.Runtime])
-	ReadmeTemplateCompiled.Execute(tmpFile, box)
+	RuntimeTemplates.Get(box.Runtime).Execute(tmpFile, box)
 
 	checkContainsContent := map[string][]string{}
 	checkContainsContent[tmpFile.Name()] = []string{
