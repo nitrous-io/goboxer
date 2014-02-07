@@ -145,9 +145,6 @@ func (b *Box) Create() error {
 	if err := b.Mount(b.boxer.Root); err != nil {
 		return err
 	}
-	if err := b.writeConfig(); err != nil {
-		return &BoxOpError{Op: "write lxc config", Err: err}
-	}
 	if len(b.SnapshotURL) > 0 {
 		// parse snapshot url which should be an s3 path
 		url, err := s3.ParseUrl(b.SnapshotURL)
@@ -162,8 +159,7 @@ func (b *Box) Create() error {
 		if err != nil {
 			return err
 		}
-		boxHomePath := path.Join(b.RootFS(), "home", "action")
-		if err := UntarStream(stream, boxHomePath); err != nil {
+		if err := UntarStream(stream, b.ContainerDeltaPath()); err != nil {
 			return err
 		}
 	} else {
@@ -176,6 +172,9 @@ func (b *Box) Create() error {
 		if err := b.addReadme(); err != nil {
 			return &BoxOpError{Op: "add readme", Err: err}
 		}
+	}
+	if err := b.writeConfig(); err != nil {
+		return &BoxOpError{Op: "write lxc config", Err: err}
 	}
 	if err := b.setEtcAction(); err != nil {
 		return &BoxOpError{Op: "create /etc/action", Err: err}
