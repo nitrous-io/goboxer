@@ -9,7 +9,7 @@ if [[ ! `losetup -a | grep /dev/loop0` ]]; then
 fi
 pvcreate /dev/loop0
 vgcreate aio_boxhost /dev/loop0
-lvcreate -L 4G --poolmetadatasize 200M --type thin-pool --thinpool boxes aio_boxhost
+lvcreate --size 800M --type thin-pool --thinpool boxes aio_boxhost
 
 # setup xfs
 if [[ ! -f $HOME/xfs_disk.img ]]; then
