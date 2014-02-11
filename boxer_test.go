@@ -2185,15 +2185,16 @@ func (s *BoxerSuite) TestSnapshot(c *C) {
 			DiskSpace:  "1024M",
 			PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
 		}, Message{
-			Id:    "testboxer",
-			BoxId: 1,
-			Type:  "aio:snapshot",
-			Name:  "mclovins-container-1",
+			Id:         "testboxer",
+			BoxId:      1,
+			Type:       "aio:snapshot",
+			SnapshotId: 123,
+			Name:       "mclovins-container-1",
 		})
 
 		c.Assert(message.Success, Equals, true)
 		c.Assert(message.Type, Equals, "aio:snapshotted")
-		c.Assert(strings.Contains(message.SnapshotUrl,
-			"s3://staging-bucket/mclovins-container-1"), Equals, true)
+		c.Assert(message.SnapshotId, Equals, 123)
+		c.Assert(message.SnapshotUrl, Equals, "s3://staging-bucket/mclovins-container-1-snapshot-123.tar.gz")
 	})
 }

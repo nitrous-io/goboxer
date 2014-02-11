@@ -74,6 +74,7 @@ type Box struct {
 	VirtualMemory    string   `json:"virtualMemory"`
 	Premium          bool     `json:"premium"`
 	Runtime          string   `json:"-"`
+	SnapshotId       int      `json:"-"`
 	SnapshotUrl      string   `json:"-"`
 	PublicKeys       []string `json:"publicKeys"`
 	CpuSet           []int
@@ -253,11 +254,12 @@ func (b *Box) Destroy() error {
 	return b.DeleteContainerData()
 }
 
-func (b *Box) Snapshot() (snapshotUrl string, err error) {
+func (b *Box) Snapshot(snapshotId int) (snapshotUrl string, err error) {
 	defer logger.LogDuration(
 		fmt.Sprintf("%s:Snapshot %s", b.ContainerName(), b.MountName()),
 	)(time.Now())
-	tarName := fmt.Sprintf("%s-%v.tar.gz", b.ContainerName(), time.Now().Unix())
+	tarName := fmt.Sprintf("%s-snapshot-%d.tar.gz", b.ContainerName(), snapshotId)
+	logger.Printf("%s: creating snapshot tarball %s\n", b.MountName(), tarName)
 	tarPath, err := Tar(tarName, b.ContainerDeltaPath())
 	if err != nil {
 		err = fmt.Errorf("Snapshot: failed to compress delta %v", err)
