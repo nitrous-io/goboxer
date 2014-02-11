@@ -95,8 +95,7 @@ ff02::1 ip6-allnodes
 ff02::2 ip6-allrouters
 `
 
-const ReadmeTemplate = `
-# Welcome to Nitrous.IO
+const ReadmeTemplate = `# Welcome to Nitrous.IO
 
 Nitrous.IO enables you to develop web applications completely in the
 cloud. This development "box" helps you write software, collaborate
