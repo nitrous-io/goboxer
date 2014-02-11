@@ -162,6 +162,7 @@ func CreateBoxHandler(m Message, boxer *Boxer) Message {
 		Memory:           m.Memory,
 		DiskSpace:        m.DiskSpace,
 		PublicKeys:       m.PublicKeys,
+		SnapshotId:       m.SnapshotId,
 		SnapshotUrl:      m.SnapshotUrl,
 		Template:         boxer.Runtimes[m.Runtime],
 		Ip:               resource.Ip,
@@ -516,9 +517,10 @@ func SnapshotBoxHandler(m Message, boxer *Boxer) Message {
 		Type:       "aio:snapshotted",
 		Id:         boxer.Id,
 		BoxId:      box.Id,
+		SnapshotId: m.SnapshotId,
 		ReturnVars: m.ReturnVars,
 	}
-	url, err := box.Snapshot()
+	url, err := box.Snapshot(m.SnapshotId)
 	if err != nil {
 		message.Success = false
 		return message
