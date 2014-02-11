@@ -22,6 +22,8 @@
     "golang": "golang_template",
     "test": "test_container_template"
   },
+  "s3Region": "ap-southeast-1",
+  "s3Bucket": "snapshot-apse1-staging.action.io",
   "premiumCPUQuota": 1.0,
   "defaultCPUQuota": 0.5
 }
