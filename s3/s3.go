@@ -15,6 +15,20 @@ type AuthInterface interface {
 
 type Auth aws.Auth
 
+func (a Auth) NewClient(region, bucketName string) (client ClientInterface, err error) {
+	awsRegion, ok := aws.Regions[region]
+	if !ok {
+		err = fmt.Errorf("Invalid region: %s", region)
+		return
+	}
+	client = &Client{
+		Auth:       aws.Auth(a),
+		Region:     awsRegion,
+		BucketName: bucketName,
+	}
+	return
+}
+
 type ClientInterface interface {
 	Upload(name, filePath string) (string, error)
 	Download(name string) (io.ReadCloser, error)
@@ -54,18 +68,4 @@ func (c *Client) Download(filename string) (rc io.ReadCloser, err error) {
 	s := aws3.New(c.Auth, c.Region)
 	bucket := s.Bucket(c.BucketName)
 	return bucket.GetReader(filename)
-}
-
-func (a Auth) NewClient(region, bucketName string) (client ClientInterface, err error) {
-	awsRegion, ok := aws.Regions[region]
-	if !ok {
-		err = fmt.Errorf("Invalid region: %s", region)
-		return
-	}
-	client = &Client{
-		Auth:       aws.Auth(a),
-		Region:     awsRegion,
-		BucketName: bucketName,
-	}
-	return
 }
