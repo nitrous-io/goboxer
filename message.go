@@ -21,7 +21,7 @@ type Message struct {
 	Name          string   `json:"name,omitempty"`
 	Port          int      `json:"port,omitempty"`
 	Runtime       string   `json:"runtime,omitempty"`
-	SnapshotURL   string   `json:"snapshotURL,omitempty"`
+	SnapshotUrl   string   `json:"SnapshotUrl,omitempty"`
 	Memory        string   `json:"memory,omitempty"`
 	DiskSpace     string   `json:"diskSpace,omitempty"`
 	PublicKeys    []string `json:"publicKeys,omitempty"`

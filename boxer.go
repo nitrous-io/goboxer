@@ -162,7 +162,7 @@ func CreateBoxHandler(m Message, boxer *Boxer) Message {
 		Memory:           m.Memory,
 		DiskSpace:        m.DiskSpace,
 		PublicKeys:       m.PublicKeys,
-		SnapshotURL:      m.SnapshotURL,
+		SnapshotUrl:      m.SnapshotUrl,
 		Template:         boxer.Runtimes[m.Runtime],
 		Ip:               resource.Ip,
 		Gateway:          resource.Gateway,
@@ -523,7 +523,7 @@ func SnapshotBoxHandler(m Message, boxer *Boxer) Message {
 		message.Success = false
 		return message
 	}
-	message.SnapshotURL = url
+	message.SnapshotUrl = url
 	message.Success = true
 	return message
 }

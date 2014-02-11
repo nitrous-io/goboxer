@@ -74,7 +74,7 @@ type Box struct {
 	VirtualMemory    string   `json:"virtualMemory"`
 	Premium          bool     `json:"premium"`
 	Runtime          string   `json:"-"`
-	SnapshotURL      string   `json:"-"`
+	SnapshotUrl      string   `json:"-"`
 	PublicKeys       []string `json:"publicKeys"`
 	CpuSet           []int
 	CpuQuota         float64
@@ -973,9 +973,9 @@ func (b *Box) generateUniqueId() error {
 // this is used in Create() to generate the user content for the box. User
 // content can come from a snapshot on s3, or from predefined template
 func (b *Box) generateUserContent() error {
-	if len(b.SnapshotURL) > 0 {
+	if len(b.SnapshotUrl) > 0 {
 		// parse snapshot url which should be an s3 path
-		url, err := s3.ParseUrl(b.SnapshotURL)
+		url, err := s3.ParseUrl(b.SnapshotUrl)
 		if err != nil {
 			return &BoxOpError{Op: "parse s3 url", Err: err}
 		}
