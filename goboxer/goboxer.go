@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/action-io/goboxer"
 	"github.com/action-io/goboxer/cartman"
+	"github.com/action-io/goboxer/s3"
 	"github.com/garyburd/redigo/redis"
 	"os"
 	"time"
@@ -65,6 +66,7 @@ func main() {
 		Cartman:         cartman,
 		PremiumCPUQuota: config.PremiumCPUQuota,
 		DefaultCPUQuota: config.DefaultCPUQuota,
+		S3Auth:          s3.Auth{},
 		S3Region:        config.S3Region,
 		S3Bucket:        config.S3Bucket,
 	}

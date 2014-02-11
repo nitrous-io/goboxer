@@ -185,7 +185,6 @@ func CreateBoxHandler(m Message, boxer *Boxer) Message {
 		if err = box.Destroy(); err != nil {
 			logger.Printf("ERROR: Failed to destroy %v, err: %v\n", box, err)
 		}
-		logger.Printf("%s")
 		boxer.ResourcePool.Release(resource.Ip)
 		msg.Success = false
 		return msg
@@ -525,6 +524,7 @@ func SnapshotBoxHandler(m Message, boxer *Boxer) Message {
 		message.Success = false
 		return message
 	}
+	logger.Printf("DEBUG: Snapshot URL: %s", url)
 	message.SnapshotUrl = url
 	message.Success = true
 	return message
