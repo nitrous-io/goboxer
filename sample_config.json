@@ -24,6 +24,8 @@
   },
   "s3Region": "ap-southeast-1",
   "s3Bucket": "snapshot-apse1-staging.action.io",
+  "s3AccessKey": "REPLACE ME",
+  "s3SecretKey": "REPLACE ME",
   "premiumCPUQuota": 1.0,
   "defaultCPUQuota": 0.5
 }

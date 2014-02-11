@@ -66,9 +66,12 @@ func main() {
 		Cartman:         cartman,
 		PremiumCPUQuota: config.PremiumCPUQuota,
 		DefaultCPUQuota: config.DefaultCPUQuota,
-		S3Auth:          s3.Auth{},
 		S3Region:        config.S3Region,
 		S3Bucket:        config.S3Bucket,
+		S3Auth: s3.Auth{
+			AccessKey: config.S3AccessKey,
+			SecretKey: config.S3SecretKey,
+		},
 	}
 	boxer.Configure()
 
