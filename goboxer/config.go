@@ -27,6 +27,8 @@ type Config struct {
 	QuotaMethod     string            `json:"quotaMethod"`
 	CartmanHost     string            `json:"cartmanHost"`
 	CartmanPort     string            `json:"cartmanPort"`
+	S3Region        string            `json:"s3Region"`
+	S3Bucket        string            `json:"s3Bucket"`
 	PremiumCPUQuota float64           `json:"premiumCPUQuota"`
 	DefaultCPUQuota float64           `json:"defaultCPUQuota"`
 }

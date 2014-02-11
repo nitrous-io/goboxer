@@ -24,7 +24,7 @@ func main() {
 		return
 	}
 	if *flConfigPath == "" {
-		fmt.Println("Required a config path. Like ./sample_config.json ?")
+		fmt.Println("Requires a config path, e.g. -c ./sample_config.json")
 		return
 	}
 
@@ -65,6 +65,8 @@ func main() {
 		Cartman:         cartman,
 		PremiumCPUQuota: config.PremiumCPUQuota,
 		DefaultCPUQuota: config.DefaultCPUQuota,
+		S3Region:        config.S3Region,
+		S3Bucket:        config.S3Bucket,
 	}
 	boxer.Configure()
 
