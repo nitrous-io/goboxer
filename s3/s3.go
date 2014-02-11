@@ -58,7 +58,7 @@ func (c *Client) Upload(name, filePath string) (remotePath string, err error) {
 	if err != nil {
 		return
 	}
-	remotePath = fmt.Sprintf("s3://%s/%s/%s", c.Region.Name, c.BucketName, name)
+	remotePath = fmt.Sprintf("s3://%s/%s", c.BucketName, name)
 	return
 }
 
