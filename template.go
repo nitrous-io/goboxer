@@ -164,8 +164,7 @@ var TestTemplate = fmt.Sprintf(`
 This is the test template
 `, ReadmeTemplate)
 
-var RailsTemplate = fmt.Sprintf(`
-%s
+var RailsTemplate = fmt.Sprintf(`%s
 ## Ruby / Rails
 
 Ruby on this box is managed using [RVM](http://rvm.io) . You can install
@@ -181,8 +180,7 @@ you can upgrade/downgrade node.js here:
 https://github.com/creationix/nvm#usage
 `, ReadmeTemplate)
 
-var DjangoTemplate = fmt.Sprintf(`
-%s
+var DjangoTemplate = fmt.Sprintf(`%s
 ## Python
 
 This box comes installed with virtualenv and you can use other versions
@@ -195,8 +193,7 @@ You can also read more about creating a Django app here:
 http://help.nitrous.io/django-app/
 `, ReadmeTemplate)
 
-var NodejsTemplate = fmt.Sprintf(`
-%s
+var NodejsTemplate = fmt.Sprintf(`%s
 ## Node.JS
 
 Node.JS on this box is managed using
@@ -214,8 +211,7 @@ Or deploying to Nodejitsu here:
 http://help.nitrous.io/nodejitsu/
 `, ReadmeTemplate)
 
-var GoTemplate = fmt.Sprintf(`
-%s
+var GoTemplate = fmt.Sprintf(`%s
 ## Go
 
 The Go binary is installed here:
@@ -223,6 +219,15 @@ The Go binary is installed here:
 /home/action/.go/bin/go
 `, ReadmeTemplate)
 
+var PhpTemplate = fmt.Sprintf(`%s
+## PHP
+
+This box comes installed with Apache2, MySQL, Composer and PHP. Apache is running on Port 3000
+by default, so you can start previewing your PHP applications by clicking "Preview" and clicking
+"Port 3000". You can read more about PHP here:
+
+http://help.nitrous.io/php/
+`, ReadmeTemplate)
 var NetworkConfigCompiled *template.Template
 var LxcTemplateCompiled *template.Template
 var HostsTemplateCompiled *template.Template
@@ -234,6 +239,7 @@ var (
 	DjangoTemplateCompiled *template.Template
 	NodejsTemplateCompiled *template.Template
 	GoTemplateCompiled     *template.Template
+	PhpTemplateCompiled    *template.Template
 	RuntimeTemplates       ReadmeTemplates
 )
 
@@ -258,6 +264,7 @@ func init() {
 	DjangoTemplateCompiled = template.Must(template.New("django_template").Parse(DjangoTemplate))
 	NodejsTemplateCompiled = template.Must(template.New("nodejs_template").Parse(NodejsTemplate))
 	GoTemplateCompiled = template.Must(template.New("go_template").Parse(GoTemplate))
+	PhpTemplateCompiled = template.Must(template.New("php_template").Parse(PhpTemplate))
 
 	RuntimeTemplates = ReadmeTemplates{
 		"test":   TestTemplateCompiled,
@@ -265,5 +272,6 @@ func init() {
 		"django": DjangoTemplateCompiled,
 		"nodejs": NodejsTemplateCompiled,
 		"go":     GoTemplateCompiled,
+		"php":    PhpTemplateCompiled,
 	}
 }
