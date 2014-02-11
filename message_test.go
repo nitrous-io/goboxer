@@ -23,7 +23,7 @@ func (s *MessageSuite) TestToJSONOmitEmpty(c *C) {
 		"runtimes":    false,
 		"name":        false,
 		"port":        false,
-		"snapshotURL": false,
+		"SnapshotUrl": false,
 		"memory":      false,
 		"diskSpace":   false,
 		"sshKeyPair":  false,

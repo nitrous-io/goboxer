@@ -302,7 +302,7 @@ func (s *BoxerSuite) TestCreateWithSnapshot(c *C) {
 			BoxId:       1,
 			Type:        "aio:create",
 			Name:        "mclovins-container",
-			SnapshotURL: "s3://ap-southeast-1/staging-apse1.action.io/testboxer-1234.tar.gz",
+			SnapshotUrl: "s3://ap-southeast-1/staging-apse1.action.io/testboxer-1234.tar.gz",
 			Runtime:     "test",
 			Memory:      "256M",
 			DiskSpace:   "1G",
@@ -2193,7 +2193,7 @@ func (s *BoxerSuite) TestSnapshot(c *C) {
 
 		c.Assert(message.Success, Equals, true)
 		c.Assert(message.Type, Equals, "aio:snapshotted")
-		c.Assert(strings.Contains(message.SnapshotURL,
+		c.Assert(strings.Contains(message.SnapshotUrl,
 			"s3://staging-bucket/mclovins-container-1"), Equals, true)
 	})
 }
