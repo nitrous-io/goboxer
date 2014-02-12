@@ -86,6 +86,7 @@ type Box struct {
 	SnapshotId       int      `json:"-"`
 	SnapshotUrl      string   `json:"-"`
 	PublicKeys       []string `json:"publicKeys"`
+	CustomDomain     string   `json:"customDomain"`
 	CpuSet           []int
 	CpuQuota         float64
 	// hold a reference to boxer so that we can access mutex capabilities
@@ -316,6 +317,14 @@ func (b *Box) UpdateAuth(auth BoxAuth) error {
 		return err
 	}
 	return b.boxer.Cartman.InvalidateCache(b.ContainerName())
+}
+
+func (b *Box) UpdateCustomDomain(customDomain string) error {
+	b.CustomDomain = customDomain
+	if err := b.boxer.ResourcePool.SaveBox(b); err != nil {
+		return err
+	}
+	return b.boxer.ResourcePool.SetDomain(customDomain, b.ContainerName())
 }
 
 func (b *Box) MountName() string {

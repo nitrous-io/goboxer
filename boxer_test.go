@@ -1786,6 +1786,40 @@ func (s *BoxerSuite) TestUpdateAuth(c *C) {
 	})
 }
 
+func (s *BoxerSuite) TestUpdateCustomDomain(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+		message, box := s.receiveMessages("mclovins-container-1", Message{
+			Id:         "testboxer",
+			BoxId:      1,
+			Type:       "aio:create",
+			Name:       "mclovins-container",
+			Runtime:    "test",
+			Memory:     "256M",
+			DiskSpace:  "1024M",
+			PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
+		}, Message{
+			Id:       "testboxer",
+			BoxId:    1,
+			Type:     "aio:configure",
+			DataType: "aio:configure:update_custom_domain",
+			Data: map[string]interface{}{
+				"custom_domain": "wtf.com",
+			},
+			Name: "mclovins-container-1",
+		})
+
+		c.Assert(message.Success, Equals, true)
+		c.Assert(box.CustomDomain, Equals, "wtf.com")
+
+		// check redis
+		conn := s.Redis.Get()
+		defer conn.Close()
+		containerName, _ := redis.String(conn.Do("HGET", "aio:domains", "wtf.com"))
+		c.Assert(containerName, Equals, box.ContainerName())
+	})
+}
+
 func (s *BoxerSuite) TestRemoveAuth(c *C) {
 	fakeCartman := s.setupFakeCartman()
 	defer fakeCartman.Close()

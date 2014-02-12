@@ -242,3 +242,14 @@ func (s *ResourcePoolSuite) TestCountRunningBoxes(c *C) {
 
 	c.Assert(count, Equals, 2)
 }
+
+func (s *ResourcePoolSuite) TestSetDomain(c *C) {
+	conn := s.pool.Get()
+	defer conn.Close()
+
+	rs := &ResourcePool{Pool: s.pool}
+	rs.SetDomain("wtf.com", "mclovins-container-1")
+
+	containerName, _ := redis.String(conn.Do("HGET", "aio:domains", "wtf.com"))
+	c.Assert(containerName, Equals, "mclovins-container-1")
+}
