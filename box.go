@@ -328,7 +328,10 @@ func (b *Box) UpdateCustomDomain(customDomain string) error {
 	if err := rs.SaveBox(b); err != nil {
 		return err
 	}
-	return rs.SetDomain(customDomain, b.ContainerName())
+	if len(b.CustomDomain) > 0 {
+		return rs.SetDomain(customDomain, b.ContainerName())
+	}
+	return nil
 }
 
 func (b *Box) MountName() string {

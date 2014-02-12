@@ -1838,6 +1838,27 @@ func (s *BoxerSuite) TestUpdateCustomDomain(c *C) {
 		c.Assert(containerName, Equals, "")
 		containerName, _ = redis.String(conn.Do("HGET", "aio:domains", "another.com"))
 		c.Assert(containerName, Equals, box.ContainerName())
+
+		// remove custom domain
+		message, box = s.receiveMessages("mclovins-container-1", Message{
+			Id:       "testboxer",
+			BoxId:    1,
+			Type:     "aio:configure",
+			DataType: "aio:configure:update_custom_domain",
+			Data: map[string]interface{}{
+				"custom_domain": "",
+			},
+			Name: "mclovins-container-1",
+		})
+
+		c.Assert(message.Success, Equals, true)
+		c.Assert(box.CustomDomain, Equals, "")
+
+		// check redis
+		containerName, _ = redis.String(conn.Do("HGET", "aio:domains", "another.com"))
+		c.Assert(containerName, Equals, "")
+		containerName, _ = redis.String(conn.Do("HGET", "aio:domains", ""))
+		c.Assert(containerName, Equals, "")
 	})
 }
 
