@@ -2198,3 +2198,43 @@ func (s *BoxerSuite) TestSnapshot(c *C) {
 		c.Assert(message.SnapshotUrl, Equals, "s3://staging-bucket/mclovins-container-1-snapshot-123.tar.gz")
 	})
 }
+
+func (s *BoxerSuite) TestDeleteSnapshot(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+		message, _ := s.receiveMessages("mclovins-container-1", Message{
+			Id:         "testboxer",
+			BoxId:      1,
+			Type:       "aio:create",
+			Name:       "mclovins-container",
+			Runtime:    "test",
+			Memory:     "256M",
+			DiskSpace:  "1024M",
+			PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
+		}, Message{
+			Id:          "testboxer",
+			BoxId:       1,
+			Type:        "aio:delete_snapshot",
+			SnapshotId:  123,
+			SnapshotUrl: "s3://staging-bucket/mclovins-container-1-snapshot-123.tar.gz",
+			Name:        "mclovins-container-1",
+		})
+
+		c.Assert(message.Success, Equals, true)
+		c.Assert(message.Type, Equals, "aio:deleted_snapshot")
+		c.Assert(message.SnapshotId, Equals, 123)
+
+		message, _ = s.receiveMessages("mclovins-container-1", Message{
+			Id:          "testboxer",
+			BoxId:       1,
+			Type:        "aio:delete_snapshot",
+			SnapshotId:  124,
+			SnapshotUrl: "s3://staging-bucket/fail",
+			Name:        "mclovins-container-1",
+		})
+
+		c.Assert(message.Success, Equals, false)
+		c.Assert(message.Type, Equals, "aio:deleted_snapshot")
+		c.Assert(message.SnapshotId, Equals, 124)
+	})
+}

@@ -32,6 +32,7 @@ func (a Auth) NewClient(region, bucketName string) (client ClientInterface, err 
 type ClientInterface interface {
 	Upload(name, filePath string) (string, error)
 	Download(name string) (io.ReadCloser, error)
+	Delete(name string) error
 }
 
 type Client struct {
@@ -51,10 +52,8 @@ func (c *Client) Upload(name, filePath string) (remotePath string, err error) {
 		return
 	}
 
-	s := aws3.New(c.Auth, c.Region)
-	bucket := s.Bucket(c.BucketName)
-	err = bucket.PutReader(name, file, info.Size(), "binary/octet-stream",
-		aws3.BucketOwnerFull)
+	bucket := c.bucket()
+	err = bucket.PutReader(name, file, info.Size(), "binary/octet-stream", aws3.BucketOwnerFull)
 	if err != nil {
 		return
 	}
@@ -64,8 +63,17 @@ func (c *Client) Upload(name, filePath string) (remotePath string, err error) {
 
 // given a filename inside a bucket, return `io.ReadCloser` which we can use to
 // read content of that file
-func (c *Client) Download(filename string) (rc io.ReadCloser, err error) {
-	s := aws3.New(c.Auth, c.Region)
-	bucket := s.Bucket(c.BucketName)
+func (c *Client) Download(filename string) (io.ReadCloser, error) {
+	bucket := c.bucket()
 	return bucket.GetReader(filename)
+}
+
+func (c *Client) Delete(filename string) error {
+	bucket := c.bucket()
+	return bucket.Del(filename)
+}
+
+func (c *Client) bucket() *aws3.Bucket {
+	s3 := aws3.New(c.Auth, c.Region)
+	return s3.Bucket(c.BucketName)
 }
