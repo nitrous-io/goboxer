@@ -11,21 +11,23 @@ import (
 	"github.com/action-io/goboxer/host"
 	"github.com/action-io/goboxer/s3"
 	"runtime"
+	"time"
 )
 
 var handlers map[string]MessageHandler
 
 func init() {
 	handlers = map[string]MessageHandler{
-		"aio:locate":       logger.LogHandler("aio:locate", LocateBoxHandler),
-		"aio:create":       logger.LogHandler("aio:create", CreateBoxHandler),
-		"aio:start":        logger.LogHandler("aio:start", StartBoxHandler),
-		"aio:stop":         logger.LogHandler("aio:stop", StopBoxHandler),
-		"aio:restart":      logger.LogHandler("aio:restart", RestartBoxHandler),
-		"aio:destroy":      logger.LogHandler("aio:destroy", DestroyBoxHandler),
-		"aio:configure":    logger.LogHandler("aio:configure", ConfigureBoxHandler),
-		"aio:info_request": logger.LogHandler("aio:info_request", InfoRequestBoxHandler),
-		"aio:snapshot":     logger.LogHandler("aio:snapshot", SnapshotBoxHandler),
+		"aio:locate":          logger.LogHandler("aio:locate", LocateBoxHandler),
+		"aio:create":          logger.LogHandler("aio:create", CreateBoxHandler),
+		"aio:start":           logger.LogHandler("aio:start", StartBoxHandler),
+		"aio:stop":            logger.LogHandler("aio:stop", StopBoxHandler),
+		"aio:restart":         logger.LogHandler("aio:restart", RestartBoxHandler),
+		"aio:destroy":         logger.LogHandler("aio:destroy", DestroyBoxHandler),
+		"aio:configure":       logger.LogHandler("aio:configure", ConfigureBoxHandler),
+		"aio:info_request":    logger.LogHandler("aio:info_request", InfoRequestBoxHandler),
+		"aio:snapshot":        logger.LogHandler("aio:snapshot", SnapshotBoxHandler),
+		"aio:delete_snapshot": logger.LogHandler("aio:delete_snapshot", DeleteSnapshotBoxHandler),
 	}
 }
 
@@ -526,6 +528,34 @@ func SnapshotBoxHandler(m Message, boxer *Boxer) Message {
 	message.SnapshotUrl = url
 	message.Success = true
 	return message
+}
+
+func DeleteSnapshotBoxHandler(m Message, boxer *Boxer) (message Message) {
+	defer logger.LogDuration(
+		fmt.Sprintf("DeleteSnapshot %s", m.SnapshotUrl),
+	)(time.Now())
+
+	message = Message{
+		Type:       "aio:deleted_snapshot",
+		Id:         boxer.Id,
+		BoxId:      m.BoxId,
+		SnapshotId: m.SnapshotId,
+		Success:    false,
+	}
+
+	url, err := s3.ParseUrl(m.SnapshotUrl)
+	if err != nil {
+		return
+	}
+	client, err := boxer.S3Auth.NewClient(url.Region, url.Bucket)
+	if err != nil {
+		return
+	}
+	if err := client.Delete(url.File); err != nil {
+		return
+	}
+	message.Success = true
+	return
 }
 
 // Given a list of boxes, try to start all of them.

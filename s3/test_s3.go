@@ -40,6 +40,13 @@ func (c *ClientTest) Upload(name, filePath string) (remotePath string, err error
 // given a filename inside a bucket, return `io.ReadCloser` which we can use to
 // read content of that file
 // Here we just stub the content with test-snapshot.tar.gz
-func (c *ClientTest) Download(filename string) (rc io.ReadCloser, err error) {
-	return ioutil.NopCloser(bytes.NewReader(TEST)), err
+func (c *ClientTest) Download(filename string) (io.ReadCloser, error) {
+	return ioutil.NopCloser(bytes.NewReader(TEST)), nil
+}
+
+func (c *ClientTest) Delete(filename string) error {
+	if filename == "fail" {
+		return fmt.Errorf("Delete failed")
+	}
+	return nil
 }
