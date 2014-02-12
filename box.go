@@ -320,11 +320,15 @@ func (b *Box) UpdateAuth(auth BoxAuth) error {
 }
 
 func (b *Box) UpdateCustomDomain(customDomain string) error {
-	b.CustomDomain = customDomain
-	if err := b.boxer.ResourcePool.SaveBox(b); err != nil {
+	rs := b.boxer.ResourcePool
+	if err := rs.RemoveDomain(b.CustomDomain); err != nil {
 		return err
 	}
-	return b.boxer.ResourcePool.SetDomain(customDomain, b.ContainerName())
+	b.CustomDomain = customDomain
+	if err := rs.SaveBox(b); err != nil {
+		return err
+	}
+	return rs.SetDomain(customDomain, b.ContainerName())
 }
 
 func (b *Box) MountName() string {

@@ -253,3 +253,15 @@ func (s *ResourcePoolSuite) TestSetDomain(c *C) {
 	containerName, _ := redis.String(conn.Do("HGET", "aio:domains", "wtf.com"))
 	c.Assert(containerName, Equals, "mclovins-container-1")
 }
+
+func (s *ResourcePoolSuite) TestRemoveDomain(c *C) {
+	conn := s.pool.Get()
+	defer conn.Close()
+
+	rs := &ResourcePool{Pool: s.pool}
+	rs.SetDomain("wtf.com", "mclovins-container-1")
+	rs.RemoveDomain("wtf.com")
+
+	containerName, _ := redis.String(conn.Do("HGET", "aio:domains", "wtf.com"))
+	c.Assert(containerName, Equals, "")
+}
