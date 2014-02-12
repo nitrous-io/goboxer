@@ -115,6 +115,13 @@ func (rp *ResourcePool) SetDomain(domain, container string) (err error) {
 	return
 }
 
+func (rp *ResourcePool) RemoveDomain(domain string) (err error) {
+	conn := rp.Pool.Get()
+	defer conn.Close()
+	_, err = conn.Do("HDEL", "aio:domains", domain)
+	return
+}
+
 type BoxFinder func(b *Box) bool
 
 // FindBoxes returns instances of Box that satisfy the given BoxFinder func
