@@ -34,7 +34,7 @@ type Message struct {
 	// for normal message
 	DataType string      `json:"dataType,omitempty"`
 	Data     interface{} `json:"data,omitempty"`
-	Success  bool        `json:"success,omitempty"`
+	Success  bool        `json:"success"`
 
 	// For info message
 	Info BoxInfo `json:"info,omitempty"`

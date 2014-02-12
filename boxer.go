@@ -142,17 +142,17 @@ func LocateBoxHandler(m Message, boxer *Boxer) Message {
 	return boxer.NewAdvertiseMessage()
 }
 
-func CreateBoxHandler(m Message, boxer *Boxer) Message {
-	msg := Message{
-		Type:  "aio:created",
-		Id:    boxer.Id,
-		BoxId: m.BoxId,
+func CreateBoxHandler(m Message, boxer *Boxer) (msg Message) {
+	msg = Message{
+		Type:    "aio:created",
+		Id:      boxer.Id,
+		BoxId:   m.BoxId,
+		Success: false,
 	}
 	resource, err := boxer.ResourcePool.Acquire()
 	if err != nil {
 		logger.Println("ERROR: Cant acquire resource", err)
-		msg.Success = false
-		return msg
+		return
 	}
 	box := &Box{
 		Id:               m.BoxId,
@@ -186,17 +186,15 @@ func CreateBoxHandler(m Message, boxer *Boxer) Message {
 			logger.Printf("ERROR: Failed to destroy %v, err: %v\n", box, err)
 		}
 		boxer.ResourcePool.Release(resource.Ip)
-		msg.Success = false
-		return msg
+		return
 	}
 	if err := boxer.ResourcePool.SaveBox(box); err != nil {
 		logger.Printf("ERROR: Failed to save %v, err: %v\n", box, err)
-		msg.Success = false
-		return msg
+		return
 	}
 	msg.Port = box.Port
 	msg.Success = true
-	return msg
+	return
 }
 
 // Start message will have this format
