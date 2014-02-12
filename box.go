@@ -260,7 +260,7 @@ func (b *Box) Snapshot(snapshotId int) (snapshotUrl string, err error) {
 	)(time.Now())
 	tarName := fmt.Sprintf("%s-snapshot-%d.tar.gz", b.ContainerName(), snapshotId)
 	logger.Printf("%s: creating snapshot tarball %s\n", b.MountName(), tarName)
-	tarPath, err := Tar(tarName, b.ContainerDeltaPath())
+	tarPath, err := Tar(tarName, b.ContainerUserHomePath())
 	if err != nil {
 		err = fmt.Errorf("Snapshot: failed to compress delta %v", err)
 		return
@@ -347,6 +347,11 @@ func (b *Box) ContainerDeltaPath() string {
 		return b.ContainerFS() + "_delta"
 	}
 	return path.Join(b.Disk, b.ContainerName()+"_delta")
+}
+
+// ContainerUserHomePath returns the full path to the user's home directory.
+func (b *Box) ContainerUserHomePath() string {
+	return path.Join(b.ContainerDeltaPath(), "rootfs", "home", "action")
 }
 
 func (b *Box) Uid() string {
@@ -788,7 +793,7 @@ func (b *Box) quotaArg() quota.QuotaArg {
 	if b.getQuotaMethod() == "lvm" {
 		arg.Path = b.ContainerDeltaPath()
 	} else {
-		arg.Path = path.Join(b.ContainerDeltaPath(), "rootfs", "home", "action")
+		arg.Path = b.ContainerUserHomePath()
 	}
 	return arg
 }
@@ -989,7 +994,10 @@ func (b *Box) generateUserContent() error {
 		if err != nil {
 			return &BoxOpError{Op: "download s3 stream", Err: err}
 		}
-		if err := UntarStream(stream, b.ContainerDeltaPath()); err != nil {
+		if err := os.MkdirAll(b.ContainerUserHomePath(), 0755); err != nil {
+			return &BoxOpError{Op: "creating user home directory", Err: err}
+		}
+		if err := UntarStream(stream, b.ContainerUserHomePath()); err != nil {
 			return &BoxOpError{Op: "untar s3 stream", Err: err}
 		}
 	} else {
