@@ -38,29 +38,6 @@ type testMountMethod struct {
 	expected string
 }
 
-func (s *BoxSuite) TestMountMethod(c *C) {
-	b := &Box{}
-	c.Assert(b.getMountMethod(), Equals, "overlayfs")
-
-	b.MountMethod = "aufs"
-	c.Assert(b.getMountMethod(), Equals, "aufs")
-
-	b.MountMethod = ""
-	b.Aufs = true
-	c.Assert(b.getMountMethod(), Equals, "aufs")
-
-	b.MountMethod = "lvm"
-	c.Assert(b.getMountMethod(), Equals, "lvm")
-}
-
-func (s *BoxSuite) TestQuotaMethod(c *C) {
-	b := &Box{}
-	c.Assert(b.getQuotaMethod(), Equals, "prjquota")
-
-	b.QuotaMethod = "usrquota"
-	c.Assert(b.getQuotaMethod(), Equals, "usrquota")
-}
-
 func (s *BoxSuite) TestBoxAuthIsValid(c *C) {
 	var b BoxAuth
 	b = BoxAuth{
@@ -106,18 +83,12 @@ func (s *BoxSuite) TestContainerFS(c *C) {
 		MountMethod: "aufs"}
 	b.boxer = &Boxer{Root: "/var/lib/lxc"}
 	c.Assert(b.ContainerFS(), Equals, "/lxc/disk1/test-123-123456")
-
-	b.MountMethod = "lvm"
-	c.Assert(b.ContainerFS(), Equals, "/var/lib/lxc/test-123-123456")
 }
 
 func (s *BoxSuite) TestRootFS(c *C) {
 	b := &Box{Name: "test", Id: 123, UniqueId: "123456", Disk: "/lxc/disk1",
 		MountMethod: "aufs"}
 	b.boxer = &Boxer{Root: "/var/lib/lxc"}
-	c.Assert(b.RootFS(), Equals, "/var/lib/lxc/test-123-123456/rootfs")
-
-	b.MountMethod = "lvm"
 	c.Assert(b.RootFS(), Equals, "/var/lib/lxc/test-123-123456/rootfs")
 }
 
@@ -126,18 +97,12 @@ func (s *BoxSuite) TestContainerDeltaPath(c *C) {
 		MountMethod: "aufs"}
 	b.boxer = &Boxer{Root: "/var/lib/lxc"}
 	c.Assert(b.ContainerDeltaPath(), Equals, "/lxc/disk1/test-123_delta")
-
-	b.MountMethod = "lvm"
-	c.Assert(b.ContainerDeltaPath(), Equals, "/var/lib/lxc/test-123-123456_delta")
 }
 
 func (s *BoxSuite) TestContainerUserHomePath(c *C) {
 	b := &Box{Name: "test", Id: 123, UniqueId: "123456", Disk: "/lxc/disk1", MountMethod: "aufs"}
 	b.boxer = &Boxer{Root: "/var/lib/lxc"}
 	c.Assert(b.ContainerUserHomePath(), Equals, "/lxc/disk1/test-123_delta/rootfs/home/action")
-
-	b.MountMethod = "lvm"
-	c.Assert(b.ContainerUserHomePath(), Equals, "/var/lib/lxc/test-123-123456_delta/rootfs/home/action")
 }
 
 func (s *BoxSuite) TestCpuSetString(c *C) {

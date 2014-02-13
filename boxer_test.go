@@ -40,24 +40,12 @@ type testProvisionStrategy struct {
 // for each strategies, we are going to run all operations to make sure that
 // everything works
 var strategies = map[string]testProvisionStrategy{
-	"xfs": testProvisionStrategy{
-		MountMethod:  "aufs",
-		QuotaMethod:  "prjquota",
-		SelectedDisk: "/lxc/disk1",
-		SelectedVG:   "",
-	},
 	"ext4": testProvisionStrategy{
 		MountMethod:  "aufs",
 		QuotaMethod:  "usrquota",
 		SelectedDisk: "/lxc/disk2",
 		SelectedVG:   "",
 	},
-	// "lvm": testProvisionStrategy{
-	// 	MountMethod:  "lvm",
-	// 	QuotaMethod:  "lvm",
-	// 	SelectedDisk: "",
-	// 	SelectedVG:   "aio_boxhost",
-	// },
 }
 
 type boxContentSpec struct {
@@ -143,14 +131,15 @@ func (s *BoxerSuite) testEachStrategy(c *C, test testFunction) {
 		conn.Do("FLUSHDB")
 		s.insertResource("192.168.254.2", "192.168.254.1", "br-lxc-254", "10002")
 		conn.Close()
-
+		defer func() {
+			boxes, _ := s.ResourcePool.FindAllBoxes("")
+			for _, box := range boxes {
+				box.boxer = s.Boxer
+				box.Destroy()
+			}
+		}()
 		s.mergeProvisionStrategy(stratValue)
 		test(s, c, stratName, stratValue)
-		boxes, _ := s.ResourcePool.FindAllBoxes("")
-		for _, box := range boxes {
-			box.boxer = s.Boxer
-			box.Destroy()
-		}
 	}
 }
 
@@ -906,14 +895,8 @@ func (s *BoxerSuite) TestDestroy(c *C) {
 			PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
 		})
 		containerPlace := []string{box.LxcPath()}
-		switch stratName {
-		case "xfs", "ext4":
-			containerPlace = append(containerPlace, box.ContainerFS())
-			containerPlace = append(containerPlace, box.ContainerDeltaPath())
-		case "lvm":
-			containerPlace = append(containerPlace, "/dev/"+stratValue.SelectedVG+
-				"/mclovins-container-1")
-		}
+		containerPlace = append(containerPlace, box.ContainerFS())
+		containerPlace = append(containerPlace, box.ContainerDeltaPath())
 
 		message, box = s.receiveMessages("mclovins-container-1", Message{
 			Id:    "testboxer",
@@ -1009,13 +992,7 @@ func (s *BoxerSuite) TestRestart(c *C) {
 		s.assertBoxState(c, box, "running")
 
 		containerPlace := []string{box.LxcPath()}
-		switch stratName {
-		case "xfs", "ext4":
-			containerPlace = append(containerPlace, box.ContainerDeltaPath())
-		case "lvm":
-			containerPlace = append(containerPlace, "/dev/"+stratValue.SelectedVG+
-				"/mclovins-container-1")
-		}
+		containerPlace = append(containerPlace, box.ContainerDeltaPath())
 		DoesExist(c, containerPlace)
 	})
 }
@@ -1947,8 +1924,7 @@ func (s *BoxerSuite) TestChangeBoxSpecsFail(c *C) {
 
 		quotaProvisioner := quota.Provisioner.GetQuota(stratValue.QuotaMethod)
 		limit, _ := quotaProvisioner.ViewLimit(box.quotaArg())
-		// approximate the limit as lvm strategy will not report the whole
-		// absolute size as per lvm volume size
+		c.Log("limit", limit, box.quotaArg(), stratValue.QuotaMethod)
 		c.Assert(limit.Limit > 900*1000, Equals, true)
 
 		// swap Quota with FailQuota so all quota calls will return errors
@@ -1991,51 +1967,6 @@ func (s *BoxerSuite) TestChangeBoxSpecsFail(c *C) {
 		})
 
 		// it cant set the new quota
-		newLimit, _ := quotaProvisioner.ViewLimit(box.quotaArg())
-		c.Assert(newLimit.Limit, Equals, limit.Limit)
-	})
-}
-
-func (s *BoxerSuite) TestChangeBoxSpecsLvmFail(c *C) {
-	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
-		stratValue testProvisionStrategy) {
-		if stratName != "lvm" {
-			return
-		}
-		message, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:         "testboxer",
-			BoxId:      1,
-			Type:       "aio:create",
-			Name:       "mclovins-container",
-			Runtime:    "test",
-			Memory:     "256M",
-			DiskSpace:  "30M",
-			PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
-		})
-
-		quotaProvisioner := quota.Provisioner.GetQuota(stratValue.QuotaMethod)
-		limit, _ := quotaProvisioner.ViewLimit(box.quotaArg())
-
-		// write 16M to test
-		exec.Command("dd", "if=/dev/zero",
-			"of="+box.LxcPath()+"/test_file",
-			"bs=1024", "count=16384").Run()
-
-		message, box = s.receiveMessages("mclovins-container-1", Message{
-			Id:       "testboxer",
-			BoxId:    1,
-			Type:     "aio:configure",
-			DataType: "aio:configure:change_specs",
-			Data: map[string]interface{}{
-				"memory":    "512M",
-				"diskSpace": "15M",
-			},
-			Name: "mclovins-container-1",
-		})
-
-		c.Assert(message.Type, Equals, "aio:configured")
-		c.Assert(message.Success, Equals, false)
-
 		newLimit, _ := quotaProvisioner.ViewLimit(box.quotaArg())
 		c.Assert(newLimit.Limit, Equals, limit.Limit)
 	})

@@ -3,9 +3,7 @@ package goboxer
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/action-io/goboxer/fs"
 	"github.com/action-io/goboxer/ip"
-	"github.com/action-io/goboxer/lvm"
 	"github.com/action-io/goboxer/lxc"
 	"github.com/action-io/goboxer/mount"
 	"github.com/action-io/goboxer/quota"
@@ -173,12 +171,8 @@ func (b *Box) Create() error {
 	if err := b.setPermission(); err != nil {
 		return &BoxOpError{Op: "set permission", Err: err}
 	}
-	// as the initial lvm volume is created in mount step, we dont need to
-	// reset quota here
-	if b.getMountMethod() != "lvm" {
-		if err := b.SetQuota(); err != nil {
-			return err
-		}
+	if err := b.SetQuota(); err != nil {
+		return err
 	}
 	b.State = "stopped"
 	return nil
@@ -312,11 +306,7 @@ func (b *Box) LxcPath() string {
 }
 
 func (b *Box) ContainerFS() string {
-	if b.getMountMethod() == "lvm" {
-		return b.LxcPath()
-	} else {
-		return path.Join(b.Disk, b.MountName())
-	}
+	return path.Join(b.Disk, b.MountName())
 }
 
 func (b *Box) EnvPath() string {
@@ -333,19 +323,13 @@ func (b *Box) RootFS() string {
 // python_template.tar.gz etc)
 func (b *Box) TemplatePath() string {
 	templateName := b.Template + ".tar.gz"
-	if b.getMountMethod() == "lvm" {
-		return path.Join(b.boxer.Root, templateName)
-	}
-	return path.Join(b.Disk, templateName)
+	return path.Join(b.boxer.Root, templateName)
 }
 
 // we actually want the delta folders for non-lvm containers to be consistent
 // because they will never be mountpoints, so we use Box#ContainerName() here
 // and not Box#MountName()
 func (b *Box) ContainerDeltaPath() string {
-	if b.getMountMethod() == "lvm" {
-		return b.ContainerFS() + "_delta"
-	}
 	return path.Join(b.Disk, b.ContainerName()+"_delta")
 }
 
@@ -503,28 +487,9 @@ func (b *Box) SetQuota() error {
 	)(time.Now())
 	arg := b.quotaArg()
 	q := b.quota()
-	if b.getMountMethod() == "lvm" {
-		// for lvm, we will check free space outside of the quota methods because
-		// we need the volume to be mounted to check limit, and then unmounted to
-		// resize
-		// FIXME: we assume that the box is running at this point
-		quotaInfo, err := q.ViewLimit(arg)
-		if err != nil {
-			return err
-		}
-		newLimit := quota.ConvertValueUnitToByte(quota.ParseValueUnit(arg.Limit))
-		logger.Println(quotaInfo, newLimit)
-		if quotaInfo.Used >= newLimit {
-			return fmt.Errorf("Current usage %d exceeded new limit %d",
-				quotaInfo.Used, newLimit)
-		}
-		if err := b.Stop(); err != nil {
-			return fmt.Errorf("%s:SetQuota failed to stop %v",
-				b.ContainerName(), err)
-		}
-	}
 	b.boxer.Lock(b.Id)
 	defer b.boxer.Unlock(b.Id)
+	logger.Debugln("quota", q, arg)
 	return q.SetLimit(arg)
 }
 
@@ -599,28 +564,6 @@ func (b *Box) Mount(root string) error {
 			return &BoxOpError{Op: "overlayfs/aufs mount-bind", Err: err}
 		}
 		return err
-	case "lvm":
-		// lvm strategy
-		// we are going to create an independent thin pool lv with size equals
-		// to DiskSpace, format it as ext4 volume and mount the volume as the
-		// box delta folder
-		if err := lvm.CreateVolume(b.SelectedVG, THIN_VG, b.DiskSpace, b.ContainerName()); err != nil {
-			return &BoxOpError{Op: "lvm create volume", Err: err}
-		}
-		deviceName := fmt.Sprintf("/dev/%s/%s", b.SelectedVG, b.ContainerName())
-		device := fs.Ext4Device{Name: deviceName, BytesPerInode: "8192"}
-		if err := fs.MkfsExt4(device); err != nil {
-			return &BoxOpError{Op: "lvm mkfs", Err: err}
-		}
-		baseContainerPath := path.Join(root, "base_container_template")
-		if err := mount.Mount(deviceName, boxDeltaPath, "ext4"); err != nil {
-			return &BoxOpError{Op: "lvm mount", Err: err}
-		}
-		err := mount.Union("aufs", lxcBoxPath, boxDeltaPath, baseContainerPath)
-		if err != nil {
-			return &BoxOpError{Op: "lvm mount union", Err: err}
-		}
-		return nil
 	default:
 		return fmt.Errorf("box: %s is not a supported mount method", mountMethod)
 	}
@@ -645,10 +588,6 @@ func (b *Box) Unmount(root string) error {
 		if err := mount.Unmount(mountMethod, b.ContainerFS()); err != nil {
 			logger.Println(&BoxOpError{Op: mountMethod + " unmount", Err: err})
 		}
-	case "lvm":
-		if err := mount.Unmount(mountMethod, b.ContainerDeltaPath()); err != nil {
-			logger.Println(&BoxOpError{Op: mountMethod + " unmount", Err: err})
-		}
 	default:
 		return fmt.Errorf("%s is not a supported unmount method", mountMethod)
 	}
@@ -656,11 +595,6 @@ func (b *Box) Unmount(root string) error {
 }
 
 func (b *Box) DeleteContainerData() error {
-	if b.getMountMethod() == "lvm" {
-		if err := lvm.DestroyVolume(b.SelectedVG, b.ContainerName()); err != nil {
-			return &BoxOpError{Op: "lvm destroy volume", Err: err}
-		}
-	}
 	// if golang failed to remove container, drops into cmdline as it seems to
 	// work all the times. We just prefer to do it in golang first.
 	if err := os.RemoveAll(b.ContainerDeltaPath()); err != nil {
@@ -790,18 +724,12 @@ func (b *Box) quotaArg() quota.QuotaArg {
 		Disk:  b.Disk,
 		Limit: b.DiskSpace,
 	}
-	if b.getQuotaMethod() == "lvm" {
-		arg.Path = b.ContainerDeltaPath()
-	} else {
-		arg.Path = b.ContainerUserHomePath()
-	}
+	arg.Path = b.ContainerUserHomePath()
 	return arg
 }
 
 func (b *Box) getMountMethod() string {
-	if b.MountMethod == "lvm" {
-		return "lvm"
-	} else if b.MountMethod == "aufs" || b.Aufs {
+	if b.MountMethod == "aufs" || b.Aufs {
 		return "aufs"
 	} else if b.MountMethod == "failed" {
 		return "failed"
@@ -810,12 +738,6 @@ func (b *Box) getMountMethod() string {
 }
 
 func (b *Box) getQuotaMethod() string {
-	if b.getMountMethod() == "lvm" {
-		return "lvm"
-	}
-	if b.QuotaMethod == "" {
-		return "prjquota"
-	}
 	return b.QuotaMethod
 }
 

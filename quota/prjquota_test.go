@@ -12,6 +12,10 @@ type PrjQuotaSuite struct{}
 
 var _ = Suite(&PrjQuotaSuite{})
 
+func (s *PrjQuotaSuite) SetUpSuite(c *C) {
+	c.Skip("skip prjquota tests as we do not support it now")
+}
+
 func (s *PrjQuotaSuite) SetUpTest(c *C) {
 	os.RemoveAll("/lxc/disk1/test_quota")
 	os.MkdirAll("/lxc/disk1/test_quota", 0644)

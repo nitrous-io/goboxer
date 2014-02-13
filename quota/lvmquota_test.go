@@ -11,6 +11,11 @@ type LvmQuotaSuite struct{}
 
 var _ = Suite(&LvmQuotaSuite{})
 
+func (s *LvmQuotaSuite) SetUpSuite(c *C) {
+	// skip lvm tests as we wont using it now
+	c.Skip("skip lvmquota tests as we do not support it now")
+}
+
 func (s *LvmQuotaSuite) SetUpTest(c *C) {
 	run("umount", "/var/lib/lxc/test_quota")
 	run("lvremove", "-f", "aio_boxhost/test-1")
