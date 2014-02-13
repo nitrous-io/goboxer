@@ -9,6 +9,7 @@ import (
 	"github.com/action-io/goboxer/lxc"
 	"github.com/action-io/goboxer/mount"
 	"github.com/action-io/goboxer/quota"
+	"github.com/action-io/goboxer/s3"
 	"github.com/action-io/goboxer/utils"
 	"io/ioutil"
 	"os"
@@ -73,7 +74,8 @@ type Box struct {
 	VirtualMemory    string   `json:"virtualMemory"`
 	Premium          bool     `json:"premium"`
 	Runtime          string   `json:"-"`
-	SnapshotURL      string   `json:"-"`
+	SnapshotId       int      `json:"-"`
+	SnapshotUrl      string   `json:"-"`
 	PublicKeys       []string `json:"publicKeys"`
 	CpuSet           []int
 	CpuQuota         float64
@@ -142,13 +144,13 @@ func (b *Box) Create() error {
 		return &BoxOpError{Op: "generate unique ID", Err: err}
 	}
 	if err := b.Mount(b.boxer.Root); err != nil {
-		return err
+		return &BoxOpError{Op: "mount box", Err: err}
+	}
+	if err := b.generateUserContent(); err != nil {
+		return &BoxOpError{Op: "generate user content", Err: err}
 	}
 	if err := b.writeConfig(); err != nil {
 		return &BoxOpError{Op: "write lxc config", Err: err}
-	}
-	if err := b.extractTemplate(); err != nil {
-		return &BoxOpError{Op: "extract template", Err: err}
 	}
 	if err := b.setEtcAction(); err != nil {
 		return &BoxOpError{Op: "create /etc/action", Err: err}
@@ -164,12 +166,6 @@ func (b *Box) Create() error {
 	}
 	if err := b.setNetworkInterface(); err != nil {
 		return &BoxOpError{Op: "set network interface", Err: err}
-	}
-	if err := b.setWorkspace(); err != nil {
-		return &BoxOpError{Op: "set workspace", Err: err}
-	}
-	if err := b.addReadme(); err != nil {
-		return &BoxOpError{Op: "add readme", Err: err}
 	}
 	if err := b.setDefaultKeyPair(); err != nil {
 		return &BoxOpError{Op: "set default key pair", Err: err}
@@ -258,6 +254,34 @@ func (b *Box) Destroy() error {
 	return b.DeleteContainerData()
 }
 
+func (b *Box) Snapshot(snapshotId int) (snapshotUrl string, err error) {
+	defer logger.LogDuration(
+		fmt.Sprintf("%s:Snapshot %s", b.ContainerName(), b.MountName()),
+	)(time.Now())
+	tarName := fmt.Sprintf("%s-snapshot-%d.tar.gz", b.ContainerName(), snapshotId)
+	logger.Printf("%s: creating snapshot tarball %s\n", b.MountName(), tarName)
+	tarPath, err := Tar(tarName, b.ContainerUserHomePath())
+	if err != nil {
+		err = fmt.Errorf("Snapshot: failed to compress delta %v", err)
+		return
+	}
+	// delete the tar path after finishing the upload process success or not
+	defer os.RemoveAll(tarPath)
+	// upload tarPath to s3
+	boxer := b.boxer
+	client, err := boxer.S3Auth.NewClient(boxer.S3Region, boxer.S3Bucket)
+	if err != nil {
+		err = fmt.Errorf("Snapshot: failed to create s3 client %v", err)
+		return
+	}
+	snapshotUrl, err = client.Upload(tarName, tarPath)
+	if err != nil {
+		err = fmt.Errorf("Snapshot: failed to upload to s3 %v", err)
+		return
+	}
+	return
+}
+
 func (b *Box) UpdateAuth(auth BoxAuth) error {
 	b.AuthUsername = auth.Username
 	b.AuthPassword = auth.Password
@@ -323,6 +347,11 @@ func (b *Box) ContainerDeltaPath() string {
 		return b.ContainerFS() + "_delta"
 	}
 	return path.Join(b.Disk, b.ContainerName()+"_delta")
+}
+
+// ContainerUserHomePath returns the full path to the user's home directory.
+func (b *Box) ContainerUserHomePath() string {
+	return path.Join(b.ContainerDeltaPath(), "rootfs", "home", "action")
 }
 
 func (b *Box) Uid() string {
@@ -764,7 +793,7 @@ func (b *Box) quotaArg() quota.QuotaArg {
 	if b.getQuotaMethod() == "lvm" {
 		arg.Path = b.ContainerDeltaPath()
 	} else {
-		arg.Path = path.Join(b.ContainerDeltaPath(), "rootfs", "home", "action")
+		arg.Path = b.ContainerUserHomePath()
 	}
 	return arg
 }
@@ -946,6 +975,43 @@ func (b *Box) setDefaultKeyPair() error {
 func (b *Box) generateUniqueId() error {
 	b.UniqueId = strconv.FormatInt(time.Now().UnixNano(), 10)
 	return b.boxer.ResourcePool.SaveBox(b)
+}
+
+// this is used in Create() to generate the user content for the box. User
+// content can come from a snapshot on s3, or from predefined template
+func (b *Box) generateUserContent() error {
+	if len(b.SnapshotUrl) > 0 {
+		// parse snapshot url which should be an s3 path
+		url, err := s3.ParseUrl(b.SnapshotUrl)
+		if err != nil {
+			return &BoxOpError{Op: "parse s3 url", Err: err}
+		}
+		client, err := b.boxer.S3Auth.NewClient(url.Region, url.Bucket)
+		if err != nil {
+			return &BoxOpError{Op: "create s3 client", Err: err}
+		}
+		stream, err := client.Download(url.File)
+		if err != nil {
+			return &BoxOpError{Op: "download s3 stream", Err: err}
+		}
+		if err := os.MkdirAll(b.ContainerUserHomePath(), 0755); err != nil {
+			return &BoxOpError{Op: "creating user home directory", Err: err}
+		}
+		if err := UntarStream(stream, b.ContainerUserHomePath()); err != nil {
+			return &BoxOpError{Op: "untar s3 stream", Err: err}
+		}
+	} else {
+		if err := b.extractTemplate(); err != nil {
+			return &BoxOpError{Op: "extract template", Err: err}
+		}
+		if err := b.setWorkspace(); err != nil {
+			return &BoxOpError{Op: "set workspace", Err: err}
+		}
+		if err := b.addReadme(); err != nil {
+			return &BoxOpError{Op: "add readme", Err: err}
+		}
+	}
+	return nil
 }
 
 func (b *Box) String() string {

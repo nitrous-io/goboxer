@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/action-io/goboxer"
 	"github.com/action-io/goboxer/cartman"
+	"github.com/action-io/goboxer/s3"
 	"github.com/garyburd/redigo/redis"
 	"os"
 	"time"
@@ -24,7 +25,7 @@ func main() {
 		return
 	}
 	if *flConfigPath == "" {
-		fmt.Println("Required a config path. Like ./sample_config.json ?")
+		fmt.Println("Requires a config path, e.g. -c ./sample_config.json")
 		return
 	}
 
@@ -65,6 +66,12 @@ func main() {
 		Cartman:         cartman,
 		PremiumCPUQuota: config.PremiumCPUQuota,
 		DefaultCPUQuota: config.DefaultCPUQuota,
+		S3Region:        config.S3Region,
+		S3Bucket:        config.S3Bucket,
+		S3Auth: s3.Auth{
+			AccessKey: config.S3AccessKey,
+			SecretKey: config.S3SecretKey,
+		},
 	}
 	boxer.Configure()
 

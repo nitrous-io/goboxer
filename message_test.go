@@ -23,14 +23,13 @@ func (s *MessageSuite) TestToJSONOmitEmpty(c *C) {
 		"runtimes":    false,
 		"name":        false,
 		"port":        false,
-		"snapshotURL": false,
+		"snapshotUrl": false,
 		"memory":      false,
 		"diskSpace":   false,
 		"sshKeyPair":  false,
 		"publicKeys":  false,
 		"dataType":    false,
 		"data":        false,
-		"success":     false,
 		"info":        true,
 		// seems that embeded struct will get serialized
 		// anyway. It's ok for now to leave it here
@@ -39,6 +38,16 @@ func (s *MessageSuite) TestToJSONOmitEmpty(c *C) {
 	for k, v := range res {
 		c.Assert(strings.Contains(json, k), Equals, v, Commentf(k, v))
 	}
+}
+
+func (s *MessageSuite) TestToJSONSuccessPresent(c *C) {
+	msg := Message{Id: "1"}
+	json, _ := utils.ToJSON(msg)
+	c.Assert(strings.Contains(json, `"success":false`), Equals, true)
+
+	msg = Message{Id: "1", Success: true}
+	json, _ = utils.ToJSON(msg)
+	c.Assert(strings.Contains(json, `"success":true`), Equals, true)
 }
 
 func (s *MessageSuite) TestFromJSON(c *C) {

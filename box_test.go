@@ -131,6 +131,15 @@ func (s *BoxSuite) TestContainerDeltaPath(c *C) {
 	c.Assert(b.ContainerDeltaPath(), Equals, "/var/lib/lxc/test-123-123456_delta")
 }
 
+func (s *BoxSuite) TestContainerUserHomePath(c *C) {
+	b := &Box{Name: "test", Id: 123, UniqueId: "123456", Disk: "/lxc/disk1", MountMethod: "aufs"}
+	b.boxer = &Boxer{Root: "/var/lib/lxc"}
+	c.Assert(b.ContainerUserHomePath(), Equals, "/lxc/disk1/test-123_delta/rootfs/home/action")
+
+	b.MountMethod = "lvm"
+	c.Assert(b.ContainerUserHomePath(), Equals, "/var/lib/lxc/test-123-123456_delta/rootfs/home/action")
+}
+
 func (s *BoxSuite) TestCpuSetString(c *C) {
 	b := &Box{CpuSet: []int{0}}
 	c.Assert(b.CpuSetStr(), Equals, "0")

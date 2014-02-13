@@ -9,21 +9,25 @@ import (
 	"fmt"
 	"github.com/action-io/goboxer/cartman"
 	"github.com/action-io/goboxer/host"
+	"github.com/action-io/goboxer/s3"
 	"runtime"
+	"time"
 )
 
 var handlers map[string]MessageHandler
 
 func init() {
 	handlers = map[string]MessageHandler{
-		"aio:locate":       logger.LogHandler("aio:locate", LocateBoxHandler),
-		"aio:create":       logger.LogHandler("aio:create", CreateBoxHandler),
-		"aio:start":        logger.LogHandler("aio:start", StartBoxHandler),
-		"aio:stop":         logger.LogHandler("aio:stop", StopBoxHandler),
-		"aio:restart":      logger.LogHandler("aio:restart", RestartBoxHandler),
-		"aio:destroy":      logger.LogHandler("aio:destroy", DestroyBoxHandler),
-		"aio:configure":    logger.LogHandler("aio:configure", ConfigureBoxHandler),
-		"aio:info_request": logger.LogHandler("aio:info_request", InfoRequestBoxHandler),
+		"aio:locate":          logger.LogHandler("aio:locate", LocateBoxHandler),
+		"aio:create":          logger.LogHandler("aio:create", CreateBoxHandler),
+		"aio:start":           logger.LogHandler("aio:start", StartBoxHandler),
+		"aio:stop":            logger.LogHandler("aio:stop", StopBoxHandler),
+		"aio:restart":         logger.LogHandler("aio:restart", RestartBoxHandler),
+		"aio:destroy":         logger.LogHandler("aio:destroy", DestroyBoxHandler),
+		"aio:configure":       logger.LogHandler("aio:configure", ConfigureBoxHandler),
+		"aio:info_request":    logger.LogHandler("aio:info_request", InfoRequestBoxHandler),
+		"aio:snapshot":        logger.LogHandler("aio:snapshot", SnapshotBoxHandler),
+		"aio:delete_snapshot": logger.LogHandler("aio:delete_snapshot", DeleteSnapshotBoxHandler),
 	}
 }
 
@@ -48,6 +52,9 @@ type Boxer struct {
 	Cartman         *cartman.Cartman
 	PremiumCPUQuota float64
 	DefaultCPUQuota float64
+	S3Auth          s3.AuthInterface
+	S3Region        string
+	S3Bucket        string
 }
 
 func (boxer *Boxer) Configure() {
@@ -137,17 +144,17 @@ func LocateBoxHandler(m Message, boxer *Boxer) Message {
 	return boxer.NewAdvertiseMessage()
 }
 
-func CreateBoxHandler(m Message, boxer *Boxer) Message {
-	msg := Message{
-		Type:  "aio:created",
-		Id:    boxer.Id,
-		BoxId: m.BoxId,
+func CreateBoxHandler(m Message, boxer *Boxer) (msg Message) {
+	msg = Message{
+		Type:    "aio:created",
+		Id:      boxer.Id,
+		BoxId:   m.BoxId,
+		Success: false,
 	}
 	resource, err := boxer.ResourcePool.Acquire()
 	if err != nil {
 		logger.Println("ERROR: Cant acquire resource", err)
-		msg.Success = false
-		return msg
+		return
 	}
 	box := &Box{
 		Id:               m.BoxId,
@@ -157,7 +164,8 @@ func CreateBoxHandler(m Message, boxer *Boxer) Message {
 		Memory:           m.Memory,
 		DiskSpace:        m.DiskSpace,
 		PublicKeys:       m.PublicKeys,
-		SnapshotURL:      m.SnapshotURL,
+		SnapshotId:       m.SnapshotId,
+		SnapshotUrl:      m.SnapshotUrl,
 		Template:         boxer.Runtimes[m.Runtime],
 		Ip:               resource.Ip,
 		Gateway:          resource.Gateway,
@@ -179,19 +187,16 @@ func CreateBoxHandler(m Message, boxer *Boxer) Message {
 		if err = box.Destroy(); err != nil {
 			logger.Printf("ERROR: Failed to destroy %v, err: %v\n", box, err)
 		}
-		logger.Printf("%s")
 		boxer.ResourcePool.Release(resource.Ip)
-		msg.Success = false
-		return msg
+		return
 	}
 	if err := boxer.ResourcePool.SaveBox(box); err != nil {
 		logger.Printf("ERROR: Failed to save %v, err: %v\n", box, err)
-		msg.Success = false
-		return msg
+		return
 	}
 	msg.Port = box.Port
 	msg.Success = true
-	return msg
+	return
 }
 
 // Start message will have this format
@@ -500,6 +505,57 @@ func InfoRequestBoxHandler(m Message, boxer *Boxer) Message {
 	message.Info = info
 	message.Success = true
 	return message
+}
+
+func SnapshotBoxHandler(m Message, boxer *Boxer) Message {
+	box, err := boxer.findBox(m.Name)
+	if err != nil {
+		return boxer.NewInvalidParamMessage()
+	}
+	message := Message{
+		Type:       "aio:snapshotted",
+		Id:         boxer.Id,
+		BoxId:      box.Id,
+		SnapshotId: m.SnapshotId,
+		ReturnVars: m.ReturnVars,
+	}
+	url, err := box.Snapshot(m.SnapshotId)
+	if err != nil {
+		message.Success = false
+		return message
+	}
+	logger.Printf("DEBUG: Snapshot URL: %s", url)
+	message.SnapshotUrl = url
+	message.Success = true
+	return message
+}
+
+func DeleteSnapshotBoxHandler(m Message, boxer *Boxer) (message Message) {
+	defer logger.LogDuration(
+		fmt.Sprintf("DeleteSnapshot %s", m.SnapshotUrl),
+	)(time.Now())
+
+	message = Message{
+		Type:       "aio:deleted_snapshot",
+		Id:         boxer.Id,
+		BoxId:      m.BoxId,
+		SnapshotId: m.SnapshotId,
+		Success:    false,
+	}
+
+	url, err := s3.ParseUrl(m.SnapshotUrl)
+	if err != nil {
+		return
+	}
+	client, err := boxer.S3Auth.NewClient(url.Region, url.Bucket)
+	if err != nil {
+		return
+	}
+	if err := client.Delete(url.File); err != nil {
+		return
+	}
+	message.Success = true
+	return
 }
 
 // Given a list of boxes, try to start all of them.

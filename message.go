@@ -21,7 +21,8 @@ type Message struct {
 	Name          string   `json:"name,omitempty"`
 	Port          int      `json:"port,omitempty"`
 	Runtime       string   `json:"runtime,omitempty"`
-	SnapshotURL   string   `json:"snapshotURL,omitempty"`
+	SnapshotId    int      `json:"snapshotId,omitempty"`
+	SnapshotUrl   string   `json:"snapshotUrl,omitempty"`
 	Memory        string   `json:"memory,omitempty"`
 	DiskSpace     string   `json:"diskSpace,omitempty"`
 	PublicKeys    []string `json:"publicKeys,omitempty"`
@@ -33,7 +34,7 @@ type Message struct {
 	// for normal message
 	DataType string      `json:"dataType,omitempty"`
 	Data     interface{} `json:"data,omitempty"`
-	Success  bool        `json:"success,omitempty"`
+	Success  bool        `json:"success"`
 
 	// For info message
 	Info BoxInfo `json:"info,omitempty"`

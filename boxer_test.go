@@ -11,6 +11,7 @@ import (
 	"github.com/action-io/goboxer/cartman"
 	"github.com/action-io/goboxer/mount"
 	"github.com/action-io/goboxer/quota"
+	"github.com/action-io/goboxer/s3"
 	"github.com/garyburd/redigo/redis"
 	. "launchpad.net/gocheck"
 	"net/http"
@@ -108,6 +109,9 @@ func (s *BoxerSuite) mergeProvisionStrategy(p testProvisionStrategy) {
 	s.Boxer.SelectedDisk = p.SelectedDisk
 	s.Boxer.QuotaMethod = p.QuotaMethod
 	s.Boxer.SelectedVG = p.SelectedVG
+	s.Boxer.S3Auth = s3.AuthTest{}
+	s.Boxer.S3Region = "ap-southeast-1"
+	s.Boxer.S3Bucket = "staging-bucket"
 	s.Boxer.Configure()
 }
 
@@ -275,6 +279,86 @@ func (s *BoxerSuite) TestCreateBox(c *C) {
 			Permissions: map[string][]int{
 				root + "/rootfs/home/action":                 {15001, 15001},
 				root + "/rootfs/home/action/workspace":       {15001, 15001},
+				root + "/rootfs/home/action/.ssh":            {15001, 15001},
+				root + "/rootfs/home/action/.ssh/id_rsa":     {15001, 15001},
+				root + "/rootfs/home/action/.ssh/id_rsa.pub": {15001, 15001},
+			},
+		}
+		spec.Check(c)
+
+		// check redis
+		conn := s.Redis.Get()
+		defer conn.Close()
+		usedIp, _ := redis.String(conn.Do("LPOP", "aio:used_resources"))
+		c.Assert(usedIp, Equals, "192.168.254.2")
+	})
+}
+
+func (s *BoxerSuite) TestCreateWithSnapshot(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+		message, box := s.receiveMessages("mclovins-container-1", Message{
+			Id:          "testboxer",
+			BoxId:       1,
+			Type:        "aio:create",
+			Name:        "mclovins-container",
+			SnapshotUrl: "s3://ap-southeast-1/staging-apse1.action.io/testboxer-1234.tar.gz",
+			Runtime:     "test",
+			Memory:      "256M",
+			DiskSpace:   "1G",
+			PublicKeys:  []string{"ssh-key QWER", "ssh-key ASDF"},
+			CpuShares:   2048,
+		})
+
+		c.Assert(message.Type, Equals, "aio:created")
+		c.Assert(message.Id, Equals, "testboxer")
+		c.Assert(message.BoxId, Equals, 1)
+		c.Assert(message.Port, Equals, 10002)
+		c.Assert(message.Success, Equals, true)
+
+		c.Assert(box.PublicKeys, DeepEquals, []string{"ssh-key QWER", "ssh-key ASDF"})
+
+		root := box.LxcPath()
+		c.Assert(root, Equals, "/var/lib/lxc/mclovins-container-1-"+
+			box.UniqueId)
+
+		// actually mount the container at /var/lib/lxc after create
+		isMounted, _ := mount.Mounted(root)
+		c.Assert(isMounted, Equals, true)
+
+		spec := boxContentSpec{
+			Exists: []string{
+				root,
+				root + "/rootfs",
+				// because the stub s3 data has it
+				root + "/rootfs/home/action/test.txt",
+				root + "/rootfs/home/action/.ssh",
+				root + "/rootfs/home/action/.ssh/id_rsa",
+				root + "/rootfs/home/action/.ssh/id_rsa.pub",
+			},
+			NotExists: []string{
+				root + "/rootfs/etc/action/premium",
+			},
+			Contains: map[string][]string{
+				root + "/rootfs/etc/passwd":          {"action:x:15001:15001"},
+				root + "/rootfs/etc/action/box_id":   {"1"},
+				root + "/rootfs/etc/action/box_user": {"action"},
+				root + "/rootfs/etc/hostname":        {"mclovins-container-1"},
+				root + "/rootfs/etc/hosts":           {"mclovins-container-1"},
+				root + "/rootfs/etc/network/interfaces": {
+					"address 192.168.254.2",
+					"gateway 192.168.254.1",
+				},
+				root + "/config": {
+					"lxc.cgroup.memory.limit_in_bytes = 256M",
+					"lxc.cgroup.memory.memsw.limit_in_bytes = 512M",
+					"lxc.cgroup.memory.swappiness = 60",
+					"lxc.network.hwaddr = 02:00",
+					"lxc.cgroup.cpu.shares = 2048",
+				},
+			},
+			Permissions: map[string][]int{
+				root + "/rootfs/home/action":                 {15001, 15001},
 				root + "/rootfs/home/action/.ssh":            {15001, 15001},
 				root + "/rootfs/home/action/.ssh/id_rsa":     {15001, 15001},
 				root + "/rootfs/home/action/.ssh/id_rsa.pub": {15001, 15001},
@@ -2085,5 +2169,72 @@ func (s *BoxerSuite) TestRemoveAuth(c *C) {
 		c.Assert(message.Success, Equals, true)
 		c.Assert(box.AuthUsername, Equals, "")
 		c.Assert(box.AuthPassword, Equals, "")
+	})
+}
+
+func (s *BoxerSuite) TestSnapshot(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+		message, _ := s.receiveMessages("mclovins-container-1", Message{
+			Id:         "testboxer",
+			BoxId:      1,
+			Type:       "aio:create",
+			Name:       "mclovins-container",
+			Runtime:    "test",
+			Memory:     "256M",
+			DiskSpace:  "1024M",
+			PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
+		}, Message{
+			Id:         "testboxer",
+			BoxId:      1,
+			Type:       "aio:snapshot",
+			SnapshotId: 123,
+			Name:       "mclovins-container-1",
+		})
+
+		c.Assert(message.Success, Equals, true)
+		c.Assert(message.Type, Equals, "aio:snapshotted")
+		c.Assert(message.SnapshotId, Equals, 123)
+		c.Assert(message.SnapshotUrl, Equals, "s3://staging-bucket/mclovins-container-1-snapshot-123.tar.gz")
+	})
+}
+
+func (s *BoxerSuite) TestDeleteSnapshot(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+		message, _ := s.receiveMessages("mclovins-container-1", Message{
+			Id:         "testboxer",
+			BoxId:      1,
+			Type:       "aio:create",
+			Name:       "mclovins-container",
+			Runtime:    "test",
+			Memory:     "256M",
+			DiskSpace:  "1024M",
+			PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
+		}, Message{
+			Id:          "testboxer",
+			BoxId:       1,
+			Type:        "aio:delete_snapshot",
+			SnapshotId:  123,
+			SnapshotUrl: "s3://staging-bucket/mclovins-container-1-snapshot-123.tar.gz",
+			Name:        "mclovins-container-1",
+		})
+
+		c.Assert(message.Success, Equals, true)
+		c.Assert(message.Type, Equals, "aio:deleted_snapshot")
+		c.Assert(message.SnapshotId, Equals, 123)
+
+		message, _ = s.receiveMessages("mclovins-container-1", Message{
+			Id:          "testboxer",
+			BoxId:       1,
+			Type:        "aio:delete_snapshot",
+			SnapshotId:  124,
+			SnapshotUrl: "s3://staging-bucket/fail",
+			Name:        "mclovins-container-1",
+		})
+
+		c.Assert(message.Success, Equals, false)
+		c.Assert(message.Type, Equals, "aio:deleted_snapshot")
+		c.Assert(message.SnapshotId, Equals, 124)
 	})
 }
