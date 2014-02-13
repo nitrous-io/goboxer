@@ -58,3 +58,18 @@ Tests are implemented with [gocheck](http://labix.org/gocheck).
 1. Setup s3cmd as well if you haven't: `s3cmd --configure`.
 1. `cd $HOME/goboxer`
 1. Tag a new release and upload the build to S3 with: `make release`
+
+### Running test under Docker
+
+If this is the 1st time you setup, you have to create base images to run the
+test
+
+- create a base image: `make base`
+- create a test image: `make ci-image`
+
+After that,
+
+- Run test: `make ci-test`
+
+However, whenever there are changes to the images, you should re-run `make base`
+and `make ci-image` to make sure that the image are updated
