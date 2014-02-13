@@ -22,6 +22,10 @@
     "golang": "golang_template",
     "test": "test_container_template"
   },
+  "s3Region": "ap-southeast-1",
+  "s3Bucket": "dev-goboxer-snapshots-apse1",
+  "s3AccessKey": "REPLACE ME",
+  "s3SecretKey": "REPLACE ME",
   "premiumCPUQuota": 1.0,
   "defaultCPUQuota": 0.5
 }
