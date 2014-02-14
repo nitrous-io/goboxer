@@ -2,9 +2,10 @@ package goboxer
 
 import (
 	"encoding/json"
+	"strings"
+
 	"github.com/action-io/goboxer/utils"
 	. "launchpad.net/gocheck"
-	"strings"
 )
 
 type MessageSuite struct{}
@@ -15,22 +16,23 @@ func (s *MessageSuite) TestToJSONOmitEmpty(c *C) {
 	m := Message{Id: "1"}
 	json, _ := utils.ToJSON(m)
 	res := map[string]bool{
-		"id":          true,
-		"boxId":       false,
-		"type":        false,
-		"returnVars":  false,
-		"freeMemory":  false,
-		"runtimes":    false,
-		"name":        false,
-		"port":        false,
-		"snapshotUrl": false,
-		"memory":      false,
-		"diskSpace":   false,
-		"sshKeyPair":  false,
-		"publicKeys":  false,
-		"dataType":    false,
-		"data":        false,
-		"info":        true,
+		"id":           true,
+		"boxId":        false,
+		"type":         false,
+		"returnVars":   false,
+		"freeMemory":   false,
+		"runtimes":     false,
+		"name":         false,
+		"port":         false,
+		"snapshotUrl":  false,
+		"snapshotSize": false,
+		"memory":       false,
+		"diskSpace":    false,
+		"sshKeyPair":   false,
+		"publicKeys":   false,
+		"dataType":     false,
+		"data":         false,
+		"info":         true,
 		// seems that embeded struct will get serialized
 		// anyway. It's ok for now to leave it here
 	}

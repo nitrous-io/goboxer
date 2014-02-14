@@ -534,14 +534,14 @@ func SnapshotBoxHandler(m Message, boxer *Boxer) Message {
 		SnapshotId: m.SnapshotId,
 		ReturnVars: m.ReturnVars,
 	}
-	url, err := box.Snapshot(m.SnapshotId)
+	snapshot, err := box.Snapshot(m.SnapshotId)
 	if err != nil {
 		logger.Printf("ERROR: Failed to snapshot box %v, err: %v\n", box, err)
 		message.Success = false
 		return message
 	}
-	logger.Printf("DEBUG: Snapshot URL: %s", url)
-	message.SnapshotUrl = url
+	message.SnapshotUrl = snapshot.Url
+	message.SnapshotSize = snapshot.SizeInMB()
 	message.Success = true
 	return message
 }

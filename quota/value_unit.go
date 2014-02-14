@@ -1,7 +1,10 @@
 package quota
 
+// TODO Generify this package - it shouldn't be part of the "quota" package.
+
 import (
 	"fmt"
+	"math"
 )
 
 type ValueUnit struct {
@@ -67,10 +70,18 @@ func ConvertValueUnitToByte(v ValueUnit) int {
 
 // Scale a value to a given unit
 //
-// ScaleUnit(512 * 1024, "M")
-// >> "512"
+// ScaleUnit(1.5 * 1024, "M")
+// >> 1.5
 func ScaleUnit(v int, u string) float64 {
 	return float64(v) / VALUE_UNIT_SCALE[u]
+}
+
+// Scales a value to the given unit and rounds it up to the nearest int.
+//
+// ScaleUnitCeil(1.5 * 1024, "M")
+// >> 2
+func ScaleUnitCeil(v int, u string) int {
+	return int(math.Ceil(ScaleUnit(v, u)))
 }
 
 var VALUE_UNIT_SCALE map[string]float64

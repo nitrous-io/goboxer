@@ -23,6 +23,7 @@ type Message struct {
 	Runtime       string   `json:"runtime,omitempty"`
 	SnapshotId    int      `json:"snapshotId,omitempty"`
 	SnapshotUrl   string   `json:"snapshotUrl,omitempty"`
+	SnapshotSize  int      `json:"snapshotSize,omitempty"`
 	Memory        string   `json:"memory,omitempty"`
 	DiskSpace     string   `json:"diskSpace,omitempty"`
 	PublicKeys    []string `json:"publicKeys,omitempty"`

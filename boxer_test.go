@@ -8,12 +8,6 @@ package goboxer
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/action-io/goboxer/cartman"
-	"github.com/action-io/goboxer/mount"
-	"github.com/action-io/goboxer/quota"
-	"github.com/action-io/goboxer/s3"
-	"github.com/garyburd/redigo/redis"
-	. "launchpad.net/gocheck"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -22,6 +16,13 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/action-io/goboxer/cartman"
+	"github.com/action-io/goboxer/mount"
+	"github.com/action-io/goboxer/quota"
+	"github.com/action-io/goboxer/s3"
+	"github.com/garyburd/redigo/redis"
+	. "launchpad.net/gocheck"
 )
 
 type BoxerSuite struct {
@@ -1649,6 +1650,9 @@ func (s *BoxerSuite) TestSnapshot(c *C) {
 		c.Assert(message.Type, Equals, "aio:snapshotted")
 		c.Assert(message.SnapshotId, Equals, 123)
 		c.Assert(message.SnapshotUrl, Equals, "s3://staging-bucket/mclovins-container-1-snapshot-123.tar.gz")
+		// Test container delta folder should be < 1M in size, so size should be
+		// rounded up to 1M.
+		c.Assert(message.SnapshotSize, Equals, 1)
 	})
 }
 

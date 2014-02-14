@@ -46,3 +46,15 @@ func (s *ValueUnitSuite) TestSumValueUnitMb(c *C) {
 	c.Assert(sum.Value, Equals, 3.0)
 	c.Assert(sum.Unit, Equals, "M")
 }
+
+func (s *ValueUnitSuite) TestScaleUnit(c *C) {
+	c.Assert(ScaleUnit(0, "M"), Equals, 0.0)
+	c.Assert(ScaleUnit(1.5*1024, "M"), Equals, 1.5)
+	c.Assert(ScaleUnit(2*1024, "M"), Equals, 2.0)
+}
+
+func (s *ValueUnitSuite) TestScaleUnitCeil(c *C) {
+	c.Assert(ScaleUnitCeil(0, "M"), Equals, 0)
+	c.Assert(ScaleUnitCeil(1.5*1024, "M"), Equals, 2)
+	c.Assert(ScaleUnitCeil(2*1024, "M"), Equals, 2)
+}
