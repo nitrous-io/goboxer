@@ -25,10 +25,6 @@ func run(cmd string, args ...string) error {
 	return exec.Command(cmd, args...).Run()
 }
 
-func output(cmd string, args ...string) ([]byte, error) {
-	return exec.Command(cmd, args...).CombinedOutput()
-}
-
 func Stop(namespace, containerName string) error {
 	logDir, err := createLogDir(namespace)
 	if err != nil {
