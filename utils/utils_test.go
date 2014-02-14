@@ -2,11 +2,12 @@ package utils
 
 import (
 	"fmt"
-	. "launchpad.net/gocheck"
 	"os/exec"
 	"strings"
 	"testing"
 	"time"
+
+	. "launchpad.net/gocheck"
 )
 
 // hook up gocheck into go test runner
@@ -18,19 +19,30 @@ var _ = Suite(&UtilSuite{})
 
 func (s *UtilSuite) TestExecWithTimeout(c *C) {
 	now := time.Now()
-	// timedout before cmd finish
+
+	// Times out before command completes.
 	err := Exec(exec.Command("sleep", "30"), 5*time.Millisecond)
 	c.Assert(err, NotNil)
 	c.Assert(time.Now().Sub(now) >= 5*time.Millisecond, Equals, true)
 	c.Assert(time.Now().Sub(now) < 30*time.Second, Equals, true)
 
-	// finish before timed out
+	// Command completes without timing out.
 	err = Exec(exec.Command("sleep", "0.01"), 50*time.Millisecond)
 	c.Assert(err, IsNil)
 
-	// cmd error
+	// Command raises an error.
 	err = Exec(exec.Command("invalidcmd"), 50*time.Millisecond)
 	c.Assert(err, NotNil)
 	c.Assert(strings.Contains(fmt.Sprintf("%v", err), "invalid cmd"), Equals, true)
 	c.Assert(time.Now().Sub(now) >= 50*time.Millisecond, Equals, false)
+}
+
+func (s *UtilSuite) TestPipeCommands(c *C) {
+	cmd1 := exec.Command("echo", "this is a test")
+	cmd2 := exec.Command("grep", "test")
+	cmd3 := exec.Command("wc", "--chars")
+	output, err := PipeCommands(cmd1, cmd2, cmd3)
+
+	c.Assert(err, IsNil)
+	c.Assert(string(output), Equals, "15\n")
 }
