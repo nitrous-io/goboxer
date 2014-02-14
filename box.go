@@ -3,6 +3,13 @@ package goboxer
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"os"
+	"path"
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/action-io/goboxer/fs"
 	"github.com/action-io/goboxer/ip"
 	"github.com/action-io/goboxer/lvm"
@@ -11,12 +18,6 @@ import (
 	"github.com/action-io/goboxer/quota"
 	"github.com/action-io/goboxer/s3"
 	"github.com/action-io/goboxer/utils"
-	"io/ioutil"
-	"os"
-	"path"
-	"strconv"
-	"strings"
-	"time"
 )
 
 const UID_START = 15000
@@ -259,7 +260,7 @@ func (b *Box) Snapshot(snapshotId int) (snapshotUrl string, err error) {
 		fmt.Sprintf("%s:Snapshot %s", b.ContainerName(), b.MountName()),
 	)(time.Now())
 	tarName := fmt.Sprintf("%s-snapshot-%d.tar.gz", b.ContainerName(), snapshotId)
-	logger.Printf("%s: creating snapshot tarball %s\n", b.MountName(), tarName)
+	logger.Printf("%s: creating snapshot tarball %s\n", b.ContainerName(), tarName)
 	tarPath, err := Tar(tarName, b.ContainerUserHomePath())
 	if err != nil {
 		err = fmt.Errorf("Snapshot: failed to compress delta %v", err)

@@ -7,11 +7,12 @@ package goboxer
 
 import (
 	"fmt"
+	"runtime"
+	"time"
+
 	"github.com/action-io/goboxer/cartman"
 	"github.com/action-io/goboxer/host"
 	"github.com/action-io/goboxer/s3"
-	"runtime"
-	"time"
 )
 
 var handlers map[string]MessageHandler
@@ -521,6 +522,7 @@ func SnapshotBoxHandler(m Message, boxer *Boxer) Message {
 	}
 	url, err := box.Snapshot(m.SnapshotId)
 	if err != nil {
+		logger.Printf("ERROR: Failed to snapshot box %v, err: %v\n", box, err)
 		message.Success = false
 		return message
 	}
@@ -545,13 +547,16 @@ func DeleteSnapshotBoxHandler(m Message, boxer *Boxer) (message Message) {
 
 	url, err := s3.ParseUrl(m.SnapshotUrl)
 	if err != nil {
+		logger.Printf("ERROR: Failed parse snapshot URL %v, err: %v\n", m.SnapshotUrl, err)
 		return
 	}
 	client, err := boxer.S3Auth.NewClient(url.Region, url.Bucket)
 	if err != nil {
+		logger.Printf("ERROR: Failed create S3 client %v, err: %v\n", m.SnapshotUrl, err)
 		return
 	}
 	if err := client.Delete(url.File); err != nil {
+		logger.Printf("ERROR: Failed to delete snapshot %v, err: %v\n", m.SnapshotUrl, err)
 		return
 	}
 	message.Success = true
