@@ -224,7 +224,7 @@ func (b *Box) Stop() error {
 		logger.Printf("%v", &BoxOpError{Op: "unset port forwarding", Err: err})
 	}
 	if lxc.Poweroff(b.MountName()) != nil {
-		utils.RunCommand("pkill", "-u", b.Uid())
+		utils.RunCommand("pkill", "-9", "-u", b.Uid())
 		if err := lxc.Stop(b.ContainerName(), b.MountName()); err != nil {
 			return &BoxOpError{Op: "lxc-stop " + b.MountName(), Err: err}
 		}
