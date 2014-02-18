@@ -93,6 +93,19 @@ func Status(name string) (string, error) {
 	return strings.TrimSpace(fields[1]), nil
 }
 
+func CgroupSet(name, subsystem, value string) error {
+	log.Printf("lxc: CgroupSet(%s, %s, %s)", name, subsystem, value)
+	status, err := Status(name)
+	if err != nil {
+		return err
+	}
+	if status != RUNNING {
+		return fmt.Errorf("Tried to CgroupSet on non-running container %s", name)
+	}
+	return utils.RunCommand("sudo", "lxc-cgroup", "-n",
+		name, subsystem, value)
+}
+
 func getContainerPid(name string) (int, error) {
 	cmd := exec.Command("lxc-info", "-n", name, "-p")
 	output, err := cmd.Output()

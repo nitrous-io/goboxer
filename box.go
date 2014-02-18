@@ -46,6 +46,15 @@ type BoxInfo struct {
 	LxcStatus    string  `json:"lxcStatus,omitempty"`
 }
 
+// MemorySpecChange contains old and new ValueUnit strings for memory and total
+// memory
+type MemorySpecChange struct {
+	OldMemory      string
+	OldTotalMemory string
+	NewMemory      string
+	NewTotalMemory string
+}
+
 // UniqueId is the guaranteed unique id *only* for the current box over its lifetime
 // i.e. a box will be guaranteed not to have its mountpoint clash when
 // umount/remount when uid is implemented
@@ -287,6 +296,10 @@ func (b *Box) Snapshot(snapshotId int) (snapshot *Snapshot, err error) {
 	return
 }
 
+func (b *Box) CgroupSet(subsystem, value string) error {
+	return lxc.CgroupSet(b.MountName(), subsystem, value)
+}
+
 func (b *Box) UpdateAuth(auth BoxAuth) error {
 	b.AuthUsername = auth.Username
 	b.AuthPassword = auth.Password
@@ -510,10 +523,7 @@ func (b *Box) UnsetQuota() error {
 }
 
 func (b *Box) ChangeSpec(spec *BoxSpec) error {
-	if err := b.handleSpecChange(spec, false); err != nil {
-		return err
-	}
-	return nil
+	return b.handleSpecChange(spec, false)
 }
 
 func (b *Box) CurrentSpec() *BoxSpec {
@@ -688,6 +698,10 @@ func (b *Box) RemoveEnv(data []string) (err error) {
 // the mounted path, not the _delta path
 func (b *Box) handleSpecChange(spec *BoxSpec, forceWriteConfig bool) error {
 	willWriteConfig := false
+	msc := MemorySpecChange{
+		OldMemory:      b.Memory,
+		OldTotalMemory: b.TotalMemory(),
+	}
 	if spec.Memory != b.Memory {
 		b.Memory = spec.Memory
 		willWriteConfig = true
@@ -713,7 +727,48 @@ func (b *Box) handleSpecChange(spec *BoxSpec, forceWriteConfig bool) error {
 			return &BoxOpError{Op: "set disk quota", Err: err}
 		}
 	}
+	// apply new memory quota immediately for running boxes
+	if b.State == "running" && (b.Memory != msc.OldMemory || b.TotalMemory() != msc.OldTotalMemory) {
+		if err := b.boxer.ResourcePool.SaveBox(b); err != nil {
+			return &BoxOpError{Op: "save", Err: err}
+		}
+		msc.NewMemory = b.Memory
+		msc.NewTotalMemory = b.TotalMemory()
+		if err := b.liveUpdateMemory(msc); err != nil {
+			return &BoxOpError{Op: "live adjust memory quota", Err: err}
+		}
+	}
 	return nil
+}
+
+func (b *Box) liveUpdateMemory(msc MemorySpecChange) error {
+	order := b.memorySettingOrder(msc)
+	for _, kvPair := range order {
+		k, v := kvPair[0], kvPair[1]
+		if err := b.CgroupSet(k, v); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// memorySettingOrder returns a slice of arguments to lxc-cgroup (slice of
+// strings) signifying what order to change the settings in.   lxc-cgroup
+// enforces invariant:
+//   memory.limit_in_bytes < memory.memsw.limit_in_bytes
+// so we need to order operations accordingly
+func (b *Box) memorySettingOrder(msc MemorySpecChange) [][]string {
+	var (
+		MemKeyValue      = []string{"memory.limit_in_bytes", msc.NewMemory}
+		TotalMemKeyValue = []string{"memory.memsw.limit_in_bytes", msc.NewTotalMemory}
+	)
+	stringToByte := func(s string) int {
+		return quota.ConvertValueUnitToByte(quota.ParseValueUnit(s))
+	}
+	if stringToByte(msc.OldMemory) > stringToByte(msc.NewTotalMemory) {
+		return [][]string{MemKeyValue, TotalMemKeyValue}
+	}
+	return [][]string{TotalMemKeyValue, MemKeyValue}
 }
 
 func (b *Box) quotaArg() quota.QuotaArg {
