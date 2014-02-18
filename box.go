@@ -522,7 +522,7 @@ func (b *Box) ChangeSpec(spec *BoxSpec) error {
 	if err := b.handleSpecChange(spec, false); err != nil {
 		return err
 	}
-	return b.Restart(spec)
+	return nil
 }
 
 func (b *Box) CurrentSpec() *BoxSpec {
