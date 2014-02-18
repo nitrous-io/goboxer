@@ -634,11 +634,16 @@ func (b *Box) MemoryUsageInBytes() (int, error) {
 }
 
 func (b *Box) Info() (BoxInfo, error) {
+	const MemoryUsageNotApplicable = -1.0
 	var info BoxInfo
-	if memoryUsage, err := b.MemoryUsageInBytes(); err != nil {
-		return info, err
+	if b.State == "running" {
+		if memoryUsage, err := b.MemoryUsageInBytes(); err != nil {
+			return info, err
+		} else {
+			info.MemoryUsage = float64(memoryUsage) / (1024 * 1024)
+		}
 	} else {
-		info.MemoryUsage = float64(memoryUsage) / (1024 * 1024)
+		info.MemoryUsage = MemoryUsageNotApplicable
 	}
 	if state, err := lxc.Status(b.MountName()); err != nil {
 		return info, err

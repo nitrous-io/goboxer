@@ -1344,6 +1344,17 @@ func (s *BoxerSuite) TestInfo(c *C) {
 		c.Assert(message.BoxId, Equals, 1)
 		c.Assert(message.Success, Equals, true)
 		c.Assert(message.Info.LxcStatus, Equals, "RUNNING")
+		c.Assert(message.Info.MemoryUsage > 1.0, Equals, true)
+
+		message, _ = s.receiveMessages("mclovins-container-1",
+			s.makeMessage("aio:stop", defaultMsg),
+			s.makeMessage("aio:info_request", defaultMsg))
+		c.Assert(message.Type, Equals, "aio:info_response")
+		c.Assert(message.Id, Equals, "testboxer")
+		c.Assert(message.BoxId, Equals, 1)
+		c.Assert(message.Success, Equals, true)
+		c.Assert(message.Info.LxcStatus, Equals, "STOPPED")
+		c.Assert(message.Info.MemoryUsage, Equals, -1.0)
 	})
 }
 
