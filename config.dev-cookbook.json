@@ -1,8 +1,8 @@
 {
   "id": "33.33.33.11",
   "vagrant": true,
-  "disks": ["/lxc/disk1"],
-  "selectedDisk": "/lxc/disk1",
+  "disks": ["/lxc/disk2"],
+  "selectedDisk": "/lxc/disk2",
   "boxerChannel": "aio-boxer-channel",
   "coachChannel": "aio-coach-channel",
   "redisMQHost": "33.33.33.10",
@@ -12,7 +12,7 @@
   "pingHost": "127.0.0.1",
   "pingPort": "1339",
   "mountMethod": "aufs",
-  "quotaMethod": "prjquota",
+  "quotaMethod": "usrquota",
   "cartmanHost": "33.33.33.10",
   "cartmanPort": "65202",
   "runtimes": {
