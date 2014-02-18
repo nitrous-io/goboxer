@@ -409,10 +409,6 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 			message.Success = false
 			return message
 		}
-		if err := boxer.ResourcePool.UpdateState(box, "running"); err != nil {
-			message.Success = false
-			return message
-		}
 		message.Success = true
 		return message
 	case "aio:configure:set_env_variables":
