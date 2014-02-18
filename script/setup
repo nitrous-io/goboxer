@@ -73,4 +73,4 @@ mkdir -p /lxc/disk2/base_container_template
 cp -af /var/lib/lxc/base_container_template /lxc/disk2/
 cp -af /var/lib/lxc/test_container_template.tar.gz /lxc/disk2/
 
-chmod -R go+rx /var/lib/lxc
+chmod -R go+r /var/lib/lxc
