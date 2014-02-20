@@ -1,5 +1,30 @@
 #!/bin/bash
 
+# setup lvm
+if [[ ! -f $HOME/lxc_disk.img ]]; then
+  dd if=/dev/zero of=$HOME/lxc_disk.img bs=1024 count=1000000
+fi
+if [[ ! `losetup -a | grep /dev/loop0` ]]; then
+  losetup /dev/loop0 $HOME/lxc_disk.img
+fi
+pvcreate /dev/loop0
+vgcreate aio_boxhost /dev/loop0
+lvcreate --size 800M --type thin-pool --thinpool boxes aio_boxhost
+
+# setup xfs
+if [[ ! -f $HOME/xfs_disk.img ]]; then
+  dd if=/dev/zero of=$HOME/xfs_disk.img bs=1024 count=1000000
+fi
+if [[ ! `losetup -a | grep /dev/loop1` ]]; then
+  losetup /dev/loop1 $HOME/xfs_disk.img
+fi
+if [[ ! `blkid /dev/loop1 | grep xfs` ]]; then
+  mkfs.xfs /dev/loop1
+fi
+mkdir -p /lxc/disk1
+umount /lxc/disk1
+mount -t xfs -o defaults,prjquota /dev/loop1 /lxc/disk1
+
 # setup ext4
 if [[ ! -f $HOME/ext4_disk.img ]]; then
   dd if=/dev/zero of=$HOME/ext4_disk.img bs=1024 count=1000000
@@ -40,6 +65,11 @@ fi
 
 /sbin/ifconfig br-lxc-254 || /sbin/ifup br-lxc-254
 (/sbin/iptables -t nat --list | /bin/grep 192-168-254-0) || /sbin/iptables -t nat -A POSTROUTING -s 192.168.254.0/24 ! -d 192.168.254.0/24 -j MASQUERADE
+
+# install templates to all disks
+mkdir -p /lxc/disk1/base_container_template
+cp -af /var/lib/lxc/base_container_template /lxc/disk1/
+cp -af /var/lib/lxc/test_container_template.tar.gz /lxc/disk1/
 
 mkdir -p /lxc/disk2/base_container_template
 cp -af /var/lib/lxc/base_container_template /lxc/disk2/
