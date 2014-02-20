@@ -44,6 +44,7 @@ $script = <<SCRIPT
   /usr/local/go/bin/go get launchpad.net/gocheck
   chown -R vagrant:vagrant $HOME/gocode
 
+  ./script/install_hooks
   ./script/setup
 
   echo 'To deploy, you need to setup s3cmd credentials. Run `s3cmd --configure` inside the box to start'

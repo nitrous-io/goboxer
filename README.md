@@ -33,6 +33,10 @@ git config --global user.email "me@example.com"
 
 You might want to setup your dotfiles too since this is a new development environment.
 
+#### Git hooks
+
+Install the recommended git hooks in the `misc/git` directory with: `script/install_hooks`
+
 ### Running tests
 
 1. Change to goboxer directory: `cd $HOME/goboxer`.
