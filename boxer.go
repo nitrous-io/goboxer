@@ -230,7 +230,8 @@ func StartBoxHandler(m Message, boxer *Boxer) Message {
 
 	if err := box.Start(spec); err != nil {
 		logger.Printf("ERROR: Fail to start %v, err: %v\n", box, err)
-		return boxer.NewInvalidParamMessage()
+		msg.Success = false
+		return msg
 	}
 	// Override public keys if they're sent in the message.
 	if len(m.PublicKeys) > 0 {
@@ -239,6 +240,7 @@ func StartBoxHandler(m Message, boxer *Boxer) Message {
 	if err := boxer.ResourcePool.UpdateState(box, "running"); err != nil {
 		logger.Printf("ERROR: Fail to update box state %v, err: %v\n", box, err)
 		msg.Success = false
+		return msg
 	}
 	// send back the final spec of box
 	msg.Data = box.CurrentSpec().ToData()
@@ -251,10 +253,6 @@ func StopBoxHandler(m Message, boxer *Boxer) Message {
 		logger.Printf("ERROR: Fail to find box %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
 	}
-	if err := box.Stop(); err != nil {
-		logger.Printf("ERROR: Fail to stop box %v, err: %v\n", box, err)
-		return boxer.NewInvalidParamMessage()
-	}
 	msg := Message{
 		Type:       "aio:stopped",
 		Id:         boxer.Id,
@@ -262,9 +260,15 @@ func StopBoxHandler(m Message, boxer *Boxer) Message {
 		ReturnVars: m.ReturnVars,
 		Success:    true,
 	}
+	if err := box.Stop(); err != nil {
+		logger.Printf("ERROR: Fail to stop box %v, err: %v\n", box, err)
+		msg.Success = false
+		return msg
+	}
 	if err := boxer.ResourcePool.UpdateState(box, "stopped"); err != nil {
 		logger.Printf("ERROR: Fail to update box state %v, err: %v\n", box, err)
 		msg.Success = false
+		return msg
 	}
 	return msg
 }
@@ -289,11 +293,6 @@ func RestartBoxHandler(m Message, boxer *Boxer) Message {
 	}
 	spec := box.CurrentSpec()
 	spec.MergeData(m)
-
-	if err := box.Restart(spec); err != nil {
-		logger.Printf("ERROR: Fail to restart box %v, err: %v\n", box, err)
-		return boxer.NewInvalidParamMessage()
-	}
 	msg := Message{
 		Type:       "aio:restarted",
 		Id:         boxer.Id,
@@ -302,9 +301,16 @@ func RestartBoxHandler(m Message, boxer *Boxer) Message {
 		Success:    true,
 		Data:       box.CurrentSpec().ToData(),
 	}
+
+	if err := box.Restart(spec); err != nil {
+		logger.Printf("ERROR: Fail to restart box %v, err: %v\n", box, err)
+		msg.Success = false
+		return msg
+	}
 	if err := boxer.ResourcePool.UpdateState(box, "running"); err != nil {
 		logger.Printf("ERROR: Fail to update box state %v, err: %v\n", box, err)
 		msg.Success = false
+		return msg
 	}
 	return msg
 }
@@ -315,21 +321,24 @@ func DestroyBoxHandler(m Message, boxer *Boxer) Message {
 		logger.Printf("ERROR: Fail to find box %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
 	}
-	if err := box.Destroy(); err != nil {
-		logger.Printf("ERROR: Fail to destroy box %v, err: %v\n", box, err)
-		return boxer.NewInvalidParamMessage()
-	}
-	if err := boxer.ResourcePool.DeleteBox(box); err != nil {
-		logger.Printf("ERROR: Fail to release box %v, err: %v\n", box, err)
-		return boxer.NewInvalidParamMessage()
-	}
-	return Message{
+	msg := Message{
 		Type:       "aio:destroyed",
 		Id:         boxer.Id,
 		BoxId:      box.Id,
 		ReturnVars: m.ReturnVars,
 		Success:    true,
 	}
+	if err := box.Destroy(); err != nil {
+		logger.Printf("ERROR: Fail to destroy box %v, err: %v\n", box, err)
+		msg.Success = false
+		return msg
+	}
+	if err := boxer.ResourcePool.DeleteBox(box); err != nil {
+		logger.Printf("ERROR: Fail to release box %v, err: %v\n", box, err)
+		msg.Success = false
+		return msg
+	}
+	return msg
 }
 
 func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
@@ -351,7 +360,8 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 			return boxer.NewInvalidParamMessage()
 		}
 		if err := box.AddPublicKey(data); err != nil {
-			return boxer.NewInvalidParamMessage()
+			message.Success = false
+			return message
 		}
 		message.Success = true
 		return message
@@ -362,7 +372,8 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 			return boxer.NewInvalidParamMessage()
 		}
 		if err := box.RemovePublicKey(data); err != nil {
-			return boxer.NewInvalidParamMessage()
+			message.Success = false
+			return message
 		}
 		message.Success = true
 		return message
@@ -394,10 +405,11 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 		if !ok {
 			return boxer.NewInvalidParamMessage()
 		}
-		message.Success = true
 		if err := box.SetEnv(data); err != nil {
 			message.Success = false
+			return message
 		}
+		message.Success = true
 		return message
 	case "aio:configure:remove_env_variables":
 		message.DataType = "aio:configured:remove_env_variables"
@@ -412,10 +424,11 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 		if len(data) == 0 {
 			return boxer.NewInvalidParamMessage()
 		}
-		message.Success = true
 		if err := box.RemoveEnv(data); err != nil {
 			message.Success = false
+			return message
 		}
+		message.Success = true
 		return message
 	case "aio:configure:update_auth":
 		var username, password string
@@ -448,10 +461,11 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 		if !auth.IsValid() {
 			return boxer.NewInvalidParamMessage()
 		}
-		message.Success = true
 		if err := box.UpdateAuth(auth); err != nil {
 			message.Success = false
+			return message
 		}
+		message.Success = true
 		return message
 	case "aio:configure:update_premium":
 		message.DataType = "aio:configured:update_premium"
