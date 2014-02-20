@@ -19,7 +19,8 @@
     "rails": "ruby_template",
     "nodejs": "nodejs_template",
     "django": "python_template",
-    "golang": "golang_template",
+    "go": "golang_template",
+    "php": "php_template",
     "test": "test_container_template"
   },
   "s3Region": "ap-southeast-1",
