@@ -66,5 +66,4 @@ func getRedisConn(serverAddr string) (c redis.Conn, err error) {
 		// if after 5 minutes we cant get the redis connection, just out
 		return nil, err
 	}
-	return
 }

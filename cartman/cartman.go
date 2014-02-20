@@ -25,8 +25,8 @@ func (c *Cartman) InvalidateCache(containerName string) error {
 	path.RawQuery = v.Encode()
 	res, err := http.Get(path.String())
 	if err != nil || res.StatusCode != http.StatusOK {
-		return fmt.Errorf("%s: Failed to invalidate cartman cached, status: %s",
-			containerName)
+		return fmt.Errorf("%s: Failed to invalidate cartman cached, status: %d",
+			containerName, res.StatusCode)
 	}
 	return nil
 }

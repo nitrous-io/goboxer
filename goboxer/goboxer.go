@@ -100,7 +100,7 @@ func main() {
 	coachListener := &goboxer.CoachListener{
 		Boxer:        boxer,
 		Pool:         goboxer.NewRedisPool(config.RedisMQAddr()),
-		BoxerPubSub:  redis.PubSubConn{boxerConn},
+		BoxerPubSub:  redis.PubSubConn{Conn: boxerConn},
 		BoxerChannel: config.BoxerChannel,
 		CoachChannel: config.CoachChannel,
 	}

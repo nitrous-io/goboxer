@@ -59,7 +59,7 @@ func main() {
 	subConn := redisPool.Get()
 	defer subConn.Close()
 
-	psc := redis.PubSubConn{subConn}
+	psc := redis.PubSubConn{Conn: subConn}
 	psc.Subscribe(COACH_CHANNEL)
 
 	start := time.Now()
