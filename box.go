@@ -570,7 +570,6 @@ func (b *Box) Mount(root string) error {
 		fmt.Sprintf("%s:Mount", b.ContainerName()),
 	)(time.Now())
 
-	lxcBoxPath := b.LxcPath()
 	boxDeltaPath := b.ContainerDeltaPath()
 	mountMethod := b.getMountMethod()
 	switch mountMethod {
@@ -588,7 +587,7 @@ func (b *Box) Mount(root string) error {
 		// FIXME: MountBind to make it similar to boxer. Ideally we probably
 		// want to symlink as it doesnt make any difference and seems to be
 		// more stable. Less mountpoint is better
-		err := mount.MountBind(boxPath, lxcBoxPath)
+		err := mount.MountBind(boxPath, b.LxcPath())
 		if err != nil {
 			return &BoxOpError{Op: "overlayfs/aufs mount-bind", Err: err}
 		}
@@ -621,6 +620,10 @@ func (b *Box) Unmount(root string) error {
 		return fmt.Errorf("%s is not a supported unmount method", mountMethod)
 	}
 	return nil
+}
+
+func (b *Box) lxcMounted() (bool, error) {
+	return mount.Mounted(b.LxcPath())
 }
 
 func (b *Box) DeleteContainerData() error {
@@ -707,7 +710,7 @@ func (b *Box) RemoveEnv(data []string) (err error) {
 // the mounted path, not the _delta path
 func (b *Box) handleSpecChange(spec *BoxSpec, forceWriteConfig bool) error {
 	willWriteConfig := false
-	msc := MemorySpecChange{
+	msc := &MemorySpecChange{
 		OldMemory:      b.Memory,
 		OldTotalMemory: b.TotalMemory(),
 	}
@@ -724,8 +727,20 @@ func (b *Box) handleSpecChange(spec *BoxSpec, forceWriteConfig bool) error {
 		willWriteConfig = true
 	}
 	if willWriteConfig || forceWriteConfig {
-		if err := b.writeConfig(); err != nil {
+		if err := b.boxer.ResourcePool.SaveBox(b); err != nil {
+			return &BoxOpError{Op: "save", Err: err}
+		}
+		mounted, err := b.lxcMounted()
+		if err != nil {
 			return &BoxOpError{Op: "write lxc config", Err: err}
+		}
+		if mounted {
+			// if not mounted (stopped state), the config will be written upon
+			// next Start()
+			err = b.writeConfig()
+			if err != nil {
+				return &BoxOpError{Op: "write lxc config", Err: err}
+			}
 		}
 	}
 	if len(spec.DiskSpace) > 0 && spec.DiskSpace != b.DiskSpace {
@@ -738,9 +753,6 @@ func (b *Box) handleSpecChange(spec *BoxSpec, forceWriteConfig bool) error {
 	}
 	// apply new memory quota immediately for running boxes
 	if b.State == "running" && (b.Memory != msc.OldMemory || b.TotalMemory() != msc.OldTotalMemory) {
-		if err := b.boxer.ResourcePool.SaveBox(b); err != nil {
-			return &BoxOpError{Op: "save", Err: err}
-		}
 		msc.NewMemory = b.Memory
 		msc.NewTotalMemory = b.TotalMemory()
 		if err := b.liveUpdateMemory(msc); err != nil {
@@ -750,8 +762,8 @@ func (b *Box) handleSpecChange(spec *BoxSpec, forceWriteConfig bool) error {
 	return nil
 }
 
-func (b *Box) liveUpdateMemory(msc MemorySpecChange) error {
-	order := b.memorySettingOrder(msc)
+func (b *Box) liveUpdateMemory(msc *MemorySpecChange) error {
+	order := msc.settingOrder()
 	for _, kvPair := range order {
 		k, v := kvPair[0], kvPair[1]
 		if err := b.CgroupSet(k, v); err != nil {
@@ -766,18 +778,18 @@ func (b *Box) liveUpdateMemory(msc MemorySpecChange) error {
 // enforces invariant:
 //   memory.limit_in_bytes < memory.memsw.limit_in_bytes
 // so we need to order operations accordingly
-func (b *Box) memorySettingOrder(msc MemorySpecChange) [][]string {
+func (msc *MemorySpecChange) settingOrder() [][]string {
 	var (
-		MemKeyValue      = []string{"memory.limit_in_bytes", msc.NewMemory}
-		TotalMemKeyValue = []string{"memory.memsw.limit_in_bytes", msc.NewTotalMemory}
+		memKeyValue      = []string{"memory.limit_in_bytes", msc.NewMemory}
+		totalMemKeyValue = []string{"memory.memsw.limit_in_bytes", msc.NewTotalMemory}
 	)
 	stringToByte := func(s string) int {
 		return quota.ConvertValueUnitToByte(quota.ParseValueUnit(s))
 	}
 	if stringToByte(msc.OldMemory) > stringToByte(msc.NewTotalMemory) {
-		return [][]string{MemKeyValue, TotalMemKeyValue}
+		return [][]string{memKeyValue, totalMemKeyValue}
 	}
-	return [][]string{TotalMemKeyValue, MemKeyValue}
+	return [][]string{totalMemKeyValue, memKeyValue}
 }
 
 func (b *Box) quotaArg() quota.QuotaArg {

@@ -1395,6 +1395,31 @@ func (s *BoxerSuite) TestChangeBoxSpecsPass(c *C) {
 			Path: box.LxcPath() + "_delta",
 		})
 		c.Assert(newLimit.Limit > 2*900*1000, Equals, true)
+
+		// Test change specs on stopped box
+		json.Unmarshal(
+			[]byte("{\"memory\":\"384M\",\"diskSpace\":\"2048M\",\"cpuShares\":2048}"),
+			&mockData)
+		configureMessage.Data = mockData
+		message, box = s.receiveMessages("mclovins-container-1", Message{
+			Id:    "testboxer",
+			BoxId: 1,
+			Type:  "aio:stop",
+			Name:  "mclovins-container-1",
+		}, configureMessage)
+
+		s.assertBoxState(c, box, "stopped")
+		_, box = s.receiveMessages("mclovins-container-1", Message{
+			Id:    "testboxer",
+			BoxId: 1,
+			Type:  "aio:start",
+			Name:  "mclovins-container-1",
+		})
+		DoesContain(c, map[string][]string{
+			box.LxcPath() + "/config": {
+				"lxc.cgroup.memory.limit_in_bytes = 384M",
+			},
+		})
 	})
 }
 
