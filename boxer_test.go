@@ -259,7 +259,6 @@ func (s *BoxerSuite) TestCreateBox(c *C) {
 				root + "/config": {
 					"lxc.cgroup.memory.limit_in_bytes = 256M",
 					"lxc.cgroup.memory.memsw.limit_in_bytes = 512M",
-					"lxc.cgroup.memory.swappiness = 60",
 					"lxc.network.hwaddr = 02:00",
 					"lxc.cgroup.cpu.shares = 2048",
 				},
@@ -340,7 +339,6 @@ func (s *BoxerSuite) TestCreateWithSnapshot(c *C) {
 				root + "/config": {
 					"lxc.cgroup.memory.limit_in_bytes = 256M",
 					"lxc.cgroup.memory.memsw.limit_in_bytes = 512M",
-					"lxc.cgroup.memory.swappiness = 60",
 					"lxc.network.hwaddr = 02:00",
 					"lxc.cgroup.cpu.shares = 2048",
 				},
