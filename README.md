@@ -21,6 +21,8 @@ Developing goboxer is best done in a VM.
 1. Glare at the screen angrily as the provisioning will take some time.
 1. Login to the box: `vagrant ssh`.
 1. If you haven't setup s3cmd, now is a good time to do that: `s3cmd --configure`.
+1. If you want to use this goboxer VM as your development box (e.g. to support
+   box ops requests from your dev environment), run `script/dev-setup`.
 
 ### Git setup
 
