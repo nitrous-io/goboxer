@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/action-io/goboxer/cartman"
+	"github.com/action-io/goboxer/lxc"
 	"github.com/action-io/goboxer/mount"
 	"github.com/action-io/goboxer/quota"
 	"github.com/action-io/goboxer/s3"
@@ -1395,26 +1396,59 @@ func (s *BoxerSuite) TestChangeBoxSpecsPass(c *C) {
 			Path: box.LxcPath() + "_delta",
 		})
 		c.Assert(newLimit.Limit > 2*900*1000, Equals, true)
+	})
+}
 
-		// Test change specs on stopped box
+func (s *BoxerSuite) TestChangeBoxSpecsPassOnRunningBox(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+		var mockData map[string]interface{}
+		json.Unmarshal(
+			[]byte("{\"memory\":\"384M\"}"),
+			&mockData)
+		_, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:start", defaultMsg),
+			s.makeMessage("aio:configure", func(msg *Message) {
+				msg.DataType = "aio:configure:change_specs"
+				msg.Data = mockData
+			}))
+
+		s.assertBoxState(c, box, "running")
+		DoesContain(c, map[string][]string{
+			box.LxcPath() + "/config": {
+				"lxc.cgroup.memory.limit_in_bytes = 384M",
+			},
+		})
+		newMemLimit, err := lxc.CgroupGet(box.MountName(), "memory.limit_in_bytes")
+		c.Assert(err, IsNil)
+		c.Assert(strings.TrimSpace(newMemLimit), Equals,
+			strconv.Itoa(quota.ConvertValueUnitToByte(quota.ValueUnit{384, "M"})*1024))
+		newTotalLimit, err := lxc.CgroupGet(box.MountName(), "memory.memsw.limit_in_bytes")
+		c.Assert(err, IsNil)
+		c.Assert(strings.TrimSpace(newTotalLimit), Equals,
+			strconv.Itoa(quota.ConvertValueUnitToByte(quota.ParseValueUnit(box.TotalMemory()))*1024))
+	})
+}
+
+func (s *BoxerSuite) TestChangeBoxSpecsPassOnStoppedBox(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+		var mockData map[string]interface{}
 		json.Unmarshal(
 			[]byte("{\"memory\":\"384M\",\"diskSpace\":\"2048M\",\"cpuShares\":2048}"),
 			&mockData)
-		configureMessage.Data = mockData
-		message, box = s.receiveMessages("mclovins-container-1", Message{
-			Id:    "testboxer",
-			BoxId: 1,
-			Type:  "aio:stop",
-			Name:  "mclovins-container-1",
-		}, configureMessage)
+		_, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:stop", defaultMsg),
+			s.makeMessage("aio:configure", func(msg *Message) {
+				msg.DataType = "aio:configure:change_specs"
+				msg.Data = mockData
+			}))
 
 		s.assertBoxState(c, box, "stopped")
-		_, box = s.receiveMessages("mclovins-container-1", Message{
-			Id:    "testboxer",
-			BoxId: 1,
-			Type:  "aio:start",
-			Name:  "mclovins-container-1",
-		})
+		_, box = s.receiveMessages("mclovins-container-1",
+			s.makeMessage("aio:start", defaultMsg))
 		DoesContain(c, map[string][]string{
 			box.LxcPath() + "/config": {
 				"lxc.cgroup.memory.limit_in_bytes = 384M",
