@@ -123,6 +123,36 @@ func (s *BoxerSuite) setupFakeCartman() *httptest.Server {
 	return server
 }
 
+type messageOverrideFn func(msg *Message)
+
+// defaultMsg is a no-op for messageOverrideFn
+func defaultMsg(msg *Message) { return }
+
+// makeMessage creates a message with default values.  Callers can pass a
+// messageOverrideFn to set custom values
+func (s *BoxerSuite) makeMessage(messageType string, override messageOverrideFn) Message {
+	m := Message{
+		Id:    "testboxer",
+		BoxId: 1,
+		Name:  "mclovins-container-1",
+	}
+	m.Type = messageType
+	override(&m)
+	return m
+}
+
+func (s *BoxerSuite) makeCreateMessage(override messageOverrideFn) Message {
+	m := s.makeMessage("aio:create", func(msg *Message) {
+		msg.Name = "mclovins-container"
+		msg.Runtime = "test"
+		msg.Memory = "256M"
+		msg.DiskSpace = "1G"
+		msg.PublicKeys = []string{"ssh-rsa QWER", "ssh-rsa ASDF"}
+	})
+	override(&m)
+	return m
+}
+
 type testFunction func(s *BoxerSuite, c *C, stratName string, stratValue testProvisionStrategy)
 
 func (s *BoxerSuite) testEachStrategy(c *C, test testFunction) {
@@ -205,17 +235,8 @@ func (s *BoxerSuite) TestBoxCPUQuotaDefaults(c *C) {
 func (s *BoxerSuite) TestCreateBox(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
-		message, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:         "testboxer",
-			BoxId:      1,
-			Type:       "aio:create",
-			Name:       "mclovins-container",
-			Runtime:    "test",
-			Memory:     "256M",
-			DiskSpace:  "1G",
-			PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
-			CpuShares:  2048,
-		})
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(func(msg *Message) { msg.CpuShares = 2048 }))
 
 		c.Assert(message.Type, Equals, "aio:created")
 		c.Assert(message.Id, Equals, "testboxer")
@@ -223,7 +244,7 @@ func (s *BoxerSuite) TestCreateBox(c *C) {
 		c.Assert(message.Port, Equals, 10002)
 		c.Assert(message.Success, Equals, true)
 
-		c.Assert(box.PublicKeys, DeepEquals, []string{"ssh-key QWER", "ssh-key ASDF"})
+		c.Assert(box.PublicKeys, DeepEquals, []string{"ssh-rsa QWER", "ssh-rsa ASDF"})
 
 		root := box.LxcPath()
 		c.Assert(root, Equals, "/var/lib/lxc/mclovins-container-1-"+
@@ -284,18 +305,11 @@ func (s *BoxerSuite) TestCreateBox(c *C) {
 func (s *BoxerSuite) TestCreateWithSnapshot(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
-		message, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:          "testboxer",
-			BoxId:       1,
-			Type:        "aio:create",
-			Name:        "mclovins-container",
-			SnapshotUrl: "s3://ap-southeast-1/staging-apse1.action.io/testboxer-1234.tar.gz",
-			Runtime:     "test",
-			Memory:      "256M",
-			DiskSpace:   "1G",
-			PublicKeys:  []string{"ssh-key QWER", "ssh-key ASDF"},
-			CpuShares:   2048,
-		})
+		message, box := s.receiveMessages("mclovins-container-1", s.makeCreateMessage(
+			func(msg *Message) {
+				msg.CpuShares = 2048
+				msg.SnapshotUrl = "s3://ap-southeast-1/staging-apse1.action.io/testboxer-1234.tar.gz"
+			}))
 
 		c.Assert(message.Type, Equals, "aio:created")
 		c.Assert(message.Id, Equals, "testboxer")
@@ -303,7 +317,7 @@ func (s *BoxerSuite) TestCreateWithSnapshot(c *C) {
 		c.Assert(message.Port, Equals, 10002)
 		c.Assert(message.Success, Equals, true)
 
-		c.Assert(box.PublicKeys, DeepEquals, []string{"ssh-key QWER", "ssh-key ASDF"})
+		c.Assert(box.PublicKeys, DeepEquals, []string{"ssh-rsa QWER", "ssh-rsa ASDF"})
 
 		root := box.LxcPath()
 		c.Assert(root, Equals, "/var/lib/lxc/mclovins-container-1-"+
@@ -363,15 +377,7 @@ func (s *BoxerSuite) TestCreateWithSnapshot(c *C) {
 func (s *BoxerSuite) TestCreateWithDefaultCpuShares(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
-		_, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:        "testboxer",
-			BoxId:     1,
-			Type:      "aio:create",
-			Name:      "mclovins-container",
-			Runtime:   "test",
-			Memory:    "256M",
-			DiskSpace: "1G",
-		})
+		_, box := s.receiveMessages("mclovins-container-1", s.makeCreateMessage(defaultMsg))
 		DoesContain(c, map[string][]string{
 			box.LxcPath() + "/config": {"lxc.cgroup.cpu.shares = 512"},
 		})
@@ -381,16 +387,10 @@ func (s *BoxerSuite) TestCreateWithDefaultCpuShares(c *C) {
 func (s *BoxerSuite) TestCreateWithVirtualMemory(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
-		_, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:            "testboxer",
-			BoxId:         1,
-			Type:          "aio:create",
-			Name:          "mclovins-container",
-			Runtime:       "test",
-			Memory:        "256M",
-			DiskSpace:     "1G",
-			VirtualMemory: "1024",
-		})
+		_, box := s.receiveMessages("mclovins-container-1", s.makeCreateMessage(
+			func(msg *Message) {
+				msg.VirtualMemory = "1024"
+			}))
 		// total memory = memory + virtual memory
 		DoesContain(c, map[string][]string{
 			box.LxcPath() + "/config": {"lxc.cgroup.memory.memsw.limit_in_bytes = 257M"},
@@ -404,16 +404,10 @@ func (s *BoxerSuite) TestCreateWithVirtualMemory(c *C) {
 func (s *BoxerSuite) TestCreatePremiumBox(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
-		_, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:        "testboxer",
-			BoxId:     1,
-			Type:      "aio:create",
-			Name:      "mclovins-container",
-			Runtime:   "test",
-			Memory:    "256M",
-			DiskSpace: "1G",
-			Premium:   true,
-		})
+		_, box := s.receiveMessages("mclovins-container-1", s.makeCreateMessage(
+			func(msg *Message) {
+				msg.Premium = true
+			}))
 
 		DoesContain(c, map[string][]string{
 			box.LxcPath() + "/rootfs/etc/action/premium": {"1"},
@@ -427,25 +421,9 @@ func (s *BoxerSuite) TestCreatePremiumBox(c *C) {
 func (s *BoxerSuite) TestStop(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
-		message, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:        "testboxer",
-			BoxId:     1,
-			Type:      "aio:create",
-			Name:      "mclovins-container",
-			Runtime:   "test",
-			Memory:    "256M",
-			DiskSpace: "1G",
-		}, Message{
-			Id:    "testboxer",
-			BoxId: 1,
-			Type:  "aio:start",
-			Name:  "mclovins-container-1",
-		}, Message{
-			Id:    "testboxer",
-			BoxId: 1,
-			Type:  "aio:stop",
-			Name:  "mclovins-container-1",
-		})
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg), s.makeMessage("aio:start", defaultMsg),
+			s.makeMessage("aio:stop", defaultMsg))
 
 		c.Assert(message.Type, Equals, "aio:stopped")
 		c.Assert(message.Id, Equals, "testboxer")
@@ -464,20 +442,9 @@ func (s *BoxerSuite) TestStop(c *C) {
 func (s *BoxerSuite) TestStart(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
-		message, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:        "testboxer",
-			BoxId:     1,
-			Type:      "aio:create",
-			Name:      "mclovins-container",
-			Runtime:   "test",
-			Memory:    "256M",
-			DiskSpace: "1G",
-		}, Message{
-			Id:    "testboxer",
-			BoxId: 1,
-			Type:  "aio:start",
-			Name:  "mclovins-container-1",
-		})
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:start", defaultMsg))
 		defer box.Destroy()
 
 		c.Assert(message.Type, Equals, "aio:started")
@@ -496,21 +463,9 @@ func (s *BoxerSuite) TestStart(c *C) {
 func (s *BoxerSuite) TestStartSetsPublicKeys(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
-		message, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:         "testboxer",
-			BoxId:      1,
-			Type:       "aio:create",
-			Name:       "mclovins-container",
-			Runtime:    "test",
-			Memory:     "256M",
-			DiskSpace:  "1G",
-			PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
-		}, Message{
-			Id:    "testboxer",
-			BoxId: 1,
-			Type:  "aio:start",
-			Name:  "mclovins-container-1",
-		})
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:start", defaultMsg))
 
 		c.Assert(message.Type, Equals, "aio:started")
 		c.Assert(message.Success, Equals, true)
@@ -526,22 +481,11 @@ func (s *BoxerSuite) TestStartSetsPublicKeys(c *C) {
 func (s *BoxerSuite) TestStartAcceptsPublicKeys(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
-		message, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:         "testboxer",
-			BoxId:      1,
-			Type:       "aio:create",
-			Name:       "mclovins-container",
-			Runtime:    "test",
-			Memory:     "256M",
-			DiskSpace:  "1G",
-			PublicKeys: []string{"ssh-rsa first"},
-		}, Message{
-			Id:         "testboxer",
-			BoxId:      1,
-			Type:       "aio:start",
-			Name:       "mclovins-container-1",
-			PublicKeys: []string{"ssh-rsa second", "ssh-rsa third"},
-		})
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(func(msg *Message) { msg.PublicKeys = []string{"ssh-rsa first"} }),
+			s.makeMessage("aio:start", func(msg *Message) {
+				msg.PublicKeys = []string{"ssh-rsa second", "ssh-rsa third"}
+			}))
 
 		c.Assert(message.Type, Equals, "aio:started")
 		c.Assert(message.Success, Equals, true)
@@ -558,21 +502,9 @@ func (s *BoxerSuite) TestStartAcceptsPublicKeys(c *C) {
 func (s *BoxerSuite) TestStartSetsPublicKeysOnStoppedBox(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
-		message, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:         "testboxer",
-			BoxId:      1,
-			Type:       "aio:create",
-			Name:       "mclovins-container",
-			Runtime:    "test",
-			Memory:     "256M",
-			DiskSpace:  "1G",
-			PublicKeys: []string{"ssh-rsa 1"},
-		}, Message{
-			Id:    "testboxer",
-			BoxId: 1,
-			Type:  "aio:start",
-			Name:  "mclovins-container-1",
-		})
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(func(msg *Message) { msg.PublicKeys = []string{"ssh-rsa 1"} }),
+			s.makeMessage("aio:start", defaultMsg))
 
 		c.Assert(message.Type, Equals, "aio:started")
 		c.Assert(message.Success, Equals, true)
@@ -581,18 +513,11 @@ func (s *BoxerSuite) TestStartSetsPublicKeysOnStoppedBox(c *C) {
 		})
 		c.Assert(box.PublicKeys, DeepEquals, []string{"ssh-rsa 1"})
 
-		message, box = s.receiveMessages("mclovins-container-1", Message{
-			Id:    "testboxer",
-			BoxId: 1,
-			Type:  "aio:stop",
-			Name:  "mclovins-container-1",
-		}, Message{
-			Id:         "testboxer",
-			BoxId:      1,
-			Type:       "aio:start",
-			Name:       "mclovins-container-1",
-			PublicKeys: []string{"ssh-rsa 2", "ssh-rsa 3"},
-		})
+		message, box = s.receiveMessages("mclovins-container-1",
+			s.makeMessage("aio:stop", defaultMsg),
+			s.makeMessage("aio:start", func(msg *Message) {
+				msg.PublicKeys = []string{"ssh-rsa 2", "ssh-rsa 3"}
+			}))
 
 		c.Assert(message.Type, Equals, "aio:started")
 		c.Assert(message.Success, Equals, true)
@@ -616,20 +541,9 @@ func (s *BoxerSuite) TestStartPersistsPublicKeysFromFile(c *C) {
 		stratValue testProvisionStrategy) {
 
 		// First, we start a box with no public keys.
-		message, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:        "testboxer",
-			BoxId:     1,
-			Type:      "aio:create",
-			Name:      "mclovins-container",
-			Runtime:   "test",
-			Memory:    "256M",
-			DiskSpace: "1G",
-		}, Message{
-			Id:    "testboxer",
-			BoxId: 1,
-			Type:  "aio:start",
-			Name:  "mclovins-container-1",
-		})
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(func(msg *Message) { msg.PublicKeys = []string{} }),
+			s.makeMessage("aio:start", defaultMsg))
 
 		c.Assert(message.Type, Equals, "aio:started")
 		c.Assert(message.Success, Equals, true)
@@ -653,17 +567,9 @@ func (s *BoxerSuite) TestStartPersistsPublicKeysFromFile(c *C) {
 		// Then, we stop and start the box and verify that it's now consistent, i.e.
 		// 1. public keys are written to file, and
 		// 2. the same public keys are persisted.
-		message, box = s.receiveMessages("mclovins-container-1", Message{
-			Id:    "testboxer",
-			BoxId: 1,
-			Type:  "aio:stop",
-			Name:  "mclovins-container-1",
-		}, Message{
-			Id:    "testboxer",
-			BoxId: 1,
-			Type:  "aio:start",
-			Name:  "mclovins-container-1",
-		})
+		message, box = s.receiveMessages("mclovins-container-1",
+			s.makeMessage("aio:stop", defaultMsg),
+			s.makeMessage("aio:start", defaultMsg))
 
 		c.Assert(message.Type, Equals, "aio:started")
 		c.Assert(message.Success, Equals, true)
@@ -680,25 +586,13 @@ func (s *BoxerSuite) TestStartPersistsPublicKeysFromFile(c *C) {
 func (s *BoxerSuite) TestStartSetsIptablesRule(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
-		_, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:        "testboxer",
-			BoxId:     1,
-			Type:      "aio:create",
-			Name:      "mclovins-container",
-			Runtime:   "test",
-			Memory:    "256M",
-			DiskSpace: "1G",
-		})
+		_, box := s.receiveMessages("mclovins-container-1", s.makeCreateMessage(defaultMsg))
 		box.unsetPortForwarding()
 
 		AssertIptablesOutput(c, "192.168.254.2:22", false)
 
-		message, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:    "testboxer",
-			BoxId: 1,
-			Type:  "aio:start",
-			Name:  "mclovins-container-1",
-		})
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeMessage("aio:start", defaultMsg))
 
 		c.Assert(message.Type, Equals, "aio:started")
 		c.Assert(message.Success, Equals, true)
@@ -716,21 +610,9 @@ func (s *BoxerSuite) TestStartWithNewSpecs(c *C) {
 			[]byte("{\"memory\":\"640M\",\"virtualMemory\":\"1280M\",\"cpuShares\":1536}"),
 			&mockData)
 
-		message, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:        "testboxer",
-			BoxId:     1,
-			Type:      "aio:create",
-			Name:      "mclovins-container",
-			Runtime:   "test",
-			Memory:    "256M",
-			DiskSpace: "1G",
-		}, Message{
-			Id:    "testboxer",
-			BoxId: 1,
-			Type:  "aio:start",
-			Data:  mockData,
-			Name:  "mclovins-container-1",
-		})
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:start", func(msg *Message) { msg.Data = mockData }))
 
 		c.Assert(message.Type, Equals, "aio:started")
 		c.Assert(message.Id, Equals, "testboxer")
@@ -769,20 +651,9 @@ func (s *BoxerSuite) TestStartSetsCpuSet(c *C) {
 		// otherwise lxc won't be able to start the container.
 		s.Boxer.SetCpuSet(1)
 
-		message, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:        "testboxer",
-			BoxId:     1,
-			Type:      "aio:create",
-			Name:      "mclovins-container",
-			Runtime:   "test",
-			Memory:    "256M",
-			DiskSpace: "1G",
-		}, Message{
-			Id:    "testboxer",
-			BoxId: 1,
-			Type:  "aio:start",
-			Name:  "mclovins-container-1",
-		})
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:start", defaultMsg))
 
 		c.Assert(message.Type, Equals, "aio:started")
 		c.Assert(message.Id, Equals, "testboxer")
@@ -800,20 +671,9 @@ func (s *BoxerSuite) TestStartWithDefaultCPUQuotaNotConfigured(c *C) {
 
 		s.Boxer.DefaultCPUQuota = 0.0
 
-		message, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:        "testboxer",
-			BoxId:     1,
-			Type:      "aio:create",
-			Name:      "mclovins-container",
-			Runtime:   "test",
-			Memory:    "256M",
-			DiskSpace: "1G",
-		}, Message{
-			Id:    "testboxer",
-			BoxId: 1,
-			Type:  "aio:start",
-			Name:  "mclovins-container-1",
-		})
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:start", defaultMsg))
 
 		c.Assert(message.Type, Equals, "aio:started")
 		c.Assert(message.Id, Equals, "testboxer")
@@ -839,29 +699,15 @@ func (s *BoxerSuite) TestStartWithPremiumCPUQuotaNotConfigured(c *C) {
 
 		s.Boxer.PremiumCPUQuota = 0.0
 
-		message, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:        "testboxer",
-			BoxId:     1,
-			Type:      "aio:create",
-			Name:      "mclovins-container",
-			Runtime:   "test",
-			Memory:    "256M",
-			DiskSpace: "1G",
-		}, Message{
-			Id:       "testboxer",
-			BoxId:    1,
-			Type:     "aio:configure",
-			DataType: "aio:configure:update_premium",
-			Data: map[string]interface{}{
-				"premium": true,
-			},
-			Name: "mclovins-container-1",
-		}, Message{
-			Id:    "testboxer",
-			BoxId: 1,
-			Type:  "aio:start",
-			Name:  "mclovins-container-1",
-		})
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:configure", func(msg *Message) {
+				msg.DataType = "aio:configure:update_premium"
+				msg.Data = map[string]interface{}{
+					"premium": true,
+				}
+			}),
+			s.makeMessage("aio:start", defaultMsg))
 
 		c.Assert(message.Type, Equals, "aio:started")
 		c.Assert(message.Id, Equals, "testboxer")
@@ -881,16 +727,8 @@ func (s *BoxerSuite) TestStartWithPremiumCPUQuotaNotConfigured(c *C) {
 func (s *BoxerSuite) TestDestroy(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
-		message, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:         "testboxer",
-			BoxId:      1,
-			Type:       "aio:create",
-			Name:       "mclovins-container",
-			Runtime:    "test",
-			Memory:     "256M",
-			DiskSpace:  "1G",
-			PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
-		})
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg))
 		containerPlace := []string{box.LxcPath()}
 		switch stratName {
 		case "xfs", "ext4":
@@ -901,12 +739,8 @@ func (s *BoxerSuite) TestDestroy(c *C) {
 				"/mclovins-container-1")
 		}
 
-		message, box = s.receiveMessages("mclovins-container-1", Message{
-			Id:    "testboxer",
-			BoxId: 1,
-			Type:  "aio:destroy",
-			Name:  "mclovins-container-1",
-		})
+		message, box = s.receiveMessages("mclovins-container-1",
+			s.makeMessage("aio:destroy", defaultMsg))
 
 		c.Assert(box, IsNil)
 		c.Assert(message.Type, Equals, "aio:destroyed")
@@ -929,21 +763,9 @@ func (s *BoxerSuite) TestDestroy(c *C) {
 func (s *BoxerSuite) TestDestroyWithDeeplyNestedPath(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
-		message, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:         "testboxer",
-			BoxId:      1,
-			Type:       "aio:create",
-			Name:       "mclovins-container",
-			Runtime:    "test",
-			Memory:     "256M",
-			DiskSpace:  "1G",
-			PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
-		}, Message{
-			Id:    "testboxer",
-			BoxId: 1,
-			Type:  "aio:start",
-			Name:  "mclovins-container-1",
-		})
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:start", defaultMsg))
 		// create a deeply nested path
 		paths := []string{box.ContainerDeltaPath()}
 		for i := 0; i < 1000; i++ {
@@ -952,12 +774,8 @@ func (s *BoxerSuite) TestDestroyWithDeeplyNestedPath(c *C) {
 		path := filepath.Join(paths...)
 		exec.Command("mkdir", "-p", path).Run()
 
-		message, _ = s.receiveMessages("mclovins-container-1", Message{
-			Id:    "testboxer",
-			BoxId: 1,
-			Type:  "aio:destroy",
-			Name:  "mclovins-container-1",
-		})
+		message, _ = s.receiveMessages("mclovins-container-1",
+			s.makeMessage("aio:destroy", defaultMsg))
 		c.Assert(message.Type, Equals, "aio:destroyed")
 		c.Assert(message.Success, Equals, true)
 	})
@@ -966,26 +784,10 @@ func (s *BoxerSuite) TestDestroyWithDeeplyNestedPath(c *C) {
 func (s *BoxerSuite) TestRestart(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
-		message, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:         "testboxer",
-			BoxId:      1,
-			Type:       "aio:create",
-			Name:       "mclovins-container",
-			Runtime:    "test",
-			Memory:     "256M",
-			DiskSpace:  "1G",
-			PublicKeys: []string{"ssh-key QWER", "ssh-key ASDF"},
-		}, Message{
-			Id:    "testboxer",
-			BoxId: 1,
-			Type:  "aio:start",
-			Name:  "mclovins-container-1",
-		}, Message{
-			Id:    "testboxer",
-			BoxId: 1,
-			Type:  "aio:restart",
-			Name:  "mclovins-container-1",
-		})
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:start", defaultMsg),
+			s.makeMessage("aio:restart", defaultMsg))
 
 		c.Assert(message.Type, Equals, "aio:restarted")
 		c.Assert(message.Id, Equals, "testboxer")
@@ -1014,21 +816,9 @@ func (s *BoxerSuite) TestRestartWithNewSpec(c *C) {
 		json.Unmarshal(
 			[]byte("{\"memory\":\"640M\",\"virtualMemory\":\"1280M\",\"cpuShares\":1536}"),
 			&mockData)
-		message, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:        "testboxer",
-			BoxId:     1,
-			Type:      "aio:create",
-			Name:      "mclovins-container",
-			Runtime:   "test",
-			Memory:    "256M",
-			DiskSpace: "1G",
-		}, Message{
-			Id:    "testboxer",
-			BoxId: 1,
-			Type:  "aio:restart",
-			Data:  mockData,
-			Name:  "mclovins-container-1",
-		})
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:restart", func(msg *Message) { msg.Data = mockData }))
 
 		c.Assert(message.Type, Equals, "aio:restarted")
 		c.Assert(message.Id, Equals, "testboxer")
@@ -1060,20 +850,9 @@ func (s *BoxerSuite) TestRestartSetsCpuSet(c *C) {
 		// otherwise lxc won't be able to start the container.
 		s.Boxer.SetCpuSet(1)
 
-		message, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:        "testboxer",
-			BoxId:     1,
-			Type:      "aio:create",
-			Name:      "mclovins-container",
-			Runtime:   "test",
-			Memory:    "256M",
-			DiskSpace: "1G",
-		}, Message{
-			Id:    "testboxer",
-			BoxId: 1,
-			Type:  "aio:start",
-			Name:  "mclovins-container-1",
-		})
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:start", defaultMsg))
 
 		c.Assert(message.Type, Equals, "aio:started")
 		c.Assert(message.Id, Equals, "testboxer")
@@ -1091,12 +870,8 @@ func (s *BoxerSuite) TestRestartSetsCpuSet(c *C) {
 			box.LxcPath() + "/config": {"lxc.cgroup.cpuset.cpus"},
 		})
 
-		message, box = s.receiveMessages("mclovins-container-1", Message{
-			Id:    "testboxer",
-			BoxId: 1,
-			Type:  "aio:restart",
-			Name:  "mclovins-container-1",
-		})
+		message, box = s.receiveMessages("mclovins-container-1",
+			s.makeMessage("aio:restart", defaultMsg))
 
 		c.Assert(message.Type, Equals, "aio:restarted")
 		c.Assert(message.Id, Equals, "testboxer")
@@ -1114,29 +889,15 @@ func (s *BoxerSuite) TestRestartNewlyPremiumBox(c *C) {
 
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
-		message, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:        "testboxer",
-			BoxId:     1,
-			Type:      "aio:create",
-			Name:      "mclovins-container",
-			Runtime:   "test",
-			Memory:    "256M",
-			DiskSpace: "1G",
-		}, Message{
-			Id:    "testboxer",
-			BoxId: 1,
-			Type:  "aio:start",
-			Name:  "mclovins-container-1",
-		}, Message{
-			Id:       "testboxer",
-			BoxId:    1,
-			Type:     "aio:configure",
-			DataType: "aio:configure:update_premium",
-			Data: map[string]interface{}{
-				"premium": true,
-			},
-			Name: "mclovins-container-1",
-		})
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:start", defaultMsg),
+			s.makeMessage("aio:configure", func(msg *Message) {
+				msg.DataType = "aio:configure:update_premium"
+				msg.Data = map[string]interface{}{
+					"premium": true,
+				}
+			}))
 
 		c.Assert(message.Type, Equals, "aio:configured")
 		c.Assert(message.DataType, Equals, "aio:configured:update_premium")
@@ -1149,12 +910,8 @@ func (s *BoxerSuite) TestRestartNewlyPremiumBox(c *C) {
 		})
 
 		// Now restart the box to verify that the cfs_quota_us changes.
-		message, box = s.receiveMessages("mclovins-container-1", Message{
-			Id:    "testboxer",
-			BoxId: 1,
-			Type:  "aio:restart",
-			Name:  "mclovins-container-1",
-		})
+		message, box = s.receiveMessages("mclovins-container-1",
+			s.makeMessage("aio:restart", defaultMsg))
 
 		c.Assert(message.Type, Equals, "aio:restarted")
 		c.Assert(message.Id, Equals, "testboxer")
@@ -1176,29 +933,15 @@ func (s *BoxerSuite) TestRestartNewlyFreeBox(c *C) {
 
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
-		message, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:        "testboxer",
-			BoxId:     1,
-			Type:      "aio:create",
-			Name:      "mclovins-container",
-			Runtime:   "test",
-			Memory:    "256M",
-			DiskSpace: "1G",
-		}, Message{
-			Id:       "testboxer",
-			BoxId:    1,
-			Type:     "aio:configure",
-			DataType: "aio:configure:update_premium",
-			Data: map[string]interface{}{
-				"premium": true,
-			},
-			Name: "mclovins-container-1",
-		}, Message{
-			Id:    "testboxer",
-			BoxId: 1,
-			Type:  "aio:start",
-			Name:  "mclovins-container-1",
-		})
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:configure", func(msg *Message) {
+				msg.DataType = "aio:configure:update_premium"
+				msg.Data = map[string]interface{}{
+					"premium": true,
+				}
+			}),
+			s.makeMessage("aio:start", defaultMsg))
 
 		c.Assert(message.Type, Equals, "aio:started")
 		c.Assert(message.Id, Equals, "testboxer")
@@ -1210,21 +953,14 @@ func (s *BoxerSuite) TestRestartNewlyFreeBox(c *C) {
 		})
 
 		// Now make the box a free box and restart it to verify that the cfs_quota_us is reduced.
-		message, box = s.receiveMessages("mclovins-container-1", Message{
-			Id:       "testboxer",
-			BoxId:    1,
-			Type:     "aio:configure",
-			DataType: "aio:configure:update_premium",
-			Data: map[string]interface{}{
-				"premium": false,
-			},
-			Name: "mclovins-container-1",
-		}, Message{
-			Id:    "testboxer",
-			BoxId: 1,
-			Type:  "aio:restart",
-			Name:  "mclovins-container-1",
-		})
+		message, box = s.receiveMessages("mclovins-container-1",
+			s.makeMessage("aio:configure", func(msg *Message) {
+				msg.DataType = "aio:configure:update_premium"
+				msg.Data = map[string]interface{}{
+					"premium": false,
+				}
+			}),
+			s.makeMessage("aio:restart", defaultMsg))
 
 		c.Assert(message.Type, Equals, "aio:restarted")
 		c.Assert(message.Id, Equals, "testboxer")
@@ -1246,29 +982,15 @@ func (s *BoxerSuite) TestStopStartNewlyPremiumBox(c *C) {
 
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
-		message, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:        "testboxer",
-			BoxId:     1,
-			Type:      "aio:create",
-			Name:      "mclovins-container",
-			Runtime:   "test",
-			Memory:    "256M",
-			DiskSpace: "1G",
-		}, Message{
-			Id:    "testboxer",
-			BoxId: 1,
-			Type:  "aio:start",
-			Name:  "mclovins-container-1",
-		}, Message{
-			Id:       "testboxer",
-			BoxId:    1,
-			Type:     "aio:configure",
-			DataType: "aio:configure:update_premium",
-			Data: map[string]interface{}{
-				"premium": true,
-			},
-			Name: "mclovins-container-1",
-		})
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:start", defaultMsg),
+			s.makeMessage("aio:configure", func(msg *Message) {
+				msg.DataType = "aio:configure:update_premium"
+				msg.Data = map[string]interface{}{
+					"premium": true,
+				}
+			}))
 
 		c.Assert(message.Type, Equals, "aio:configured")
 		c.Assert(message.DataType, Equals, "aio:configured:update_premium")
@@ -1282,17 +1004,9 @@ func (s *BoxerSuite) TestStopStartNewlyPremiumBox(c *C) {
 		})
 
 		// Now stop and then start the box to verify that the cfs_quota_us changes.
-		message, box = s.receiveMessages("mclovins-container-1", Message{
-			Id:    "testboxer",
-			BoxId: 1,
-			Type:  "aio:stop",
-			Name:  "mclovins-container-1",
-		}, Message{
-			Id:    "testboxer",
-			BoxId: 1,
-			Type:  "aio:start",
-			Name:  "mclovins-container-1",
-		})
+		message, box = s.receiveMessages("mclovins-container-1",
+			s.makeMessage("aio:stop", defaultMsg),
+			s.makeMessage("aio:start", defaultMsg))
 
 		c.Assert(message.Type, Equals, "aio:started")
 		c.Assert(message.Id, Equals, "testboxer")
@@ -1315,25 +1029,14 @@ func (s *BoxerSuite) TestUpdatePremium(c *C) {
 
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
-		message, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:         "testboxer",
-			BoxId:      1,
-			Type:       "aio:create",
-			Name:       "mclovins-container",
-			Runtime:    "test",
-			Memory:     "256M",
-			DiskSpace:  "1G",
-			PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
-		}, Message{
-			Id:       "testboxer",
-			BoxId:    1,
-			Type:     "aio:configure",
-			DataType: "aio:configure:update_premium",
-			Data: map[string]interface{}{
-				"premium": true,
-			},
-			Name: "mclovins-container-1",
-		})
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:configure", func(msg *Message) {
+				msg.DataType = "aio:configure:update_premium"
+				msg.Data = map[string]interface{}{
+					"premium": true,
+				}
+			}))
 
 		c.Assert(message.Type, Equals, "aio:configured")
 		c.Assert(message.DataType, Equals, "aio:configured:update_premium")
@@ -1345,16 +1048,13 @@ func (s *BoxerSuite) TestUpdatePremium(c *C) {
 			box.LxcPath() + "/rootfs/etc/action/premium": {"1"},
 		})
 
-		_, box = s.receiveMessages("mclovins-container-1", Message{
-			Id:       "testboxer",
-			BoxId:    1,
-			Type:     "aio:configure",
-			DataType: "aio:configure:update_premium",
-			Data: map[string]interface{}{
-				"premium": false,
-			},
-			Name: "mclovins-container-1",
-		})
+		_, box = s.receiveMessages("mclovins-container-1",
+			s.makeMessage("aio:configure", func(msg *Message) {
+				msg.DataType = "aio:configure:update_premium"
+				msg.Data = map[string]interface{}{
+					"premium": false,
+				}
+			}))
 
 		DoesNotExist(c, []string{
 			box.LxcPath() + "/rootfs/etc/action/premium",
@@ -1366,28 +1066,12 @@ func (s *BoxerSuite) TestAddPublicKey(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
 		message, box := s.receiveMessages("mclovins-container-1",
-			Message{
-				Id:         "testboxer",
-				BoxId:      1,
-				Type:       "aio:create",
-				Name:       "mclovins-container",
-				Runtime:    "test",
-				Memory:     "256M",
-				DiskSpace:  "1G",
-				PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
-			}, Message{
-				Id:    "testboxer",
-				BoxId: 1,
-				Type:  "aio:start",
-				Name:  "mclovins-container-1",
-			}, Message{
-				Id:       "testboxer",
-				BoxId:    1,
-				Type:     "aio:configure",
-				DataType: "aio:configure:add_public_key",
-				Data:     "ssh-rsa publickey",
-				Name:     "mclovins-container-1",
-			})
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:start", defaultMsg),
+			s.makeMessage("aio:configure", func(msg *Message) {
+				msg.DataType = "aio:configure:add_public_key"
+				msg.Data = "ssh-rsa publickey"
+			}))
 
 		c.Assert(message.Type, Equals, "aio:configured")
 		c.Assert(message.DataType, Equals, "aio:configured:add_public_key")
@@ -1414,33 +1098,15 @@ func (s *BoxerSuite) TestAddPublicKeyToStoppedBox(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
 		message, box := s.receiveMessages("mclovins-container-1",
-			Message{
-				Id:         "testboxer",
-				BoxId:      1,
-				Type:       "aio:create",
-				Name:       "mclovins-container",
-				Runtime:    "test",
-				Memory:     "256M",
-				DiskSpace:  "1G",
-				PublicKeys: []string{"ssh-rsa QWER"},
-			}, Message{
-				Id:    "testboxer",
-				BoxId: 1,
-				Type:  "aio:start",
-				Name:  "mclovins-container-1",
-			}, Message{
-				Id:    "testboxer",
-				BoxId: 1,
-				Type:  "aio:stop",
-				Name:  "mclovins-container-1",
-			}, Message{
-				Id:       "testboxer",
-				BoxId:    1,
-				Type:     "aio:configure",
-				DataType: "aio:configure:add_public_key",
-				Data:     "ssh-rsa newkey",
-				Name:     "mclovins-container-1",
-			})
+			s.makeCreateMessage(func(msg *Message) {
+				msg.PublicKeys = []string{"ssh-rsa QWER"}
+			}),
+			s.makeMessage("aio:start", defaultMsg),
+			s.makeMessage("aio:stop", defaultMsg),
+			s.makeMessage("aio:configure", func(msg *Message) {
+				msg.DataType = "aio:configure:add_public_key"
+				msg.Data = "ssh-rsa newkey"
+			}))
 		defer box.Destroy()
 
 		c.Assert(message.Type, Equals, "aio:configured")
@@ -1460,28 +1126,14 @@ func (s *BoxerSuite) TestAddPublicKeyStripsNewlines(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
 		message, box := s.receiveMessages("mclovins-container-1",
-			Message{
-				Id:         "testboxer",
-				BoxId:      1,
-				Type:       "aio:create",
-				Name:       "mclovins-container",
-				Runtime:    "test",
-				Memory:     "256M",
-				DiskSpace:  "1G",
-				PublicKeys: []string{"ssh-rsa QWER"},
-			}, Message{
-				Id:    "testboxer",
-				BoxId: 1,
-				Type:  "aio:start",
-				Name:  "mclovins-container-1",
-			}, Message{
-				Id:       "testboxer",
-				BoxId:    1,
-				Type:     "aio:configure",
-				DataType: "aio:configure:add_public_key",
-				Data:     "ssh-rsa publickey\n\n",
-				Name:     "mclovins-container-1",
-			})
+			s.makeCreateMessage(func(msg *Message) {
+				msg.PublicKeys = []string{"ssh-rsa QWER"}
+			}),
+			s.makeMessage("aio:start", defaultMsg),
+			s.makeMessage("aio:configure", func(msg *Message) {
+				msg.DataType = "aio:configure:add_public_key"
+				msg.Data = "ssh-rsa publickey\n\n"
+			}))
 
 		c.Assert(message.Type, Equals, "aio:configured")
 		c.Assert(message.DataType, Equals, "aio:configured:add_public_key")
@@ -1505,21 +1157,9 @@ func (s *BoxerSuite) TestAddPublicKeyStripsNewlines(c *C) {
 func (s *BoxerSuite) TestRemovePublicKey(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
-		message, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:         "testboxer",
-			BoxId:      1,
-			Type:       "aio:create",
-			Name:       "mclovins-container",
-			Runtime:    "test",
-			Memory:     "256M",
-			DiskSpace:  "1G",
-			PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
-		}, Message{
-			Id:    "testboxer",
-			BoxId: 1,
-			Type:  "aio:start",
-			Name:  "mclovins-container-1",
-		})
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:start", defaultMsg))
 
 		c.Assert(message.Type, Equals, "aio:started")
 		c.Assert(message.BoxId, Equals, 1)
@@ -1533,14 +1173,11 @@ func (s *BoxerSuite) TestRemovePublicKey(c *C) {
 			},
 		})
 
-		message, box = s.receiveMessages("mclovins-container-1", Message{
-			Id:       "testboxer",
-			BoxId:    1,
-			Type:     "aio:configure",
-			DataType: "aio:configure:remove_public_key",
-			Data:     "ssh-rsa QWER",
-			Name:     "mclovins-container-1",
-		})
+		message, box = s.receiveMessages("mclovins-container-1",
+			s.makeMessage("aio:configure", func(msg *Message) {
+				msg.DataType = "aio:configure:remove_public_key"
+				msg.Data = "ssh-rsa QWER"
+			}))
 
 		c.Assert(message.Type, Equals, "aio:configured")
 		c.Assert(message.DataType, Equals, "aio:configured:remove_public_key")
@@ -1562,33 +1199,13 @@ func (s *BoxerSuite) TestRemovePublicKeyFromStoppedBox(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
 		message, box := s.receiveMessages("mclovins-container-1",
-			Message{
-				Id:         "testboxer",
-				BoxId:      1,
-				Type:       "aio:create",
-				Name:       "mclovins-container",
-				Runtime:    "test",
-				Memory:     "256M",
-				DiskSpace:  "1G",
-				PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
-			}, Message{
-				Id:    "testboxer",
-				BoxId: 1,
-				Type:  "aio:start",
-				Name:  "mclovins-container-1",
-			}, Message{
-				Id:    "testboxer",
-				BoxId: 1,
-				Type:  "aio:stop",
-				Name:  "mclovins-container-1",
-			}, Message{
-				Id:       "testboxer",
-				BoxId:    1,
-				Type:     "aio:configure",
-				DataType: "aio:configure:remove_public_key",
-				Data:     "ssh-rsa QWER",
-				Name:     "mclovins-container-1",
-			})
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:start", defaultMsg),
+			s.makeMessage("aio:stop", defaultMsg),
+			s.makeMessage("aio:configure", func(msg *Message) {
+				msg.DataType = "aio:configure:remove_public_key"
+				msg.Data = "ssh-rsa QWER"
+			}))
 		defer box.Destroy()
 
 		c.Assert(message.Type, Equals, "aio:configured")
@@ -1606,16 +1223,8 @@ func (s *BoxerSuite) TestRemovePublicKeyFromStoppedBox(c *C) {
 func (s *BoxerSuite) TestChangeBoxSpecsPass(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
-		message, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:         "testboxer",
-			BoxId:      1,
-			Type:       "aio:create",
-			Name:       "mclovins-container",
-			Runtime:    "test",
-			Memory:     "256M",
-			DiskSpace:  "1024M",
-			PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
-		})
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg))
 
 		quotaProvisioner := quota.Provisioner.GetQuota(stratValue.QuotaMethod)
 		limit, _ := quotaProvisioner.ViewLimit(quota.QuotaArg{
@@ -1630,14 +1239,11 @@ func (s *BoxerSuite) TestChangeBoxSpecsPass(c *C) {
 		json.Unmarshal(
 			[]byte("{\"memory\":\"512M\",\"diskSpace\":\"2048M\",\"cpuShares\":2048}"),
 			&mockData)
-		message, box = s.receiveMessages("mclovins-container-1", Message{
-			Id:       "testboxer",
-			BoxId:    1,
-			Type:     "aio:configure",
-			DataType: "aio:configure:change_specs",
-			Data:     mockData,
-			Name:     "mclovins-container-1",
-		})
+		message, box = s.receiveMessages("mclovins-container-1",
+			s.makeMessage("aio:configure", func(msg *Message) {
+				msg.DataType = "aio:configure:change_specs"
+				msg.Data = mockData
+			}))
 
 		c.Assert(message.Type, Equals, "aio:configured")
 		c.Assert(message.Id, Equals, "testboxer")
@@ -1692,16 +1298,9 @@ func (s *BoxerSuite) TestStartAll(c *C) {
 		for _, id := range []int{1, 2} {
 			var b *Box
 			_, b = s.receiveMessages("mclovins-container-"+strconv.Itoa(id),
-				Message{
-					Id:         "testboxer",
-					BoxId:      id,
-					Type:       "aio:create",
-					Name:       "mclovins-container",
-					Runtime:    "test",
-					Memory:     "256M",
-					DiskSpace:  "1G",
-					PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
-				})
+				s.makeCreateMessage(func(msg *Message) {
+					msg.BoxId = id
+				}))
 			boxes = append(boxes, b)
 		}
 		for _, box := range boxes {
@@ -1717,26 +1316,10 @@ func (s *BoxerSuite) TestStartAll(c *C) {
 func (s *BoxerSuite) TestInfo(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
-		message, _ := s.receiveMessages("mclovins-container-1", Message{
-			Id:         "testboxer",
-			BoxId:      1,
-			Type:       "aio:create",
-			Name:       "mclovins-container",
-			Runtime:    "test",
-			Memory:     "256M",
-			DiskSpace:  "1G",
-			PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
-		}, Message{
-			Id:    "testboxer",
-			BoxId: 1,
-			Type:  "aio:start",
-			Name:  "mclovins-container-1",
-		}, Message{
-			Id:    "testboxer",
-			BoxId: 1,
-			Type:  "aio:info_request",
-			Name:  "mclovins-container-1",
-		})
+		message, _ := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:start", defaultMsg),
+			s.makeMessage("aio:info_request", defaultMsg))
 
 		c.Assert(message.Type, Equals, "aio:info_response")
 		c.Assert(message.Id, Equals, "testboxer")
@@ -1749,26 +1332,15 @@ func (s *BoxerSuite) TestInfo(c *C) {
 func (s *BoxerSuite) TestSetEnvVariables(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
-		message, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:         "testboxer",
-			BoxId:      1,
-			Type:       "aio:create",
-			Name:       "mclovins-container",
-			Runtime:    "test",
-			Memory:     "256M",
-			DiskSpace:  "1G",
-			PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
-		}, Message{
-			Id:       "testboxer",
-			BoxId:    1,
-			Type:     "aio:configure",
-			Name:     "mclovins-container-1",
-			DataType: "aio:configure:set_env_variables",
-			Data: map[string]interface{}{
-				"RDS_HOST":     "mysql://insecure",
-				"RDS_PASSWORD": "mysql-insecure",
-			},
-		})
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:configure", func(msg *Message) {
+				msg.DataType = "aio:configure:set_env_variables"
+				msg.Data = map[string]interface{}{
+					"RDS_HOST":     "mysql://insecure",
+					"RDS_PASSWORD": "mysql-insecure",
+				}
+			}))
 
 		c.Assert(message.Type, Equals, "aio:configured")
 		c.Assert(message.DataType, Equals, "aio:configured:set_env_variables")
@@ -1788,36 +1360,22 @@ func (s *BoxerSuite) TestSetEnvVariables(c *C) {
 func (s *BoxerSuite) TestDoubleSetEnvVariables(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
-		_, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:         "testboxer",
-			BoxId:      1,
-			Type:       "aio:create",
-			Name:       "mclovins-container",
-			Runtime:    "test",
-			Memory:     "256M",
-			DiskSpace:  "1G",
-			PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
-		}, Message{
-			Id:       "testboxer",
-			BoxId:    1,
-			Type:     "aio:configure",
-			Name:     "mclovins-container-1",
-			DataType: "aio:configure:set_env_variables",
-			Data: map[string]interface{}{
-				"RDS_HOST":     "mysql://insecure",
-				"RDS_PASSWORD": "mysql-insecure",
-			},
-		}, Message{
-			Id:       "testboxer",
-			BoxId:    1,
-			Type:     "aio:configure",
-			Name:     "mclovins-container-1",
-			DataType: "aio:configure:set_env_variables",
-			Data: map[string]interface{}{
-				"RDS_HOST":     "mysql://secure",
-				"RDS_PASSWORD": "mysql-insecure",
-			},
-		})
+		_, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:configure", func(msg *Message) {
+				msg.DataType = "aio:configure:set_env_variables"
+				msg.Data = map[string]interface{}{
+					"RDS_HOST":     "mysql://insecure",
+					"RDS_PASSWORD": "mysql-insecure",
+				}
+			}),
+			s.makeMessage("aio:configure", func(msg *Message) {
+				msg.DataType = "aio:configure:set_env_variables"
+				msg.Data = map[string]interface{}{
+					"RDS_HOST":     "mysql://secure",
+					"RDS_PASSWORD": "mysql-insecure",
+				}
+			}))
 
 		spec := boxContentSpec{
 			Contains: map[string][]string{
@@ -1845,27 +1403,17 @@ func (s *BoxerSuite) TestRemoveEnvVariables(c *C) {
 			",\"type\":\"aio:configure\"}"
 		removeMessage := Message{}
 		json.Unmarshal([]byte(msg), &removeMessage)
-		message, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:         "testboxer",
-			BoxId:      1,
-			Type:       "aio:create",
-			Name:       "mclovins-container",
-			Runtime:    "test",
-			Memory:     "256M",
-			DiskSpace:  "1G",
-			PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
-		}, Message{
-			Id:       "testboxer",
-			BoxId:    1,
-			Type:     "aio:configure",
-			Name:     "mclovins-container-1",
-			DataType: "aio:configure:set_env_variables",
-			Data: map[string]interface{}{
-				"RDS_HOST":     "mysql://insecure",
-				"RDS_PASSWORD": "mysql-insecure",
-				"REDIS_HOST":   "127.0.0.1",
-			},
-		}, removeMessage)
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:configure", func(msg *Message) {
+				msg.DataType = "aio:configure:set_env_variables"
+				msg.Data = map[string]interface{}{
+					"RDS_HOST":     "mysql://insecure",
+					"RDS_PASSWORD": "mysql-insecure",
+					"REDIS_HOST":   "127.0.0.1",
+				}
+			}),
+			removeMessage)
 
 		c.Assert(message.Type, Equals, "aio:configured")
 		c.Assert(message.DataType, Equals, "aio:configured:remove_env_variables")
@@ -1893,26 +1441,15 @@ func (s *BoxerSuite) TestRemoveEnvVariables(c *C) {
 func (s *BoxerSuite) TestInvalidConfigureDataDoesNotPanic(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
-		message, _ := s.receiveMessages("mclovins-container-1", Message{
-			Id:         "testboxer",
-			BoxId:      1,
-			Type:       "aio:create",
-			Name:       "mclovins-container",
-			Runtime:    "test",
-			Memory:     "256M",
-			DiskSpace:  "1G",
-			PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
-		}, Message{
-			Id:       "testboxer",
-			BoxId:    1,
-			Type:     "aio:configure",
-			Name:     "mclovins-container-1",
-			DataType: "aio:configure:set_env_variables",
-			Data: []string{
-				"so wrong",
-				"i dont know what to say",
-			},
-		})
+		message, _ := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:configure", func(msg *Message) {
+				msg.DataType = "aio:configure:set_env_variables"
+				msg.Data = []string{
+					"so wrong",
+					"i dont know what to say",
+				}
+			}))
 		c.Assert(message.Type, Equals, "aio:invalid:params")
 	})
 }
@@ -1920,16 +1457,8 @@ func (s *BoxerSuite) TestInvalidConfigureDataDoesNotPanic(c *C) {
 func (s *BoxerSuite) TestChangeBoxSpecsFail(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
-		message, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:         "testboxer",
-			BoxId:      1,
-			Type:       "aio:create",
-			Name:       "mclovins-container",
-			Runtime:    "test",
-			Memory:     "256M",
-			DiskSpace:  "1024M",
-			PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
-		})
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg))
 
 		quotaProvisioner := quota.Provisioner.GetQuota(stratValue.QuotaMethod)
 		limit, _ := quotaProvisioner.ViewLimit(box.quotaArg())
@@ -1940,17 +1469,14 @@ func (s *BoxerSuite) TestChangeBoxSpecsFail(c *C) {
 		// swap Quota with FailQuota so all quota calls will return errors
 		quota.Provisioner = false
 
-		message, box = s.receiveMessages("mclovins-container-1", Message{
-			Id:       "testboxer",
-			BoxId:    1,
-			Type:     "aio:configure",
-			DataType: "aio:configure:change_specs",
-			Data: map[string]interface{}{
-				"memory":    "512M",
-				"diskSpace": "2048M",
-			},
-			Name: "mclovins-container-1",
-		})
+		message, box = s.receiveMessages("mclovins-container-1",
+			s.makeMessage("aio:configure", func(msg *Message) {
+				msg.DataType = "aio:configure:change_specs"
+				msg.Data = map[string]interface{}{
+					"memory":    "512M",
+					"diskSpace": "2048M",
+				}
+			}))
 
 		c.Assert(message.Type, Equals, "aio:configured")
 		c.Assert(message.Success, Equals, false)
@@ -1962,7 +1488,7 @@ func (s *BoxerSuite) TestChangeBoxSpecsFail(c *C) {
 		// memory is set successfully
 		c.Assert(currentMemory, Equals, "512M")
 		// disk space cant be set so we still use the old value
-		c.Assert(currentDiskSpace, Equals, "1024M")
+		c.Assert(currentDiskSpace, Equals, "1G")
 
 		// Swap back the original Quota so the next test that uses Quota will be
 		// normal
@@ -1988,16 +1514,10 @@ func (s *BoxerSuite) TestChangeBoxSpecsLvmFail(c *C) {
 		if stratName != "lvm" {
 			return
 		}
-		message, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:         "testboxer",
-			BoxId:      1,
-			Type:       "aio:create",
-			Name:       "mclovins-container",
-			Runtime:    "test",
-			Memory:     "256M",
-			DiskSpace:  "30M",
-			PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
-		})
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(func(msg *Message) {
+				msg.DiskSpace = "30M"
+			}))
 
 		quotaProvisioner := quota.Provisioner.GetQuota(stratValue.QuotaMethod)
 		limit, _ := quotaProvisioner.ViewLimit(box.quotaArg())
@@ -2007,17 +1527,14 @@ func (s *BoxerSuite) TestChangeBoxSpecsLvmFail(c *C) {
 			"of="+box.LxcPath()+"/test_file",
 			"bs=1024", "count=16384").Run()
 
-		message, box = s.receiveMessages("mclovins-container-1", Message{
-			Id:       "testboxer",
-			BoxId:    1,
-			Type:     "aio:configure",
-			DataType: "aio:configure:change_specs",
-			Data: map[string]interface{}{
-				"memory":    "512M",
-				"diskSpace": "15M",
-			},
-			Name: "mclovins-container-1",
-		})
+		message, box = s.receiveMessages("mclovins-container-1",
+			s.makeMessage("aio:configure", func(msg *Message) {
+				msg.DataType = "aio:configure:change_specs"
+				msg.Data = map[string]interface{}{
+					"memory":    "512M",
+					"diskSpace": "15M",
+				}
+			}))
 
 		c.Assert(message.Type, Equals, "aio:configured")
 		c.Assert(message.Success, Equals, false)
@@ -2030,33 +1547,22 @@ func (s *BoxerSuite) TestChangeBoxSpecsLvmFail(c *C) {
 func (s *BoxerSuite) TestChangeBoxSpecsInvalidParams(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
-		message, _ := s.receiveMessages("mclovins-container-1", Message{
-			Id:         "testboxer",
-			BoxId:      1,
-			Type:       "aio:create",
-			Name:       "mclovins-container",
-			Runtime:    "test",
-			Memory:     "256M",
-			DiskSpace:  "1024M",
-			PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
-		}, Message{
-			Id:       "testboxer",
-			BoxId:    1,
-			Type:     "aio:configure",
-			DataType: "aio:configure:change_specs",
-			Data: map[string]interface{}{
-				"memory":    512,
-				"diskSpace": 2048,
-			},
-			Name: "mclovins-container-1",
-		})
+		message, _ := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:configure", func(msg *Message) {
+				msg.DataType = "aio:configure:change_specs"
+				msg.Data = map[string]interface{}{
+					"memory":    512,
+					"diskSpace": 2048,
+				}
+			}))
 
 		c.Assert(message.Success, Equals, false)
 		data := (message.Data).(map[string]interface{})
 		currentMemory, _ := (data["memory"]).(string)
 		currentDiskSpace, _ := (data["diskSpace"]).(string)
 		c.Assert(currentMemory, Equals, "256M")
-		c.Assert(currentDiskSpace, Equals, "1024M")
+		c.Assert(currentDiskSpace, Equals, "1G")
 	})
 }
 
@@ -2066,41 +1572,27 @@ func (s *BoxerSuite) TestUpdateAuth(c *C) {
 
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
-		message, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:         "testboxer",
-			BoxId:      1,
-			Type:       "aio:create",
-			Name:       "mclovins-container",
-			Runtime:    "test",
-			Memory:     "256M",
-			DiskSpace:  "1024M",
-			PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
-		}, Message{
-			Id:       "testboxer",
-			BoxId:    1,
-			Type:     "aio:configure",
-			DataType: "aio:configure:update_auth",
-			Data: map[string]interface{}{
-				"auth_username": "action",
-				"auth_password": "password",
-			},
-			Name: "mclovins-container-1",
-		})
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:configure", func(msg *Message) {
+				msg.DataType = "aio:configure:update_auth"
+				msg.Data = map[string]interface{}{
+					"auth_username": "action",
+					"auth_password": "password",
+				}
+			}))
 
 		c.Assert(message.Success, Equals, true)
 		c.Assert(box.AuthUsername, Equals, "action")
 		c.Assert(box.AuthPassword, Equals, "password")
 
-		message, box = s.receiveMessages("mclovins-container-1", Message{
-			Id:       "testboxer",
-			BoxId:    1,
-			Type:     "aio:configure",
-			DataType: "aio:configure:update_auth",
-			Data: map[string]interface{}{
-				"auth_username": "invalid_user",
-			},
-			Name: "mclovins-container-1",
-		})
+		message, box = s.receiveMessages("mclovins-container-1",
+			s.makeMessage("aio:configure", func(msg *Message) {
+				msg.DataType = "aio:configure:update_auth"
+				msg.Data = map[string]interface{}{
+					"auth_username": "invalid_user",
+				}
+			}))
 
 		c.Assert(message.Success, Equals, false)
 		c.Assert(message.Type, Equals, "aio:invalid:params")
@@ -2115,42 +1607,28 @@ func (s *BoxerSuite) TestRemoveAuth(c *C) {
 
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
-		message, box := s.receiveMessages("mclovins-container-1", Message{
-			Id:         "testboxer",
-			BoxId:      1,
-			Type:       "aio:create",
-			Name:       "mclovins-container",
-			Runtime:    "test",
-			Memory:     "256M",
-			DiskSpace:  "1024M",
-			PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
-		}, Message{
-			Id:       "testboxer",
-			BoxId:    1,
-			Type:     "aio:configure",
-			DataType: "aio:configure:update_auth",
-			Data: map[string]interface{}{
-				"auth_username": "action",
-				"auth_password": "password",
-			},
-			Name: "mclovins-container-1",
-		})
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:configure", func(msg *Message) {
+				msg.DataType = "aio:configure:update_auth"
+				msg.Data = map[string]interface{}{
+					"auth_username": "action",
+					"auth_password": "password",
+				}
+			}))
 
 		c.Assert(message.Success, Equals, true)
 		c.Assert(box.AuthUsername, Equals, "action")
 		c.Assert(box.AuthPassword, Equals, "password")
 
-		message, box = s.receiveMessages("mclovins-container-1", Message{
-			Id:       "testboxer",
-			BoxId:    1,
-			Type:     "aio:configure",
-			DataType: "aio:configure:update_auth",
-			Data: map[string]interface{}{
-				"auth_username": nil,
-				"auth_password": nil,
-			},
-			Name: "mclovins-container-1",
-		})
+		message, box = s.receiveMessages("mclovins-container-1",
+			s.makeMessage("aio:configure", func(msg *Message) {
+				msg.DataType = "aio:configure:update_auth"
+				msg.Data = map[string]interface{}{
+					"auth_username": nil,
+					"auth_password": nil,
+				}
+			}))
 
 		c.Assert(message.Success, Equals, true)
 		c.Assert(box.AuthUsername, Equals, "")
@@ -2161,22 +1639,11 @@ func (s *BoxerSuite) TestRemoveAuth(c *C) {
 func (s *BoxerSuite) TestSnapshot(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
-		message, _ := s.receiveMessages("mclovins-container-1", Message{
-			Id:         "testboxer",
-			BoxId:      1,
-			Type:       "aio:create",
-			Name:       "mclovins-container",
-			Runtime:    "test",
-			Memory:     "256M",
-			DiskSpace:  "1024M",
-			PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
-		}, Message{
-			Id:         "testboxer",
-			BoxId:      1,
-			Type:       "aio:snapshot",
-			SnapshotId: 123,
-			Name:       "mclovins-container-1",
-		})
+		message, _ := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:snapshot", func(msg *Message) {
+				msg.SnapshotId = 123
+			}))
 
 		c.Assert(message.Success, Equals, true)
 		c.Assert(message.Type, Equals, "aio:snapshotted")
@@ -2188,36 +1655,22 @@ func (s *BoxerSuite) TestSnapshot(c *C) {
 func (s *BoxerSuite) TestDeleteSnapshot(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
-		message, _ := s.receiveMessages("mclovins-container-1", Message{
-			Id:         "testboxer",
-			BoxId:      1,
-			Type:       "aio:create",
-			Name:       "mclovins-container",
-			Runtime:    "test",
-			Memory:     "256M",
-			DiskSpace:  "1024M",
-			PublicKeys: []string{"ssh-rsa QWER", "ssh-rsa ASDF"},
-		}, Message{
-			Id:          "testboxer",
-			BoxId:       1,
-			Type:        "aio:delete_snapshot",
-			SnapshotId:  123,
-			SnapshotUrl: "s3://staging-bucket/mclovins-container-1-snapshot-123.tar.gz",
-			Name:        "mclovins-container-1",
-		})
+		message, _ := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:delete_snapshot", func(msg *Message) {
+				msg.SnapshotId = 123
+				msg.SnapshotUrl = "s3://staging-bucket/mclovins-container-1-snapshot-123.tar.gz"
+			}))
 
 		c.Assert(message.Success, Equals, true)
 		c.Assert(message.Type, Equals, "aio:deleted_snapshot")
 		c.Assert(message.SnapshotId, Equals, 123)
 
-		message, _ = s.receiveMessages("mclovins-container-1", Message{
-			Id:          "testboxer",
-			BoxId:       1,
-			Type:        "aio:delete_snapshot",
-			SnapshotId:  124,
-			SnapshotUrl: "s3://staging-bucket/fail",
-			Name:        "mclovins-container-1",
-		})
+		message, _ = s.receiveMessages("mclovins-container-1",
+			s.makeMessage("aio:delete_snapshot", func(msg *Message) {
+				msg.SnapshotId = 124
+				msg.SnapshotUrl = "s3://staging-bucket/fail"
+			}))
 
 		c.Assert(message.Success, Equals, false)
 		c.Assert(message.Type, Equals, "aio:deleted_snapshot")
