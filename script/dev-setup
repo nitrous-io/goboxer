@@ -1,0 +1,28 @@
+#!/bin/bash
+
+devdiskimg=$HOME/dev-disk.img
+loopdev=/dev/loop7
+lxcdisk=/lxc/disk-dev
+
+if [[ ! -f $HOME/dev-disk.img ]]; then
+  dd if=/dev/zero of=$devdiskimg bs=1M count=8000
+fi
+
+if [[ ! `losetup -a | grep $loopdev` ]]; then
+  losetup $loopdev $devdiskimg
+fi
+
+if [[ ! `blkid $loopdev | grep ext4` ]]; then
+  mkfs.ext4 -i 8192 $loopdev
+fi
+mkdir -p $lxcdisk
+umount $lxcdisk
+
+mount -t ext4 -o defaults,usrquota $loopdev $lxcdisk
+
+if [[ ! -f $lxcdisk/aquota.user ]]; then
+  quotacheck -cu $lxcdisk
+  quotacheck -avu
+fi
+
+quotaon -av

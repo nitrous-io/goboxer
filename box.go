@@ -255,10 +255,18 @@ func (b *Box) Destroy() error {
 	return b.DeleteContainerData()
 }
 
-func (b *Box) Snapshot(snapshotId int) (snapshotUrl string, err error) {
+func (b *Box) Snapshot(snapshotId int) (snapshot *Snapshot, err error) {
 	defer logger.LogDuration(
 		fmt.Sprintf("%s:Snapshot %s", b.ContainerName(), b.MountName()),
 	)(time.Now())
+
+	quotaInfo, err := b.quota().ViewLimit(b.quotaArg())
+	if err != nil {
+		err = fmt.Errorf("Snapshot: failed to get uncompressed snapshot size: %v", err)
+		return
+	}
+	uncompressedSize := quota.ValueUnit{Value: float64(quotaInfo.Used), Unit: "K"}
+
 	tarName := fmt.Sprintf("%s-snapshot-%d.tar.gz", b.ContainerName(), snapshotId)
 	logger.Printf("%s: creating snapshot tarball %s\n", b.ContainerName(), tarName)
 	tarPath, err := Tar(tarName, b.ContainerUserHomePath())
@@ -275,11 +283,12 @@ func (b *Box) Snapshot(snapshotId int) (snapshotUrl string, err error) {
 		err = fmt.Errorf("Snapshot: failed to create s3 client %v", err)
 		return
 	}
-	snapshotUrl, err = client.Upload(tarName, tarPath)
+	snapshotUrl, err := client.Upload(tarName, tarPath)
 	if err != nil {
 		err = fmt.Errorf("Snapshot: failed to upload to s3 %v", err)
 		return
 	}
+	snapshot = &Snapshot{Url: snapshotUrl, Size: uncompressedSize}
 	return
 }
 
@@ -722,7 +731,7 @@ func (b *Box) Info() (BoxInfo, error) {
 	if err != nil {
 		return info, err
 	} else {
-		info.StorageUsage = quota.ScaleUnit(quotaInfo.Used, "M")
+		info.StorageUsage = float64(quota.ScaleUnitCeil(quotaInfo.Used, "M"))
 	}
 	return info, nil
 }

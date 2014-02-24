@@ -124,3 +124,34 @@ func Exec(cmd *exec.Cmd, timeout time.Duration) error {
 		return err
 	}
 }
+
+// PipeCommands pipes the stdout of each command to the stdin of the next
+// command. Returns the output of the final command and the first error
+// encountered (if any).
+// Stderr is ignored.
+func PipeCommands(commands ...*exec.Cmd) ([]byte, error) {
+	last := len(commands) - 1
+
+	for i, command := range commands[:last] {
+		var err error
+		if commands[i+1].Stdin, err = command.StdoutPipe(); err != nil {
+			return nil, err
+		}
+		if err := command.Start(); err != nil {
+			return nil, err
+		}
+	}
+
+	output, err := commands[last].Output()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, command := range commands[:last] {
+		if err := command.Wait(); err != nil {
+			return nil, err
+		}
+	}
+
+	return output, nil
+}
