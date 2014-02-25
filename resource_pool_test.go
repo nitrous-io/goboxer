@@ -1,10 +1,11 @@
 package goboxer
 
 import (
+	"time"
+
 	"github.com/action-io/goboxer/utils"
 	"github.com/garyburd/redigo/redis"
 	. "launchpad.net/gocheck"
-	"time"
 )
 
 type ResourcePoolSuite struct {
@@ -92,7 +93,6 @@ func makeTestBox(id int, state string) *Box {
 		Memory:           "256M",
 		DiskSpace:        "1G",
 	}
-
 }
 
 func (s *ResourcePoolSuite) TestFindRunningBoxes(c *C) {
@@ -113,4 +113,51 @@ func (s *ResourcePoolSuite) TestFindRunningBoxes(c *C) {
 	c.Assert(b[0].State, Equals, "running")
 	c.Assert(b[1].Id, Equals, 1)
 	c.Assert(b[1].State, Equals, "running")
+}
+
+func (s *ResourcePoolSuite) TestCountAllBoxes(c *C) {
+	conn := s.pool.Get()
+	defer conn.Close()
+	box1json, _ := utils.ToJSON(makeTestBox(1, "running"))
+	box2json, _ := utils.ToJSON(makeTestBox(2, "stopped"))
+	conn.Do("HSET", "aio:boxes", "test-1", box1json)
+	conn.Do("HSET", "aio:boxes", "test-2", box2json)
+
+	rs := &ResourcePool{Pool: s.pool}
+	count, _ := rs.CountAllBoxes()
+
+	c.Assert(count, Equals, 2)
+}
+
+func (s *ResourcePoolSuite) TestCountBoxesByState(c *C) {
+	conn := s.pool.Get()
+	defer conn.Close()
+	box1json, _ := utils.ToJSON(makeTestBox(1, "running"))
+	box2json, _ := utils.ToJSON(makeTestBox(2, "stopped"))
+	box3json, _ := utils.ToJSON(makeTestBox(3, "running"))
+	conn.Do("HSET", "aio:boxes", "test-1", box1json)
+	conn.Do("HSET", "aio:boxes", "test-2", box2json)
+	conn.Do("HSET", "aio:boxes", "test-3", box3json)
+
+	rs := &ResourcePool{Pool: s.pool}
+	runningCount, _ := rs.CountBoxesByState("running")
+	stoppedCount, _ := rs.CountBoxesByState("stopped")
+
+	c.Assert(runningCount, Equals, 2)
+	c.Assert(stoppedCount, Equals, 1)
+}
+
+func (s *ResourcePoolSuite) TestCountPremiumBoxes(c *C) {
+	conn := s.pool.Get()
+	defer conn.Close()
+	box1 := makeTestBox(1, "running")
+	box1.Premium = true
+	box1json, _ := utils.ToJSON(box1)
+	box2json, _ := utils.ToJSON(makeTestBox(2, "running"))
+	conn.Do("HSET", "aio:boxes", "test-1", box1json)
+	conn.Do("HSET", "aio:boxes", "test-2", box2json)
+
+	rs := &ResourcePool{Pool: s.pool}
+	count, _ := rs.CountPremiumBoxes()
+	c.Assert(count, Equals, 1)
 }
