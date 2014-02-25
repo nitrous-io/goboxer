@@ -22,6 +22,8 @@ func (s *MessageSuite) TestToJSONOmitEmpty(c *C) {
 		"returnVars":   false,
 		"freeMemory":   false,
 		"runtimes":     false,
+		"cpus":         false,
+		"boxStats":     false,
 		"name":         false,
 		"port":         false,
 		"snapshotUrl":  false,

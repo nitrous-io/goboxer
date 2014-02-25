@@ -125,12 +125,28 @@ func (boxer *Boxer) Receive(msg Message) (message Message) {
 }
 
 func (boxer *Boxer) NewAdvertiseMessage() Message {
-	return Message{
+	msg := Message{
 		Type:       "aio:advertise",
 		Id:         boxer.Id,
 		Runtimes:   boxer.runtimeKeys(),
 		FreeMemory: int(host.FreeMemory()),
+		CPUs:       runtime.NumCPU(),
 	}
+
+	msg.BoxStats = make(map[string]int)
+
+	if total, err := boxer.ResourcePool.CountAllBoxes(); err != nil {
+		logger.Println("ERROR: counting all boxes:", err)
+	} else {
+		msg.BoxStats["total"] = total
+	}
+	if running, err := boxer.ResourcePool.CountBoxesByState("running"); err != nil {
+		logger.Println("ERROR: counting running boxes:", err)
+	} else {
+		msg.BoxStats["running"] = running
+	}
+
+	return msg
 }
 
 func (boxer *Boxer) NewInvalidParamMessage() Message {

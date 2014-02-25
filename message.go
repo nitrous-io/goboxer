@@ -12,8 +12,10 @@ type Message struct {
 	ReturnVars map[string]string `json:"returnVars,omitempty"`
 
 	// for advertise message
-	FreeMemory int      `json:"freeMemory,omitempty"`
-	Runtimes   []string `json:"runtimes,omitempty"`
+	FreeMemory int            `json:"freeMemory,omitempty"`
+	Runtimes   []string       `json:"runtimes,omitempty"`
+	CPUs       int            `json:"cpus,omitempty"`
+	BoxStats   map[string]int `json:"boxStats,omitempty"`
 
 	// for create message
 	// Name is used subsequently in coach message to describe containerName
