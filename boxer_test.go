@@ -177,7 +177,7 @@ func (s *BoxerSuite) receiveMessages(name string, messages ...Message) (Message,
 	var returnMsg Message
 	for _, msg := range messages {
 		returnMsg = s.Boxer.Receive(msg)
-		// sleep for some time here to prevent lxc chocking when we execute
+		// sleep for some time here to prevent lxc choking when we execute
 		// stuff too fast
 		time.Sleep(500 * time.Millisecond)
 	}
@@ -1285,9 +1285,41 @@ func (s *BoxerSuite) TestNewAdvertiseMessage(c *C) {
 		"ruby": "ruby_template",
 	}
 	m = s.Boxer.NewAdvertiseMessage()
-	c.Assert(len(m.Runtimes), Equals, 2)
+	c.Assert(m.Runtimes, HasLen, 2)
 	c.Assert(SliceInclude(m.Runtimes, "ruby"), Equals, true)
 	c.Assert(SliceInclude(m.Runtimes, "test"), Equals, true)
+	c.Assert(m.FreeMemory, NotNil)
+	c.Assert(m.CPUs, NotNil)
+}
+
+func (s *BoxerSuite) TestNewAdvertiseMessageBoxStats(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+		message, _ := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(func(msg *Message) {
+				msg.Premium = true
+			}),
+			s.makeMessage("aio:start", defaultMsg),
+		)
+		c.Check(message.Type, Equals, "aio:started")
+		c.Check(message.Success, Equals, true)
+
+		s.insertResource("192.168.254.3", "192.168.254.1", "br-lxc-254", "10003")
+		message, _ = s.receiveMessages("mclovins-container-2",
+			s.makeCreateMessage(func(msg *Message) {
+				msg.BoxId = 2
+			}),
+		)
+		c.Check(message.Type, Equals, "aio:created")
+		c.Check(message.Success, Equals, true)
+
+		m := s.Boxer.NewAdvertiseMessage()
+
+		c.Assert(m.BoxStats, HasLen, 3)
+		c.Assert(m.BoxStats["total"], Equals, 2)
+		c.Assert(m.BoxStats["running"], Equals, 1)
+		c.Assert(m.BoxStats["premium"], Equals, 1)
+	})
 }
 
 func (s *BoxerSuite) TestStartAll(c *C) {
