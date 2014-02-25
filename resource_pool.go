@@ -126,13 +126,17 @@ func (rp *ResourcePool) FindAllBoxes(state string) ([]*Box, error) {
 func (rp *ResourcePool) CountAllBoxes() (int, error) {
 	conn := rp.Pool.Get()
 	defer conn.Close()
-	return redis.Int(conn.Do("HLEN", "aio:boxes"))
+	count, err := redis.Int(conn.Do("HLEN", "aio:boxes"))
+	if err != nil {
+		return -1, err
+	}
+	return count, nil
 }
 
 func (rp *ResourcePool) CountBoxesByState(state string) (int, error) {
 	boxes, err := rp.FindAllBoxes(state)
 	if err != nil {
-		return 0, err
+		return -1, err
 	}
 	return len(boxes), nil
 }
@@ -143,12 +147,12 @@ func (rp *ResourcePool) CountPremiumBoxes() (int, error) {
 	count := 0
 	boxNames, err := getBoxNames(conn)
 	if err != nil {
-		return count, err
+		return -1, err
 	}
 	for _, name := range boxNames {
 		box, err := findBox(name, conn)
 		if err != nil {
-			return count, err
+			return -1, err
 		}
 		if box.Premium {
 			count++
