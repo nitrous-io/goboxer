@@ -1,9 +1,10 @@
 package goboxer
 
 import (
+	"strconv"
+
 	"github.com/action-io/goboxer/utils"
 	"github.com/garyburd/redigo/redis"
-	"strconv"
 )
 
 type Resource struct {
@@ -120,6 +121,40 @@ func (rp *ResourcePool) FindAllBoxes(state string) ([]*Box, error) {
 		}
 	}
 	return boxes, nil
+}
+
+func (rp *ResourcePool) CountAllBoxes() (int, error) {
+	conn := rp.Pool.Get()
+	defer conn.Close()
+	return redis.Int(conn.Do("HLEN", "aio:boxes"))
+}
+
+func (rp *ResourcePool) CountBoxesByState(state string) (int, error) {
+	boxes, err := rp.FindAllBoxes(state)
+	if err != nil {
+		return 0, err
+	}
+	return len(boxes), nil
+}
+
+func (rp *ResourcePool) CountPremiumBoxes() (int, error) {
+	conn := rp.Pool.Get()
+	defer conn.Close()
+	count := 0
+	boxNames, err := getBoxNames(conn)
+	if err != nil {
+		return count, err
+	}
+	for _, name := range boxNames {
+		box, err := findBox(name, conn)
+		if err != nil {
+			return count, err
+		}
+		if box.Premium {
+			count++
+		}
+	}
+	return count, nil
 }
 
 func getBoxNames(conn redis.Conn) ([]string, error) {
