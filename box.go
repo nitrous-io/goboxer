@@ -904,7 +904,7 @@ func (b *Box) addPartsInitUpstart() error {
 		return err
 	}
 	defer confFile.Close()
-	return PartsInitConfTemplateCompiled.Execute(confFile, b)
+	return PartsInitConfTemplateCompiled.Execute(confFile, UpstartConfSettings)
 }
 
 func (b *Box) addNitrousboxrcUpstart() error {
@@ -914,16 +914,16 @@ func (b *Box) addNitrousboxrcUpstart() error {
 		return err
 	}
 	defer confFile.Close()
-	return RunNitrousboxrcConfTemplateCompiled.Execute(confFile, b)
+	return RunNitrousboxrcConfTemplateCompiled.Execute(confFile, UpstartConfSettings)
 }
 
 func (b *Box) addNitrousboxrcSample() error {
-	samplePath := path.Join("home", "action", "nitrousboxrc.sample")
+	samplePath := path.Join("home", UpstartConfSettings["ActionUser"], UpstartConfSettings["NitrousboxrcSample"])
 	sampleFile, err := os.Create(path.Join(b.RootFS(), samplePath))
 	if err != nil {
 		return err
 	}
-	err = NitrousboxrcSampleTemplateCompiled.Execute(sampleFile, b)
+	err = NitrousboxrcSampleTemplateCompiled.Execute(sampleFile, UpstartConfSettings)
 	if err != nil {
 		sampleFile.Close()
 		return err

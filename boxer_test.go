@@ -749,8 +749,8 @@ func (s *BoxerSuite) TestStartWritesNitrousboxrcFiles(c *C) {
 				"setuid action",
 				"setgid action",
 			},
-			box.LxcPath() + "/rootfs/home/action/nitrousboxrc.sample": {
-				"cp ~/nitrousboxrc.sample ~/.nitrousboxrc",
+			box.LxcPath() + "/rootfs/home/action/.nitrousboxrc.sample": {
+				"cp ~/.nitrousboxrc.sample ~/.nitrousboxrc",
 				"chmod +x ~/.nitrousboxrc",
 			},
 		})
@@ -795,6 +795,7 @@ touch /etc/pam.d/shouldnotexist
 				"init -",
 			},
 		})
+		// check that parts init is running without privileges
 		DoesNotExist(c, []string{
 			box.LxcPath() + "/rootfs/etc/pam.d/shouldnotexist",
 		})
@@ -832,7 +833,7 @@ rm /etc/sudoers # check privileges, stderr logging`
 		_, box = s.receiveMessages("mclovins-container-1",
 			s.makeMessage("aio:restart", defaultMsg))
 
-		logPath := box.LxcPath() + "/rootfs/home/action/nitrousboxrc.log"
+		logPath := box.LxcPath() + "/rootfs/home/action/.nitrousboxrc.log"
 		DoesContain(c, map[string][]string{
 			logPath: {
 				"Starting /home/action/.nitrousboxrc",
