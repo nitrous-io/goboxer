@@ -231,9 +231,74 @@ by default, so you can start previewing your PHP applications by clicking "Previ
 
 http://help.nitrous.io/php/
 `, ReadmeTemplate)
-var NetworkConfigCompiled *template.Template
-var LxcTemplateCompiled *template.Template
-var HostsTemplateCompiled *template.Template
+
+// TODO: this Upstart conf does not enforce timeouts on .nitrousboxrc execution
+// time
+const RunNitrousboxrcConfTemplate = `
+# run-nitrousboxrc
+description "runs /home/action/.nitrousboxrc as action user"
+
+task
+start on started ssh
+
+env ACTION_USER="action"
+
+# env does not expand when exported, so can't use $ACTION_USER below
+env HOME="/home/action"
+env BOXRC="/home/action/.nitrousboxrc"
+env BOXRC_LOG="/home/action/nitrousboxrc.log"
+export HOME
+export BOXRC
+export BOXRC_LOG
+
+# setuid and setgid do not expand variables, so can't use $ACTION_USER below
+setuid action
+setgid action
+
+kill timeout 5 # note: doesn't actually time out the $BOXRC run
+console log
+
+chdir /home/action
+
+pre-start script
+  [ ! -x $BOXRC ] && { stop; exit 0; }
+  echo "$(date +'%F %T') : Starting $BOXRC" >> $BOXRC_LOG
+end script
+
+exec $BOXRC >> $BOXRC_LOG 2>&1
+
+post-stop script
+  [ ! -x $BOXRC ] && exit 0
+  echo "$(date +'%F %T') : Finished $BOXRC" >> $BOXRC_LOG
+end script
+`
+
+const NitrousboxrcSampleTemplate = `#!/bin/bash
+
+# Note: You can also use #!/bin/sh or #!/bin/zsh as the first line.
+
+# Use .nitrousbox.rc to run commands (start daemons, etc) when your box is
+# started/restarted.
+# The results of running this script will be appended to
+# /home/action/nitrousboxrc.log .
+
+# To use this file, run the following commands in your terminal:
+#   cp ~/nitrousboxrc.sample ~/.nitrousboxrc
+#   chmod +x ~/.nitrousboxrc
+
+# The line below is recommended so that any errors will stop the script.
+set -e
+
+# Add your commands here...
+`
+
+var (
+	NetworkConfigCompiled               *template.Template
+	LxcTemplateCompiled                 *template.Template
+	HostsTemplateCompiled               *template.Template
+	RunNitrousboxrcConfTemplateCompiled *template.Template
+	NitrousboxrcSampleTemplateCompiled  *template.Template
+)
 
 var (
 	ReadmeTemplateCompiled *template.Template
@@ -260,6 +325,8 @@ func init() {
 	HostsTemplateCompiled = template.Must(template.New("hosts").Parse(HostsTemplate))
 	NetworkConfigCompiled = template.Must(template.New("network").Parse(NetworkConfigTemplate))
 	LxcTemplateCompiled = template.Must(template.New("lxc").Parse(LxcTemplate))
+	RunNitrousboxrcConfTemplateCompiled = template.Must(template.New("run-nitrousboxrc.conf").Parse(RunNitrousboxrcConfTemplate))
+	NitrousboxrcSampleTemplateCompiled = template.Must(template.New("nitrousboxrc.sample").Parse(NitrousboxrcSampleTemplate))
 
 	ReadmeTemplateCompiled = template.Must(template.New("readme_template").Parse(ReadmeTemplate))
 	TestTemplateCompiled = template.Must(template.New("test_template").Parse(TestTemplate))
