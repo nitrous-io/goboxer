@@ -95,15 +95,11 @@ func (rp *ResourcePool) DeleteBox(box *Box) (err error) {
 	return
 }
 
-// Find all instance of `Box` that has `containerState` equals to `running` in
-// the redis database
-func (rp *ResourcePool) FindRunningBoxes() ([]*Box, error) {
-	return rp.FindAllBoxes("running")
-}
+type BoxFinder func(b *Box) bool
 
-// find all boxes with the specified state. if the state is empty, then return
-// all boxes
-func (rp *ResourcePool) FindAllBoxes(state string) ([]*Box, error) {
+// FindBoxes returns instances of Box that satisfy the given BoxFinder func
+// (i.e. when given a Box, returns true).
+func (rp *ResourcePool) FindBoxes(fn BoxFinder) ([]*Box, error) {
 	conn := rp.Pool.Get()
 	defer conn.Close()
 	var boxes []*Box
@@ -116,11 +112,26 @@ func (rp *ResourcePool) FindAllBoxes(state string) ([]*Box, error) {
 		if err != nil {
 			return []*Box{}, err
 		}
-		if len(state) == 0 || box.State == state {
+		if fn(box) {
 			boxes = append(boxes, box)
 		}
 	}
 	return boxes, nil
+}
+
+// FindAllBoxes returns all instances of Box.
+func (rp *ResourcePool) FindAllBoxes() ([]*Box, error) {
+	return rp.FindBoxes(func(b *Box) bool { return true })
+}
+
+// FindBoxesByState returns instances of Box in the given state.
+func (rp *ResourcePool) FindBoxesByState(state string) ([]*Box, error) {
+	return rp.FindBoxes(func(b *Box) bool { return b.State == state })
+}
+
+// FindRunningBoxes returns instances of Box in the "running" state.
+func (rp *ResourcePool) FindRunningBoxes() ([]*Box, error) {
+	return rp.FindBoxesByState("running")
 }
 
 func (rp *ResourcePool) CountAllBoxes() (int, error) {
@@ -134,7 +145,7 @@ func (rp *ResourcePool) CountAllBoxes() (int, error) {
 }
 
 func (rp *ResourcePool) CountBoxesByState(state string) (int, error) {
-	boxes, err := rp.FindAllBoxes(state)
+	boxes, err := rp.FindBoxesByState(state)
 	if err != nil {
 		return -1, err
 	}
@@ -142,23 +153,11 @@ func (rp *ResourcePool) CountBoxesByState(state string) (int, error) {
 }
 
 func (rp *ResourcePool) CountPremiumBoxes() (int, error) {
-	conn := rp.Pool.Get()
-	defer conn.Close()
-	count := 0
-	boxNames, err := getBoxNames(conn)
+	boxes, err := rp.FindBoxes(func(b *Box) bool { return b.Premium == true })
 	if err != nil {
 		return -1, err
 	}
-	for _, name := range boxNames {
-		box, err := findBox(name, conn)
-		if err != nil {
-			return -1, err
-		}
-		if box.Premium {
-			count++
-		}
-	}
-	return count, nil
+	return len(boxes), nil
 }
 
 func getBoxNames(conn redis.Conn) ([]string, error) {

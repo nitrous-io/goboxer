@@ -165,7 +165,7 @@ func (s *BoxerSuite) testEachStrategy(c *C, test testFunction) {
 
 		s.mergeProvisionStrategy(stratValue)
 		test(s, c, stratName, stratValue)
-		boxes, _ := s.ResourcePool.FindAllBoxes("")
+		boxes, _ := s.ResourcePool.FindAllBoxes()
 		for _, box := range boxes {
 			box.boxer = s.Boxer
 			box.Destroy()
