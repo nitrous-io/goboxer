@@ -197,6 +197,9 @@ func (b *Box) Start(spec *BoxSpec) error {
 	if err := b.handleSpecChange(spec, true); err != nil {
 		return &BoxOpError{Op: "spec change", Err: err}
 	}
+	if err := b.addPartsInitUpstart(); err != nil {
+		return &BoxOpError{Op: "parts init upstart", Err: err}
+	}
 	if err := b.addNitrousboxrcUpstart(); err != nil {
 		return &BoxOpError{Op: "nitrousboxrc upstart", Err: err}
 	}
@@ -892,6 +895,16 @@ func (b *Box) setDefaultKeyPair() error {
 		return err
 	}
 	return nil
+}
+
+func (b *Box) addPartsInitUpstart() error {
+	confPath := path.Join(b.RootFS(), "etc", "init", "parts-init.conf")
+	confFile, err := os.Create(confPath)
+	if err != nil {
+		return err
+	}
+	defer confFile.Close()
+	return PartsInitConfTemplateCompiled.Execute(confFile, b)
 }
 
 func (b *Box) addNitrousboxrcUpstart() error {

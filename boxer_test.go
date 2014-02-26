@@ -730,7 +730,7 @@ func (s *BoxerSuite) TestStartWithPremiumCPUQuotaNotConfigured(c *C) {
 	})
 }
 
-func (s *BoxerSuite) TestStartWithNitrousboxrc(c *C) {
+func (s *BoxerSuite) TestStartWritesNitrousboxrcFiles(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
 
@@ -752,6 +752,50 @@ func (s *BoxerSuite) TestStartWithNitrousboxrc(c *C) {
 				"cp ~/nitrousboxrc.sample ~/.nitrousboxrc",
 				"chmod +x ~/.nitrousboxrc",
 			},
+		})
+	})
+}
+
+func (s *BoxerSuite) TestStartRunsPartsInit(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:start", defaultMsg))
+
+		c.Assert(message.Type, Equals, "aio:started")
+		c.Assert(message.Id, Equals, "testboxer")
+		c.Assert(message.BoxId, Equals, 1)
+		c.Assert(message.Success, Equals, true)
+
+		// The test box does not have parts installed, so
+		// fake it
+		partsData := `
+#!/bin/bash
+
+echo $@ > /home/action/parts-inited
+touch /etc/pam.d/shouldnotexist
+`
+		partsFile, err := os.Create(filepath.Join(box.LxcPath(), "rootfs", "usr", "bin", "parts"))
+		c.Assert(err, IsNil)
+		partsFile.WriteString(partsData)
+		partsFile.Chmod(os.FileMode(0755))
+		partsFile.Sync()
+		partsFile.Close()
+		err = os.RemoveAll(box.LxcPath() + "/rootfs/home/action/parts-inited")
+		c.Assert(err, IsNil)
+
+		_, box = s.receiveMessages("mclovins-container-1",
+			s.makeMessage("aio:restart", defaultMsg))
+
+		DoesContain(c, map[string][]string{
+			box.LxcPath() + "/rootfs/home/action/parts-inited": {
+				"init -",
+			},
+		})
+		DoesNotExist(c, []string{
+			box.LxcPath() + "/rootfs/etc/pam.d/shouldnotexist",
 		})
 	})
 }

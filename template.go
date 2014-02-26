@@ -232,6 +232,25 @@ by default, so you can start previewing your PHP applications by clicking "Previ
 http://help.nitrous.io/php/
 `, ReadmeTemplate)
 
+const PartsInitConfTemplate = `
+# parts-init
+description "runs parts init as action user"
+
+task
+start on started ssh
+
+env HOME="/home/action"
+
+setuid action
+setgid action
+
+console log
+
+chdir /home/action
+
+exec parts init - >> /home/action/parts-init.log
+`
+
 // TODO: this Upstart conf does not enforce timeouts on .nitrousboxrc execution
 // time
 const RunNitrousboxrcConfTemplate = `
@@ -239,7 +258,7 @@ const RunNitrousboxrcConfTemplate = `
 description "runs /home/action/.nitrousboxrc as action user"
 
 task
-start on started ssh
+start on stopped parts-init
 
 env ACTION_USER="action"
 
@@ -296,6 +315,7 @@ var (
 	NetworkConfigCompiled               *template.Template
 	LxcTemplateCompiled                 *template.Template
 	HostsTemplateCompiled               *template.Template
+	PartsInitConfTemplateCompiled       *template.Template
 	RunNitrousboxrcConfTemplateCompiled *template.Template
 	NitrousboxrcSampleTemplateCompiled  *template.Template
 )
@@ -325,6 +345,7 @@ func init() {
 	HostsTemplateCompiled = template.Must(template.New("hosts").Parse(HostsTemplate))
 	NetworkConfigCompiled = template.Must(template.New("network").Parse(NetworkConfigTemplate))
 	LxcTemplateCompiled = template.Must(template.New("lxc").Parse(LxcTemplate))
+	PartsInitConfTemplateCompiled = template.Must(template.New("parts-init.conf").Parse(PartsInitConfTemplate))
 	RunNitrousboxrcConfTemplateCompiled = template.Must(template.New("run-nitrousboxrc.conf").Parse(RunNitrousboxrcConfTemplate))
 	NitrousboxrcSampleTemplateCompiled = template.Must(template.New("nitrousboxrc.sample").Parse(NitrousboxrcSampleTemplate))
 
