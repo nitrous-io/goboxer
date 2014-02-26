@@ -45,6 +45,21 @@ Install the recommended git hooks in the `misc/git` directory with: `script/inst
 1. Install dependencies: `go get` and `go get launchpad.net/gocheck`.
 1. `make test`. *Ideally* it should pass!!!
 
+#### Running tests in a Docker container
+
+This requires [Docker to be installed](http://docs.docker.io/en/latest/installation/ubuntulinux/).
+
+If this is the 1st time you're setting this up, you have to create base images
+to run the test:
+
+- create a base image: `make base`
+- create a test image: `make ci-image`
+
+After that, run tests within the Docker container with: `make ci-test`
+
+Whenever there are changes to the images, you should re-run `make base` and
+`make ci-image` to make sure that the image are updated.
+
 #### Running individual tests
 
 Tests are implemented with [gocheck](http://labix.org/gocheck).
@@ -58,18 +73,3 @@ Tests are implemented with [gocheck](http://labix.org/gocheck).
 1. Setup s3cmd as well if you haven't: `s3cmd --configure`.
 1. `cd $HOME/goboxer`
 1. Tag a new release and upload the build to S3 with: `make release`
-
-### Running test under Docker
-
-If this is the 1st time you setup, you have to create base images to run the
-test
-
-- create a base image: `make base`
-- create a test image: `make ci-image`
-
-After that,
-
-- Run test: `make ci-test`
-
-However, whenever there are changes to the images, you should re-run `make base`
-and `make ci-image` to make sure that the image are updated
