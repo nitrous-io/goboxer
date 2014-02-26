@@ -237,7 +237,9 @@ const PartsInitConfTemplate = `
 description "runs parts init as action user"
 
 task
-start on started ssh
+start on (net-device-up
+          and local-filesystems
+          and runlevel [2345])
 
 env HOME="/home/action"
 

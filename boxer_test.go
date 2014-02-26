@@ -8,6 +8,7 @@ package goboxer
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -831,14 +832,19 @@ rm /etc/sudoers # check privileges, stderr logging`
 		_, box = s.receiveMessages("mclovins-container-1",
 			s.makeMessage("aio:restart", defaultMsg))
 
+		logPath := box.LxcPath() + "/rootfs/home/action/nitrousboxrc.log"
 		DoesContain(c, map[string][]string{
-			box.LxcPath() + "/rootfs/home/action/nitrousboxrc.log": {
+			logPath: {
 				"Starting /home/action/.nitrousboxrc",
 				"check logging",
 				"cannot remove `/etc/sudoers': Permission denied",
 				"Finished /home/action/.nitrousboxrc",
 			},
 		})
+		logData, _ := ioutil.ReadFile(logPath)
+		fileContent := string(logData)
+		startCount := strings.Count(fileContent, "Starting")
+		c.Assert(startCount, Equals, 1, Commentf("Expected .nitrousboxrc to run once, ran %d times", startCount))
 		DoesExist(c, []string{
 			box.LxcPath() + "/rootfs/home/action/filetouch",
 			box.LxcPath() + "/rootfs/etc/sudoers",
