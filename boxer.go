@@ -140,7 +140,7 @@ func (boxer *Boxer) NewAdvertiseMessage() Message {
 	} else {
 		msg.BoxStats["total"] = total
 	}
-	if running, err := boxer.ResourcePool.CountBoxesByState("running"); err != nil {
+	if running, err := boxer.ResourcePool.CountRunningBoxes(); err != nil {
 		logger.Println("ERROR: counting running boxes:", err)
 	} else {
 		msg.BoxStats["running"] = running

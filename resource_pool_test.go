@@ -226,35 +226,19 @@ func (s *ResourcePoolSuite) TestCountAllBoxes(c *C) {
 	c.Assert(count, Equals, 2)
 }
 
-func (s *ResourcePoolSuite) TestCountBoxesByState(c *C) {
-	conn := s.pool.Get()
-	defer conn.Close()
-	box1json, _ := utils.ToJSON(makeTestBox(1, "running"))
-	box2json, _ := utils.ToJSON(makeTestBox(2, "stopped"))
-	box3json, _ := utils.ToJSON(makeTestBox(3, "running"))
-	conn.Do("HSET", "aio:boxes", "test-1", box1json)
-	conn.Do("HSET", "aio:boxes", "test-2", box2json)
-	conn.Do("HSET", "aio:boxes", "test-3", box3json)
-
-	rs := &ResourcePool{Pool: s.pool}
-	runningCount, _ := rs.CountBoxesByState("running")
-	stoppedCount, _ := rs.CountBoxesByState("stopped")
-
-	c.Assert(runningCount, Equals, 2)
-	c.Assert(stoppedCount, Equals, 1)
-}
-
-func (s *ResourcePoolSuite) TestCountPremiumBoxes(c *C) {
-	conn := s.pool.Get()
-	defer conn.Close()
+func (s *ResourcePoolSuite) TestCountRunningBoxes(c *C) {
+	rp := &ResourcePool{Pool: s.pool}
 	box1 := makeTestBox(1, "running")
-	box1.Premium = true
-	box1json, _ := utils.ToJSON(box1)
-	box2json, _ := utils.ToJSON(makeTestBox(2, "running"))
-	conn.Do("HSET", "aio:boxes", "test-1", box1json)
-	conn.Do("HSET", "aio:boxes", "test-2", box2json)
+	box2 := makeTestBox(2, "stopped")
+	box3 := makeTestBox(3, "running")
+	err := rp.SaveBox(box1)
+	c.Check(err, IsNil)
+	err = rp.SaveBox(box2)
+	c.Check(err, IsNil)
+	err = rp.SaveBox(box3)
+	c.Check(err, IsNil)
 
-	rs := &ResourcePool{Pool: s.pool}
-	count, _ := rs.CountPremiumBoxes()
-	c.Assert(count, Equals, 1)
+	count, _ := rp.CountRunningBoxes()
+
+	c.Assert(count, Equals, 2)
 }

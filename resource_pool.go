@@ -157,20 +157,14 @@ func (rp *ResourcePool) CountAllBoxes() (int, error) {
 	return count, nil
 }
 
-func (rp *ResourcePool) CountBoxesByState(state string) (int, error) {
-	boxes, err := rp.FindBoxesByState(state)
+func (rp *ResourcePool) CountRunningBoxes() (int, error) {
+	conn := rp.Pool.Get()
+	defer conn.Close()
+	count, err := redis.Int(conn.Do("SCARD", "aio:boxes:running"))
 	if err != nil {
 		return -1, err
 	}
-	return len(boxes), nil
-}
-
-func (rp *ResourcePool) CountPremiumBoxes() (int, error) {
-	boxes, err := rp.FindBoxes(func(b *Box) bool { return b.Premium == true })
-	if err != nil {
-		return -1, err
-	}
-	return len(boxes), nil
+	return count, nil
 }
 
 func getBoxNames(conn redis.Conn) ([]string, error) {
