@@ -95,6 +95,59 @@ func makeTestBox(id int, state string) *Box {
 	}
 }
 
+func (s *ResourcePoolSuite) TestUpdateState(c *C) {
+	rp := &ResourcePool{Pool: s.pool}
+	conn := s.pool.Get()
+	defer conn.Close()
+	box := makeTestBox(1, "running")
+
+	err := rp.UpdateState(box, "running")
+	c.Check(err, IsNil)
+
+	boxJSON, err := redis.Bytes(conn.Do("HGET", "aio:boxes", box.ContainerName()))
+	c.Check(err, IsNil)
+	c.Assert(string(boxJSON), Contains, `"id":1`)
+	exists, _ := redis.Bool(conn.Do("SISMEMBER", "aio:boxes:running", box.ContainerName()))
+	c.Assert(exists, Equals, true)
+	count, _ := redis.Int(conn.Do("SCARD", "aio:boxes:running"))
+	c.Assert(count, Equals, 1)
+
+	err = rp.UpdateState(box, "stopped")
+	c.Check(err, IsNil)
+
+	// Verify "aio:boxes:running:" set is updated.
+	exists, _ = redis.Bool(conn.Do("SISMEMBER", "aio:boxes:running", box.ContainerName()))
+	c.Assert(exists, Equals, false)
+	count, _ = redis.Int(conn.Do("SCARD", "aio:boxes:running"))
+	c.Assert(count, Equals, 0)
+}
+
+func (s *ResourcePoolSuite) TestSaveBox(c *C) {
+	rp := &ResourcePool{Pool: s.pool}
+	conn := s.pool.Get()
+	defer conn.Close()
+	box1 := makeTestBox(1, "running")
+	box2 := makeTestBox(2, "stopped")
+
+	err := rp.SaveBox(box1)
+	c.Check(err, IsNil)
+	err = rp.SaveBox(box2)
+	c.Check(err, IsNil)
+
+	boxJSON, err := redis.Bytes(conn.Do("HGET", "aio:boxes", box1.ContainerName()))
+	c.Check(err, IsNil)
+	c.Assert(string(boxJSON), Contains, `"id":1`)
+	boxJSON, err = redis.Bytes(conn.Do("HGET", "aio:boxes", box2.ContainerName()))
+	c.Check(err, IsNil)
+	c.Assert(string(boxJSON), Contains, `"id":2`)
+
+	// Verify "aio:boxes:running:" set is updated.
+	exists, _ := redis.Bool(conn.Do("SISMEMBER", "aio:boxes:running", box1.ContainerName()))
+	c.Assert(exists, Equals, true)
+	count, _ := redis.Int(conn.Do("SCARD", "aio:boxes:running"))
+	c.Assert(count, Equals, 1)
+}
+
 func (s *ResourcePoolSuite) TestFindAllBoxes(c *C) {
 	conn := s.pool.Get()
 	defer conn.Close()

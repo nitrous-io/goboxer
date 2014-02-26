@@ -75,8 +75,21 @@ func (rp *ResourcePool) SaveBox(box *Box) error {
 	if err != nil {
 		return err
 	}
-	_, err = conn.Do("HSET", "aio:boxes", box.ContainerName(), json)
-	return err
+	if _, err = conn.Do("HSET", "aio:boxes", box.ContainerName(), json); err != nil {
+		return err
+	}
+
+	// We keep a set of running boxes' names so we can quickly list/count them
+	// without going through all boxes.
+	op := "SREM"
+	if box.State == "running" {
+		op = "SADD"
+	}
+	if _, err = conn.Do(op, "aio:boxes:running", box.ContainerName()); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (rp *ResourcePool) FindBox(containerName string) (*Box, error) {
