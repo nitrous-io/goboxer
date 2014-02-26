@@ -50,15 +50,15 @@ Install the recommended git hooks in the `misc/git` directory with: `script/inst
 This requires [Docker to be installed](http://docs.docker.io/en/latest/installation/ubuntulinux/).
 
 If this is the 1st time you're setting this up, you have to create base images
-to run the test:
+to run the test. Base image is setup with
+[boxer-ci](https://github.com/nitrous-io/boxer-ci) so we can easily trigger the
+image build on jenkins server *only* when the base image changed.
 
-- create a base image: `make base`
-- create a test image: `make ci-image`
+After setting up the image with boxer-ci, run tests within the Docker container
+from this repository with: `make ci-test`
 
-After that, run tests within the Docker container with: `make ci-test`
-
-Whenever there are changes to the images, you should re-run `make base` and
-`make ci-image` to make sure that the image are updated.
+Whenever there are changes to `boxer-ci`, make sure that the image in your
+local box are updated.
 
 #### Running individual tests
 
