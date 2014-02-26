@@ -23,13 +23,6 @@ bin: test build
 release: test
 	@./script/release
 
-# prepare the base docker image
-base:
-	@sudo docker build -t nitrousio/goboxer-base .
-
-ci-image:
-	@sudo ./script/ci-image
-
 ci-test:
 	@sudo ./script/ci-test
 
