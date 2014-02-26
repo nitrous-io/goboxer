@@ -31,10 +31,10 @@ func (s *UtilSuite) TestExecWithTimeout(c *C) {
 	c.Assert(err, IsNil)
 
 	// Command raises an error.
-	err = Exec(exec.Command("invalidcmd"), 50*time.Millisecond)
+	err = Exec(exec.Command("invalidcmd"), 1*time.Second)
 	c.Assert(err, NotNil)
 	c.Assert(strings.Contains(fmt.Sprintf("%v", err), "invalid cmd"), Equals, true)
-	c.Assert(time.Now().Sub(now) >= 50*time.Millisecond, Equals, false)
+	c.Assert(time.Now().Sub(now) >= 1*time.Second, Equals, false)
 }
 
 func (s *UtilSuite) TestPipeCommands(c *C) {
