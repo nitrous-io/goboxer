@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/action-io/goboxer/fs"
 	"github.com/action-io/goboxer/ip"
 	"github.com/action-io/goboxer/lxc"
 	"github.com/action-io/goboxer/mount"
