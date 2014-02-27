@@ -7,7 +7,7 @@ set -o errexit
 shopt -s nullglob
 
 BASE=nitrousio/goboxer-ci
-now=$(date -u +"%d-%b-%Y-%H-%M")
+now=$(date -u +"%s")
 name="goboxer-inspect-${now}"
 
 sudo docker run \
