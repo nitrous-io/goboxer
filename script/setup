@@ -41,8 +41,8 @@ mount -t ext4 -o defaults,usrquota /dev/loop2 /lxc/disk2
 if [[ ! -f /lxc/disk2/aquota.user ]]; then
   quotacheck -cu /lxc/disk2
   quotacheck -avu
-  quotaon -av
 fi
+quotaon -av
 
 # install templates to all disks
 template=base_container_template
