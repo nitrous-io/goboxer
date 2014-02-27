@@ -731,14 +731,8 @@ func (s *BoxerSuite) TestDestroy(c *C) {
 		message, box := s.receiveMessages("mclovins-container-1",
 			s.makeCreateMessage(defaultMsg))
 		containerPlace := []string{box.LxcPath()}
-		switch stratName {
-		case "xfs", "ext4":
-			containerPlace = append(containerPlace, box.ContainerFS())
-			containerPlace = append(containerPlace, box.ContainerDeltaPath())
-		case "lvm":
-			containerPlace = append(containerPlace, "/dev/"+stratValue.SelectedVG+
-				"/mclovins-container-1")
-		}
+		containerPlace = append(containerPlace, box.ContainerFS())
+		containerPlace = append(containerPlace, box.ContainerDeltaPath())
 
 		message, box = s.receiveMessages("mclovins-container-1",
 			s.makeMessage("aio:destroy", defaultMsg))
@@ -798,13 +792,7 @@ func (s *BoxerSuite) TestRestart(c *C) {
 		s.assertBoxState(c, box, "running")
 
 		containerPlace := []string{box.LxcPath()}
-		switch stratName {
-		case "xfs", "ext4":
-			containerPlace = append(containerPlace, box.ContainerDeltaPath())
-		case "lvm":
-			containerPlace = append(containerPlace, "/dev/"+stratValue.SelectedVG+
-				"/mclovins-container-1")
-		}
+		containerPlace = append(containerPlace, box.ContainerDeltaPath())
 		DoesExist(c, containerPlace)
 	})
 }
@@ -1494,8 +1482,7 @@ func (s *BoxerSuite) TestChangeBoxSpecsFail(c *C) {
 
 		quotaProvisioner := quota.Provisioner.GetQuota(stratValue.QuotaMethod)
 		limit, _ := quotaProvisioner.ViewLimit(box.quotaArg())
-		// approximate the limit as lvm strategy will not report the whole
-		// absolute size as per lvm volume size
+		c.Log("limit", limit, box.quotaArg(), stratValue.QuotaMethod)
 		c.Assert(limit.Limit > 900*1000, Equals, true)
 
 		// swap Quota with FailQuota so all quota calls will return errors
@@ -1535,42 +1522,6 @@ func (s *BoxerSuite) TestChangeBoxSpecsFail(c *C) {
 		})
 
 		// it cant set the new quota
-		newLimit, _ := quotaProvisioner.ViewLimit(box.quotaArg())
-		c.Assert(newLimit.Limit, Equals, limit.Limit)
-	})
-}
-
-func (s *BoxerSuite) TestChangeBoxSpecsLvmFail(c *C) {
-	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
-		stratValue testProvisionStrategy) {
-		if stratName != "lvm" {
-			return
-		}
-		message, box := s.receiveMessages("mclovins-container-1",
-			s.makeCreateMessage(func(msg *Message) {
-				msg.DiskSpace = "30M"
-			}))
-
-		quotaProvisioner := quota.Provisioner.GetQuota(stratValue.QuotaMethod)
-		limit, _ := quotaProvisioner.ViewLimit(box.quotaArg())
-
-		// write 16M to test
-		exec.Command("dd", "if=/dev/zero",
-			"of="+box.LxcPath()+"/test_file",
-			"bs=1024", "count=16384").Run()
-
-		message, box = s.receiveMessages("mclovins-container-1",
-			s.makeMessage("aio:configure", func(msg *Message) {
-				msg.DataType = "aio:configure:change_specs"
-				msg.Data = map[string]interface{}{
-					"memory":    "512M",
-					"diskSpace": "15M",
-				}
-			}))
-
-		c.Assert(message.Type, Equals, "aio:configured")
-		c.Assert(message.Success, Equals, false)
-
 		newLimit, _ := quotaProvisioner.ViewLimit(box.quotaArg())
 		c.Assert(newLimit.Limit, Equals, limit.Limit)
 	})
