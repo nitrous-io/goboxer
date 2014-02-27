@@ -1,4 +1,4 @@
-#!/bin/bash
+#1!/bin/bash
 
 [ -n "$DEBUG" ] && set -o xtrace
 set -o errexit
@@ -6,13 +6,14 @@ shopt -s nullglob
 
 spec=${1}
 
+go get -t ./...
 go test -i ./...
 if [ -z "${spec}" ]; then
-  sudo -E go test -gocheck.v github.com/action-io/goboxer/...
+  go test -gocheck.v github.com/action-io/goboxer/... -timeout 1000s
   go test -test.v github.com/action-io/goboxer/host
-  sudo -E go test -test.v github.com/action-io/goboxer/quota
+  go test -test.v github.com/action-io/goboxer/quota
   go test -test.v github.com/action-io/goboxer/cartman
   go test -test.v github.com/action-io/goboxer/utils
 else
-  sudo -E go test -gocheck.v -gocheck.f ${spec}
+  go test -gocheck.v -gocheck.f ${spec}
 fi

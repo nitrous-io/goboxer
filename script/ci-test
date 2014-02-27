@@ -1,0 +1,23 @@
+#!/bin/bash
+#
+# Build and install goboxer binary as $GOPATH/bin/goboxer and ./bin/goboxer
+
+[ -n "$DEBUG" ] && set -o xtrace
+set -o errexit
+shopt -s nullglob
+
+BASE=nitrousio/goboxer-ci
+now=$(date -u +"%d-%b-%Y-%H-%M")
+name="goboxer-test-${now}"
+
+sudo docker run \
+  -privileged \
+  -dns 8.8.8.8 \
+  -v $(pwd):/opt/go/src/github.com/action-io/goboxer \
+  -w /opt/go/src/github.com/action-io/goboxer \
+  -lxc-conf="aa_profile=unconfined" \
+  -name=$name \
+  -e PATH=/usr/local/go/bin:$PATH \
+  -e GOPATH=/opt/go \
+  -e GOBIN=/opt/go/bin \
+  $BASE script/docker_test

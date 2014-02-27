@@ -1,0 +1,28 @@
+#!/bin/bash
+[ -n "$DEBUG" ] && set -o xtrace
+set -o errexit
+shopt -s nullglob
+
+# make sure that /lxc/disk2 is mounted
+if [[ `cat /proc/mounts | grep "/lxc/disk2\s\+"` ]]; then
+  umount /lxc/disk2
+fi
+mount -t ext4 -o defaults,usrquota,noatime /dev/loop2 /lxc/disk2
+(quotaon -a) || true
+
+# setup iptables
+(/sbin/ifdown br-lxc-254) || true
+/sbin/ifup br-lxc-254
+(/sbin/iptables -t nat --list | /bin/grep 192-168-254-0) || /sbin/iptables -t nat -A POSTROUTING -s 192.168.254.0/24 ! -d 192.168.254.0/24 -j MASQUERADE
+
+# prepare container to be able to start lxc
+./script/wrapdocker
+
+# start redis-server
+/etc/init.d/redis-server start
+
+# start apparmor
+/etc/init.d/apparmor start
+
+# run test
+./script/test

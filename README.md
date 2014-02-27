@@ -45,6 +45,21 @@ Install the recommended git hooks in the `misc/git` directory with: `script/inst
 1. Install dependencies: `go get` and `go get launchpad.net/gocheck`.
 1. `make test`. *Ideally* it should pass!!!
 
+#### Running tests in a Docker container
+
+This requires [Docker to be installed](http://docs.docker.io/en/latest/installation/ubuntulinux/).
+
+If this is the 1st time you're setting this up, you have to create base images
+to run the test. Base image is setup with
+[boxer-ci](https://github.com/nitrous-io/boxer-ci) so we can easily trigger the
+image build on jenkins server *only* when the base image changed.
+
+After setting up the image with boxer-ci, run tests within the Docker container
+from this repository with: `make ci-test`
+
+Whenever there are changes to `boxer-ci`, make sure that the image in your
+local box are updated.
+
 #### Running individual tests
 
 Tests are implemented with [gocheck](http://labix.org/gocheck).

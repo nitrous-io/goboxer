@@ -1,29 +1,8 @@
 #!/bin/bash
 
-# setup lvm
-if [[ ! -f $HOME/lxc_disk.img ]]; then
-  dd if=/dev/zero of=$HOME/lxc_disk.img bs=1024 count=1000000
-fi
-if [[ ! `losetup -a | grep /dev/loop0` ]]; then
-  losetup /dev/loop0 $HOME/lxc_disk.img
-fi
-pvcreate /dev/loop0
-vgcreate aio_boxhost /dev/loop0
-lvcreate --size 800M --type thin-pool --thinpool boxes aio_boxhost
-
-# setup xfs
-if [[ ! -f $HOME/xfs_disk.img ]]; then
-  dd if=/dev/zero of=$HOME/xfs_disk.img bs=1024 count=1000000
-fi
-if [[ ! `losetup -a | grep /dev/loop1` ]]; then
-  losetup /dev/loop1 $HOME/xfs_disk.img
-fi
-if [[ ! `blkid /dev/loop1 | grep xfs` ]]; then
-  mkfs.xfs /dev/loop1
-fi
-mkdir -p /lxc/disk1
-umount /lxc/disk1
-mount -t xfs -o defaults,prjquota /dev/loop1 /lxc/disk1
+[ -n "$DEBUG" ] && set -o xtrace
+set -o errexit
+shopt -s nullglob
 
 # setup ext4
 if [[ ! -f $HOME/ext4_disk.img ]]; then
@@ -49,28 +28,36 @@ template=base_container_template
 template_path=/var/lib/lxc/${template}
 if [[ ! -d ${template_path} || ! -f ${template_path}/rootfs/base_container_setup_complete ]]; then
   lxc-create -n ${template} -t ubuntu -f $PWD/script/lxc_default.conf -- -r precise
-  chroot ${template_path}/rootfs useradd action -m -s /bin/bash -d /home/action
-  chroot ${template_path}/rootfs rm -rf /dev/null
-  chroot ${template_path}/rootfs mknod -m 666 /dev/null c 1 3
+  chroot /var/lib/lxc/${template}/rootfs useradd action -m -s /bin/bash -d /home/action
   chroot ${template_path}/rootfs touch base_container_setup_complete
 fi
 rm -rf /var/lib/lxc/test_container_template.tar*
 tar cvf /var/lib/lxc/test_container_template.tar --files-from /dev/null
 gzip /var/lib/lxc/test_container_template.tar
 
-# setup network interfaces
 if [[ ! `grep "br-lxc-254" /etc/network/interfaces` ]]; then
-  echo -e "auto br-lxc-254\niface br-lxc-254 inet static\n\taddress 192.168.254.1\n\tnetmask 255.255.255.0\n\tpost-up echo 1 > /proc/sys/net/ipv4/ip_forward\n\tpre-down echo 0 > /proc/sys/net/ipv4/ip_forward\n\tbridge_ports none\n\tbridge_stp on\n\tbridge_fd 0\n\tbridge_maxwait 0" >> /etc/network/interfaces
+# setup network interfaces
+echo "auto br-lxc-254
+iface br-lxc-254 inet static
+  address 192.168.254.1
+  netmask 255.255.255.0
+  post-up echo 1 > /proc/sys/net/ipv4/ip_forward
+  pre-down echo 0 > /proc/sys/net/ipv4/ip_forward
+  bridge_ports none
+  bridge_stp on
+  bridge_fd 0
+  bridge_maxwait 0" >> /etc/network/interfaces
 fi
 
 /sbin/ifconfig br-lxc-254 || /sbin/ifup br-lxc-254
 (/sbin/iptables -t nat --list | /bin/grep 192-168-254-0) || /sbin/iptables -t nat -A POSTROUTING -s 192.168.254.0/24 ! -d 192.168.254.0/24 -j MASQUERADE
 
-# install templates to all disks
-mkdir -p /lxc/disk1/base_container_template
-cp -af /var/lib/lxc/base_container_template /lxc/disk1/
-cp -af /var/lib/lxc/test_container_template.tar.gz /lxc/disk1/
-
 mkdir -p /lxc/disk2/base_container_template
 cp -af /var/lib/lxc/base_container_template /lxc/disk2/
 cp -af /var/lib/lxc/test_container_template.tar.gz /lxc/disk2/
+
+chmod -R go+rx /var/lib/lxc
+
+# get all dependencies of current package
+go get -t ./...
+go test -i ./...
