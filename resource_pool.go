@@ -1,9 +1,10 @@
 package goboxer
 
 import (
+	"strconv"
+
 	"github.com/action-io/goboxer/utils"
 	"github.com/garyburd/redigo/redis"
-	"strconv"
 )
 
 type Resource struct {
@@ -74,8 +75,21 @@ func (rp *ResourcePool) SaveBox(box *Box) error {
 	if err != nil {
 		return err
 	}
-	_, err = conn.Do("HSET", "aio:boxes", box.ContainerName(), json)
-	return err
+	if _, err = conn.Do("HSET", "aio:boxes", box.ContainerName(), json); err != nil {
+		return err
+	}
+
+	// We keep a set of running boxes' names so we can quickly list/count them
+	// without going through all boxes.
+	op := "SREM"
+	if box.State == "running" {
+		op = "SADD"
+	}
+	if _, err = conn.Do(op, "aio:boxes:running", box.ContainerName()); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (rp *ResourcePool) FindBox(containerName string) (*Box, error) {
@@ -94,15 +108,11 @@ func (rp *ResourcePool) DeleteBox(box *Box) (err error) {
 	return
 }
 
-// Find all instance of `Box` that has `containerState` equals to `running` in
-// the redis database
-func (rp *ResourcePool) FindRunningBoxes() ([]*Box, error) {
-	return rp.FindAllBoxes("running")
-}
+type BoxFinder func(b *Box) bool
 
-// find all boxes with the specified state. if the state is empty, then return
-// all boxes
-func (rp *ResourcePool) FindAllBoxes(state string) ([]*Box, error) {
+// FindBoxes returns instances of Box that satisfy the given BoxFinder func
+// (i.e. when given a Box, returns true).
+func (rp *ResourcePool) FindBoxes(fn BoxFinder) ([]*Box, error) {
 	conn := rp.Pool.Get()
 	defer conn.Close()
 	var boxes []*Box
@@ -115,11 +125,46 @@ func (rp *ResourcePool) FindAllBoxes(state string) ([]*Box, error) {
 		if err != nil {
 			return []*Box{}, err
 		}
-		if len(state) == 0 || box.State == state {
+		if fn(box) {
 			boxes = append(boxes, box)
 		}
 	}
 	return boxes, nil
+}
+
+// FindAllBoxes returns all instances of Box.
+func (rp *ResourcePool) FindAllBoxes() ([]*Box, error) {
+	return rp.FindBoxes(func(b *Box) bool { return true })
+}
+
+// FindBoxesByState returns instances of Box in the given state.
+func (rp *ResourcePool) FindBoxesByState(state string) ([]*Box, error) {
+	return rp.FindBoxes(func(b *Box) bool { return b.State == state })
+}
+
+// FindRunningBoxes returns instances of Box in the "running" state.
+func (rp *ResourcePool) FindRunningBoxes() ([]*Box, error) {
+	return rp.FindBoxesByState("running")
+}
+
+func (rp *ResourcePool) CountAllBoxes() (int, error) {
+	conn := rp.Pool.Get()
+	defer conn.Close()
+	count, err := redis.Int(conn.Do("HLEN", "aio:boxes"))
+	if err != nil {
+		return -1, err
+	}
+	return count, nil
+}
+
+func (rp *ResourcePool) CountRunningBoxes() (int, error) {
+	conn := rp.Pool.Get()
+	defer conn.Close()
+	count, err := redis.Int(conn.Do("SCARD", "aio:boxes:running"))
+	if err != nil {
+		return -1, err
+	}
+	return count, nil
 }
 
 func getBoxNames(conn redis.Conn) ([]string, error) {

@@ -1,10 +1,11 @@
 package goboxer
 
 import (
+	"time"
+
 	"github.com/action-io/goboxer/utils"
 	"github.com/garyburd/redigo/redis"
 	. "launchpad.net/gocheck"
-	"time"
 )
 
 type ResourcePoolSuite struct {
@@ -92,7 +93,103 @@ func makeTestBox(id int, state string) *Box {
 		Memory:           "256M",
 		DiskSpace:        "1G",
 	}
+}
 
+func (s *ResourcePoolSuite) TestUpdateState(c *C) {
+	rp := &ResourcePool{Pool: s.pool}
+	conn := s.pool.Get()
+	defer conn.Close()
+	box := makeTestBox(1, "running")
+
+	err := rp.UpdateState(box, "running")
+	c.Check(err, IsNil)
+
+	boxJSON, err := redis.Bytes(conn.Do("HGET", "aio:boxes", box.ContainerName()))
+	c.Check(err, IsNil)
+	c.Assert(string(boxJSON), Contains, `"id":1`)
+	exists, _ := redis.Bool(conn.Do("SISMEMBER", "aio:boxes:running", box.ContainerName()))
+	c.Assert(exists, Equals, true)
+	count, _ := redis.Int(conn.Do("SCARD", "aio:boxes:running"))
+	c.Assert(count, Equals, 1)
+
+	err = rp.UpdateState(box, "stopped")
+	c.Check(err, IsNil)
+
+	// Verify "aio:boxes:running:" set is updated.
+	exists, _ = redis.Bool(conn.Do("SISMEMBER", "aio:boxes:running", box.ContainerName()))
+	c.Assert(exists, Equals, false)
+	count, _ = redis.Int(conn.Do("SCARD", "aio:boxes:running"))
+	c.Assert(count, Equals, 0)
+}
+
+func (s *ResourcePoolSuite) TestSaveBox(c *C) {
+	rp := &ResourcePool{Pool: s.pool}
+	conn := s.pool.Get()
+	defer conn.Close()
+	box1 := makeTestBox(1, "running")
+	box2 := makeTestBox(2, "stopped")
+
+	err := rp.SaveBox(box1)
+	c.Check(err, IsNil)
+	err = rp.SaveBox(box2)
+	c.Check(err, IsNil)
+
+	boxJSON, err := redis.Bytes(conn.Do("HGET", "aio:boxes", box1.ContainerName()))
+	c.Check(err, IsNil)
+	c.Assert(string(boxJSON), Contains, `"id":1`)
+	boxJSON, err = redis.Bytes(conn.Do("HGET", "aio:boxes", box2.ContainerName()))
+	c.Check(err, IsNil)
+	c.Assert(string(boxJSON), Contains, `"id":2`)
+
+	// Verify "aio:boxes:running:" set is updated.
+	exists, _ := redis.Bool(conn.Do("SISMEMBER", "aio:boxes:running", box1.ContainerName()))
+	c.Assert(exists, Equals, true)
+	count, _ := redis.Int(conn.Do("SCARD", "aio:boxes:running"))
+	c.Assert(count, Equals, 1)
+}
+
+func (s *ResourcePoolSuite) TestFindAllBoxes(c *C) {
+	conn := s.pool.Get()
+	defer conn.Close()
+	box1json, _ := utils.ToJSON(makeTestBox(1, "running"))
+	box2json, _ := utils.ToJSON(makeTestBox(2, "stopped"))
+	conn.Do("HSET", "aio:boxes", "test-1", box1json)
+	conn.Do("HSET", "aio:boxes", "test-2", box2json)
+
+	rs := &ResourcePool{Pool: s.pool}
+	boxes, _ := rs.FindAllBoxes()
+
+	c.Assert(len(boxes), Equals, 2)
+	c.Assert(boxes[0].Id, Equals, 2)
+	c.Assert(boxes[0].State, Equals, "stopped")
+	c.Assert(boxes[1].Id, Equals, 1)
+	c.Assert(boxes[1].State, Equals, "running")
+}
+
+func (s *ResourcePoolSuite) TestFindBoxesByState(c *C) {
+	conn := s.pool.Get()
+	defer conn.Close()
+	box1json, _ := utils.ToJSON(makeTestBox(1, "running"))
+	box2json, _ := utils.ToJSON(makeTestBox(2, "stopped"))
+	box3json, _ := utils.ToJSON(makeTestBox(3, "running"))
+	conn.Do("HSET", "aio:boxes", "test-1", box1json)
+	conn.Do("HSET", "aio:boxes", "test-2", box2json)
+	conn.Do("HSET", "aio:boxes", "test-3", box3json)
+
+	rs := &ResourcePool{Pool: s.pool}
+	boxes, _ := rs.FindBoxesByState("running")
+
+	c.Assert(len(boxes), Equals, 2)
+	c.Assert(boxes[0].Id, Equals, 3)
+	c.Assert(boxes[0].State, Equals, "running")
+	c.Assert(boxes[1].Id, Equals, 1)
+	c.Assert(boxes[1].State, Equals, "running")
+
+	boxes, _ = rs.FindBoxesByState("stopped")
+
+	c.Assert(len(boxes), Equals, 1)
+	c.Assert(boxes[0].Id, Equals, 2)
+	c.Assert(boxes[0].State, Equals, "stopped")
 }
 
 func (s *ResourcePoolSuite) TestFindRunningBoxes(c *C) {
@@ -106,11 +203,42 @@ func (s *ResourcePoolSuite) TestFindRunningBoxes(c *C) {
 	conn.Do("HSET", "aio:boxes", "test-3", box3json)
 
 	rs := &ResourcePool{Pool: s.pool}
-	b, _ := rs.FindRunningBoxes()
+	boxes, _ := rs.FindRunningBoxes()
 
-	c.Assert(len(b), Equals, 2)
-	c.Assert(b[0].Id, Equals, 3)
-	c.Assert(b[0].State, Equals, "running")
-	c.Assert(b[1].Id, Equals, 1)
-	c.Assert(b[1].State, Equals, "running")
+	c.Assert(len(boxes), Equals, 2)
+	c.Assert(boxes[0].Id, Equals, 3)
+	c.Assert(boxes[0].State, Equals, "running")
+	c.Assert(boxes[1].Id, Equals, 1)
+	c.Assert(boxes[1].State, Equals, "running")
+}
+
+func (s *ResourcePoolSuite) TestCountAllBoxes(c *C) {
+	conn := s.pool.Get()
+	defer conn.Close()
+	box1json, _ := utils.ToJSON(makeTestBox(1, "running"))
+	box2json, _ := utils.ToJSON(makeTestBox(2, "stopped"))
+	conn.Do("HSET", "aio:boxes", "test-1", box1json)
+	conn.Do("HSET", "aio:boxes", "test-2", box2json)
+
+	rs := &ResourcePool{Pool: s.pool}
+	count, _ := rs.CountAllBoxes()
+
+	c.Assert(count, Equals, 2)
+}
+
+func (s *ResourcePoolSuite) TestCountRunningBoxes(c *C) {
+	rp := &ResourcePool{Pool: s.pool}
+	box1 := makeTestBox(1, "running")
+	box2 := makeTestBox(2, "stopped")
+	box3 := makeTestBox(3, "running")
+	err := rp.SaveBox(box1)
+	c.Check(err, IsNil)
+	err = rp.SaveBox(box2)
+	c.Check(err, IsNil)
+	err = rp.SaveBox(box3)
+	c.Check(err, IsNil)
+
+	count, _ := rp.CountRunningBoxes()
+
+	c.Assert(count, Equals, 2)
 }
