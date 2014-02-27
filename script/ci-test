@@ -12,6 +12,7 @@ name="goboxer-test-${now}"
 
 sudo docker run \
   -privileged \
+  -rm \
   -dns 8.8.8.8 \
   -v $(pwd):/opt/go/src/github.com/action-io/goboxer \
   -w /opt/go/src/github.com/action-io/goboxer \
