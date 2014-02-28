@@ -790,8 +790,12 @@ touch /etc/pam.d/shouldnotexist
 		_, box = s.receiveMessages("mclovins-container-1",
 			s.makeMessage("aio:restart", defaultMsg))
 
+		initedPath := box.LxcPath() + "/rootfs/home/action/parts-inited"
+		RetryEvery(1*time.Second, 10*time.Second, func() bool {
+			return exists(initedPath)
+		})
 		DoesContain(c, map[string][]string{
-			box.LxcPath() + "/rootfs/home/action/parts-inited": {
+			initedPath: {
 				"init -",
 			},
 		})
@@ -834,6 +838,9 @@ rm /etc/sudoers # check privileges, stderr logging`
 			s.makeMessage("aio:restart", defaultMsg))
 
 		logPath := box.LxcPath() + "/rootfs/home/action/.nitrousboxrc.log"
+		RetryEvery(1*time.Second, 10*time.Second, func() bool {
+			return exists(logPath)
+		})
 		DoesContain(c, map[string][]string{
 			logPath: {
 				"Starting /home/action/.nitrousboxrc",
