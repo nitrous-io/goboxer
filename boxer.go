@@ -45,7 +45,7 @@ type Boxer struct {
 	Disks           []string
 	ResourcePool    *ResourcePool
 	Runtimes        map[string]string
-	Handles         map[string]MessageHandler
+	Handlers        map[string]MessageHandler
 	MountMethod     string
 	QuotaMethod     string
 	SelectedVG      string
@@ -59,7 +59,7 @@ type Boxer struct {
 }
 
 func (boxer *Boxer) Configure() {
-	boxer.Handles = handlers
+	boxer.Handlers = handlers
 	boxer.SetCpuSet(runtime.NumCPU())
 	boxer.locker = BoxLocker{}
 }
@@ -97,7 +97,7 @@ func (boxer *Boxer) ReceiveAsync(message Message) MessageChannel {
 // which we can used to reply back to Coach
 //
 // The handlers are created when we created the `Boxer` instance and stored
-// inside `Handles` attributes. For example:
+// inside `Handlers` attributes. For example:
 //
 //		boxer.Handlers = map[string]MessageHandler{
 //			"aio:locate": LocateBoxHandler,
@@ -114,12 +114,12 @@ func (boxer *Boxer) Receive(msg Message) (message Message) {
 			message = boxer.NewInvalidParamMessage()
 		}
 	}()
-	handle, ok := boxer.Handles[msg.Type]
+	handler, ok := boxer.Handlers[msg.Type]
 	if !ok {
 		message = boxer.NewInvalidParamMessage()
 	} else {
 		msg.Id = boxer.Id
-		message = handle(msg, boxer)
+		message = handler(msg, boxer)
 	}
 	return
 }
