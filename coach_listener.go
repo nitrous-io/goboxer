@@ -2,6 +2,7 @@ package goboxer
 
 import (
 	"encoding/json"
+
 	"github.com/action-io/goboxer/utils"
 	"github.com/garyburd/redigo/redis"
 )
@@ -39,7 +40,7 @@ func (c *CoachListener) Listen() {
 				c.SendInvalidParam()
 				return
 			}
-			logger.Println(messageJSON)
+			logger.Println("Response:", messageJSON)
 			c.replyCoach(messageJSON)
 		}()
 	case redis.Subscription:
@@ -51,15 +52,16 @@ func (c *CoachListener) Listen() {
 }
 
 func (c *CoachListener) Dispatch(data []byte) (message Message, err error) {
-	logger.Println("Message: ", string(data))
 	if err = json.Unmarshal(data, &message); err != nil {
-		logger.Println("ERROR: Unmarshal ", err)
+		logger.Println("ERROR: Unmarshal", err)
 		return
 	}
 	if message.Id != c.Boxer.Id {
+		logger.Println("Message ignored:", string(data))
 		err = NotHandleError{}
 		return
 	}
+	logger.Println("Message received:", string(data))
 	msgChan := c.Boxer.ReceiveAsync(message)
 	message = <-msgChan
 	return
