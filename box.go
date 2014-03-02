@@ -197,6 +197,15 @@ func (b *Box) Start(spec *BoxSpec) error {
 	if err := b.handleSpecChange(spec, true); err != nil {
 		return &BoxOpError{Op: "spec change", Err: err}
 	}
+	if err := b.addPartsInitUpstart(); err != nil {
+		return &BoxOpError{Op: "parts init upstart", Err: err}
+	}
+	if err := b.addNitrousboxrcUpstart(); err != nil {
+		return &BoxOpError{Op: "nitrousboxrc upstart", Err: err}
+	}
+	if err := b.addNitrousboxrcSample(); err != nil {
+		return &BoxOpError{Op: "nitrousboxrc sample", Err: err}
+	}
 	err := lxc.Start(b.ContainerName(), b.MountName())
 	if err != nil {
 		return &BoxOpError{Op: "lxc-start " + b.MountName(), Err: err}
@@ -886,6 +895,42 @@ func (b *Box) setDefaultKeyPair() error {
 		return err
 	}
 	return nil
+}
+
+func (b *Box) addPartsInitUpstart() error {
+	confPath := path.Join(b.RootFS(), "etc", "init", "parts-init.conf")
+	confFile, err := os.Create(confPath)
+	if err != nil {
+		return err
+	}
+	defer confFile.Close()
+	return PartsInitConfTemplateCompiled.Execute(confFile, UpstartConfSettings)
+}
+
+func (b *Box) addNitrousboxrcUpstart() error {
+	confPath := path.Join(b.RootFS(), "etc", "init", "run-nitrousboxrc.conf")
+	confFile, err := os.Create(confPath)
+	if err != nil {
+		return err
+	}
+	defer confFile.Close()
+	return RunNitrousboxrcConfTemplateCompiled.Execute(confFile, UpstartConfSettings)
+}
+
+func (b *Box) addNitrousboxrcSample() error {
+	samplePath := path.Join("home", UpstartConfSettings["ActionUser"], UpstartConfSettings["NitrousboxrcSample"])
+	sampleFile, err := os.Create(path.Join(b.RootFS(), samplePath))
+	if err != nil {
+		return err
+	}
+	err = NitrousboxrcSampleTemplateCompiled.Execute(sampleFile, UpstartConfSettings)
+	if err != nil {
+		sampleFile.Close()
+		return err
+	}
+	sampleFile.Close()
+	permission := fmt.Sprintf("%s:%s", b.Uid(), b.Gid())
+	return utils.RunCommand("chroot", b.RootFS(), "chown", "-R", permission, samplePath)
 }
 
 func (b *Box) generateUniqueId() error {

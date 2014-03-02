@@ -8,9 +8,11 @@ package goboxer
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -725,6 +727,135 @@ func (s *BoxerSuite) TestStartWithPremiumCPUQuotaNotConfigured(c *C) {
 				"cfs_period_us",
 				"cfs_quota_us",
 			},
+		})
+	})
+}
+
+func (s *BoxerSuite) TestStartWritesNitrousboxrcFiles(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:start", defaultMsg))
+
+		c.Assert(message.Type, Equals, "aio:started")
+		c.Assert(message.Id, Equals, "testboxer")
+		c.Assert(message.BoxId, Equals, 1)
+		c.Assert(message.Success, Equals, true)
+
+		DoesContain(c, map[string][]string{
+			box.LxcPath() + "/rootfs/etc/init/run-nitrousboxrc.conf": {
+				"setuid action",
+				"setgid action",
+			},
+			box.LxcPath() + "/rootfs/home/action/.nitrousboxrc.sample": {
+				"cp ~/.nitrousboxrc.sample ~/.nitrousboxrc",
+				"chmod +x ~/.nitrousboxrc",
+			},
+		})
+	})
+}
+
+func (s *BoxerSuite) TestStartRunsPartsInit(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:start", defaultMsg))
+
+		c.Assert(message.Type, Equals, "aio:started")
+		c.Assert(message.Id, Equals, "testboxer")
+		c.Assert(message.BoxId, Equals, 1)
+		c.Assert(message.Success, Equals, true)
+
+		// The test box does not have parts installed, so
+		// fake it
+		partsData := `
+#!/bin/bash
+
+echo $@ > /home/action/parts-inited
+touch /etc/pam.d/shouldnotexist
+`
+		partsFile, err := os.Create(filepath.Join(box.LxcPath(), "rootfs", "usr", "bin", "parts"))
+		c.Assert(err, IsNil)
+		partsFile.WriteString(partsData)
+		partsFile.Chmod(os.FileMode(0755))
+		partsFile.Sync()
+		partsFile.Close()
+		err = os.RemoveAll(box.LxcPath() + "/rootfs/home/action/parts-inited")
+		c.Assert(err, IsNil)
+
+		_, box = s.receiveMessages("mclovins-container-1",
+			s.makeMessage("aio:restart", defaultMsg))
+
+		initedPath := box.LxcPath() + "/rootfs/home/action/parts-inited"
+		RetryEvery(1*time.Second, 10*time.Second, func() bool {
+			return exists(initedPath)
+		})
+		DoesContain(c, map[string][]string{
+			initedPath: {
+				"init -",
+			},
+		})
+		// check that parts init is running without privileges
+		DoesNotExist(c, []string{
+			box.LxcPath() + "/rootfs/etc/pam.d/shouldnotexist",
+		})
+	})
+}
+
+func (s *BoxerSuite) TestStartRunsNitrousboxrc(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:start", defaultMsg))
+
+		c.Assert(message.Type, Equals, "aio:started")
+		c.Assert(message.Id, Equals, "testboxer")
+		c.Assert(message.BoxId, Equals, 1)
+		c.Assert(message.Success, Equals, true)
+
+		rcData := `
+#!/bin/bash
+
+echo check logging
+touch filetouch # check pwd
+rm /etc/sudoers # check privileges, stderr logging`
+		rcFile, err := os.Create(filepath.Join(box.LxcPath(), "rootfs", "home", "action", ".nitrousboxrc"))
+		c.Assert(err, IsNil)
+		rcFile.WriteString(rcData)
+		rcFile.Chmod(os.FileMode(0755))
+		rcFile.Sync()
+		rcFile.Close()
+		err = os.RemoveAll(box.LxcPath() + "/rootfs/home/action/nitrousboxrc.log")
+		c.Assert(err, IsNil)
+
+		_, box = s.receiveMessages("mclovins-container-1",
+			s.makeMessage("aio:restart", defaultMsg))
+
+		logPath := box.LxcPath() + "/rootfs/home/action/.nitrousboxrc.log"
+		RetryEvery(1*time.Second, 10*time.Second, func() bool {
+			return exists(logPath)
+		})
+		DoesContain(c, map[string][]string{
+			logPath: {
+				"Starting /home/action/.nitrousboxrc",
+				"check logging",
+				"cannot remove `/etc/sudoers': Permission denied",
+				"Finished /home/action/.nitrousboxrc",
+			},
+		})
+		logData, _ := ioutil.ReadFile(logPath)
+		fileContent := string(logData)
+		startCount := strings.Count(fileContent, "Starting")
+		c.Assert(startCount, Equals, 1, Commentf("Expected .nitrousboxrc to run once, ran %d times", startCount))
+		DoesExist(c, []string{
+			box.LxcPath() + "/rootfs/home/action/filetouch",
+			box.LxcPath() + "/rootfs/etc/sudoers",
 		})
 	})
 }

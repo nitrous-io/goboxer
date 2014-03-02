@@ -9,6 +9,7 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 )
 
 // Hook up gocheck into go test runner.
@@ -73,6 +74,31 @@ func SliceInclude(slice []string, target string) bool {
 		}
 	}
 	return false
+}
+
+// a RetryFn is tried multiple times by RetryEvery
+type RetryFn func() bool
+
+// RetryEvery runs RetryFn every interval until it returns true or stopAfter
+// has exceeded.  It is assumed that given RetryFn will complete running before interval
+func RetryEvery(interval time.Duration, stopAfter time.Duration, fn RetryFn) {
+	if fn() {
+		return
+	}
+	trying := true
+	go func() {
+		for _ = range time.Tick(interval) {
+			if !trying || fn() {
+				return
+			}
+		}
+	}()
+	select {
+	case <-time.After(stopAfter):
+		trying = false
+		fmt.Printf("RetryEvery timed out after %s\n", stopAfter)
+		return
+	}
 }
 
 func DoesExist(c *C, checkExists []string) {
