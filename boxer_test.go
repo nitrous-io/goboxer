@@ -1446,7 +1446,6 @@ func (s *BoxerSuite) TestChangeBoxSpecsPassOnStoppedBox(c *C) {
 				msg.Data = mockData
 			}))
 
-		s.assertBoxState(c, box, "stopped")
 		_, box = s.receiveMessages("mclovins-container-1",
 			s.makeMessage("aio:start", defaultMsg))
 		DoesContain(c, map[string][]string{

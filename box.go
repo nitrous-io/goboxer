@@ -667,10 +667,18 @@ func (b *Box) Info() (BoxInfo, error) {
 	} else {
 		info.MemoryUsage = MemoryUsageNotApplicable
 	}
-	if state, err := lxc.Status(b.MountName()); err != nil {
-		return info, err
-	} else {
+	state, err := lxc.Status(b.MountName())
+	if err == nil {
 		info.LxcStatus = state
+	} else {
+		if b.State == "stopped" {
+			// Stopped boxes will fail lxc.Status because they are unmounted so
+			// lxc-info will not find their config file and consider them
+			// non-existent.  Thus we swallow errors for stopped boxes
+			info.LxcStatus = "STOPPED"
+		} else {
+			return info, err
+		}
 	}
 	quotaInfo, err := b.quota().ViewLimit(b.quotaArg())
 	if err != nil {
