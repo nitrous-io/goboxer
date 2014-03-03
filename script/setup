@@ -15,6 +15,9 @@ if [[ ! `blkid /dev/loop2 | grep ext4` ]]; then
   mkfs.ext4 -i 8192 /dev/loop2
 fi
 mkdir -p /lxc/disk2
+if [[ `cat /proc/mounts | grep "/lxc/disk2\s\+"` ]]; then
+  umount /lxc/disk2
+fi
 mount -t ext4 -o defaults,usrquota /dev/loop2 /lxc/disk2
 if [[ ! -f /lxc/disk2/aquota.user ]]; then
   quotacheck -cu /lxc/disk2
