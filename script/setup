@@ -11,11 +11,10 @@ fi
 if [[ ! `losetup -a | grep /dev/loop2` ]]; then
   losetup /dev/loop2 $HOME/ext4_disk.img
 fi
-if [[ ! `blkid /dev/loop1 | grep ext4` ]]; then
+if [[ ! `blkid /dev/loop2 | grep ext4` ]]; then
   mkfs.ext4 -i 8192 /dev/loop2
 fi
 mkdir -p /lxc/disk2
-umount /lxc/disk2
 mount -t ext4 -o defaults,usrquota /dev/loop2 /lxc/disk2
 if [[ ! -f /lxc/disk2/aquota.user ]]; then
   quotacheck -cu /lxc/disk2
@@ -55,8 +54,6 @@ fi
 mkdir -p /lxc/disk2/base_container_template
 cp -af /var/lib/lxc/base_container_template /lxc/disk2/
 cp -af /var/lib/lxc/test_container_template.tar.gz /lxc/disk2/
-
-chmod -R go+rx /var/lib/lxc
 
 # get all dependencies of current package
 go get -t ./...
