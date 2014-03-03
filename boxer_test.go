@@ -32,6 +32,8 @@ type BoxerSuite struct {
 	Redis        *redis.Pool
 	Boxer        *Boxer
 	ResourcePool *ResourcePool
+
+	cartmanRequest *http.Request
 }
 
 type testProvisionStrategy struct {
@@ -96,6 +98,16 @@ func (s *BoxerSuite) assertBoxState(c *C, b *Box, state string) {
 	c.Assert(strings.Contains(info, state), Equals, true, Commentf("Expected state %s; lxc-info says '%s'", state, strings.TrimSpace(info)))
 }
 
+func (s *BoxerSuite) assertInvalidateCartman(c *C, b *Box) {
+	// assert cartman requests
+	c.Assert(s.cartmanRequest.URL.Path, Equals, "/invalidate_cache")
+	c.Assert(s.cartmanRequest.URL.Query().Get("id"), Equals,
+		b.ContainerName())
+	// reset request. Any further access to this without a calls to cartman
+	// should fail spectacularly
+	s.cartmanRequest = nil
+}
+
 func (s *BoxerSuite) mergeProvisionStrategy(p testProvisionStrategy) {
 	s.Boxer.MountMethod = p.MountMethod
 	s.Boxer.SelectedDisk = p.SelectedDisk
@@ -120,6 +132,8 @@ func (s *BoxerSuite) findBox(name string) *Box {
 func (s *BoxerSuite) setupFakeCartman() *httptest.Server {
 	server := httptest.NewServer(http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
+			// record cartman request so we can test it
+			s.cartmanRequest = r
 			fmt.Fprintln(w, "Hello, boxer")
 		}))
 	cartmanURL, _ := url.Parse(server.URL)
@@ -164,6 +178,8 @@ func (s *BoxerSuite) testEachStrategy(c *C, test testFunction) {
 		func() {
 			conn := s.Redis.Get()
 			conn.Do("FLUSHDB")
+			fakeCartman := s.setupFakeCartman()
+			defer fakeCartman.Close()
 			defer func() {
 				boxes, _ := s.ResourcePool.FindAllBoxes()
 				for _, box := range boxes {
@@ -699,9 +715,6 @@ func (s *BoxerSuite) TestStartWithDefaultCPUQuotaNotConfigured(c *C) {
 }
 
 func (s *BoxerSuite) TestStartWithPremiumCPUQuotaNotConfigured(c *C) {
-	fakeCartman := s.setupFakeCartman()
-	defer fakeCartman.Close()
-
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
 
@@ -1009,9 +1022,6 @@ func (s *BoxerSuite) TestRestartSetsCpuSet(c *C) {
 }
 
 func (s *BoxerSuite) TestRestartNewlyPremiumBox(c *C) {
-	fakeCartman := s.setupFakeCartman()
-	defer fakeCartman.Close()
-
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
 		message, box := s.receiveMessages("mclovins-container-1",
@@ -1033,6 +1043,7 @@ func (s *BoxerSuite) TestRestartNewlyPremiumBox(c *C) {
 			box.LxcPath() + "/config": {"lxc.cgroup.cpu.cfs_period_us = 1000000"},
 			box.LxcPath() + "/config": {"lxc.cgroup.cpu.cfs_quota_us = 500000"},
 		})
+		s.assertInvalidateCartman(c, box)
 
 		// Now restart the box to verify that the cfs_quota_us changes.
 		message, box = s.receiveMessages("mclovins-container-1",
@@ -1053,9 +1064,6 @@ func (s *BoxerSuite) TestRestartNewlyPremiumBox(c *C) {
 }
 
 func (s *BoxerSuite) TestRestartNewlyFreeBox(c *C) {
-	fakeCartman := s.setupFakeCartman()
-	defer fakeCartman.Close()
-
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
 		message, box := s.receiveMessages("mclovins-container-1",
@@ -1076,6 +1084,7 @@ func (s *BoxerSuite) TestRestartNewlyFreeBox(c *C) {
 			box.LxcPath() + "/config": {"lxc.cgroup.cpu.cfs_period_us = 1000000"},
 			box.LxcPath() + "/config": {"lxc.cgroup.cpu.cfs_quota_us = 1000000"},
 		})
+		s.assertInvalidateCartman(c, box)
 
 		// Now make the box a free box and restart it to verify that the cfs_quota_us is reduced.
 		message, box = s.receiveMessages("mclovins-container-1",
@@ -1102,9 +1111,6 @@ func (s *BoxerSuite) TestRestartNewlyFreeBox(c *C) {
 }
 
 func (s *BoxerSuite) TestStopStartNewlyPremiumBox(c *C) {
-	fakeCartman := s.setupFakeCartman()
-	defer fakeCartman.Close()
-
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
 		message, box := s.receiveMessages("mclovins-container-1",
@@ -1127,6 +1133,7 @@ func (s *BoxerSuite) TestStopStartNewlyPremiumBox(c *C) {
 			box.LxcPath() + "/config":                    {"lxc.cgroup.cpu.cfs_period_us = 1000000"},
 			box.LxcPath() + "/config":                    {"lxc.cgroup.cpu.cfs_quota_us = 500000"},
 		})
+		s.assertInvalidateCartman(c, box)
 
 		// Now stop and then start the box to verify that the cfs_quota_us changes.
 		message, box = s.receiveMessages("mclovins-container-1",
@@ -1149,9 +1156,6 @@ func (s *BoxerSuite) TestStopStartNewlyPremiumBox(c *C) {
 }
 
 func (s *BoxerSuite) TestUpdatePremium(c *C) {
-	fakeCartman := s.setupFakeCartman()
-	defer fakeCartman.Close()
-
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
 		message, box := s.receiveMessages("mclovins-container-1",
@@ -1173,6 +1177,8 @@ func (s *BoxerSuite) TestUpdatePremium(c *C) {
 			box.LxcPath() + "/rootfs/etc/action/premium": {"1"},
 		})
 
+		s.assertInvalidateCartman(c, box)
+
 		_, box = s.receiveMessages("mclovins-container-1",
 			s.makeMessage("aio:configure", func(msg *Message) {
 				msg.DataType = "aio:configure:update_premium"
@@ -1184,6 +1190,8 @@ func (s *BoxerSuite) TestUpdatePremium(c *C) {
 		DoesNotExist(c, []string{
 			box.LxcPath() + "/rootfs/etc/action/premium",
 		})
+
+		s.assertInvalidateCartman(c, box)
 	})
 }
 
@@ -1752,9 +1760,6 @@ func (s *BoxerSuite) TestChangeBoxSpecsInvalidParams(c *C) {
 }
 
 func (s *BoxerSuite) TestUpdateAuth(c *C) {
-	fakeCartman := s.setupFakeCartman()
-	defer fakeCartman.Close()
-
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
 		message, box := s.receiveMessages("mclovins-container-1",
@@ -1770,6 +1775,7 @@ func (s *BoxerSuite) TestUpdateAuth(c *C) {
 		c.Assert(message.Success, Equals, true)
 		c.Assert(box.AuthUsername, Equals, "action")
 		c.Assert(box.AuthPassword, Equals, "password")
+		s.assertInvalidateCartman(c, box)
 
 		message, box = s.receiveMessages("mclovins-container-1",
 			s.makeMessage("aio:configure", func(msg *Message) {
@@ -1811,6 +1817,7 @@ func (s *BoxerSuite) TestUpdateCustomDomain(c *C) {
 
 		c.Assert(message.Success, Equals, true)
 		c.Assert(box.CustomDomain, Equals, "wtf.com")
+		s.assertInvalidateCartman(c, box)
 
 		// check redis
 		conn := s.Redis.Get()
@@ -1832,6 +1839,7 @@ func (s *BoxerSuite) TestUpdateCustomDomain(c *C) {
 
 		c.Assert(message.Success, Equals, true)
 		c.Assert(box.CustomDomain, Equals, "another.com")
+		s.assertInvalidateCartman(c, box)
 
 		// check redis
 		containerName, _ = redis.String(conn.Do("HGET", "aio:domains", "wtf.com"))
@@ -1853,6 +1861,7 @@ func (s *BoxerSuite) TestUpdateCustomDomain(c *C) {
 
 		c.Assert(message.Success, Equals, true)
 		c.Assert(box.CustomDomain, Equals, "")
+		s.assertInvalidateCartman(c, box)
 
 		// check redis
 		containerName, _ = redis.String(conn.Do("HGET", "aio:domains", "another.com"))
@@ -1863,9 +1872,6 @@ func (s *BoxerSuite) TestUpdateCustomDomain(c *C) {
 }
 
 func (s *BoxerSuite) TestRemoveAuth(c *C) {
-	fakeCartman := s.setupFakeCartman()
-	defer fakeCartman.Close()
-
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
 		message, box := s.receiveMessages("mclovins-container-1",
@@ -1881,6 +1887,7 @@ func (s *BoxerSuite) TestRemoveAuth(c *C) {
 		c.Assert(message.Success, Equals, true)
 		c.Assert(box.AuthUsername, Equals, "action")
 		c.Assert(box.AuthPassword, Equals, "password")
+		s.assertInvalidateCartman(c, box)
 
 		message, box = s.receiveMessages("mclovins-container-1",
 			s.makeMessage("aio:configure", func(msg *Message) {
@@ -1894,6 +1901,7 @@ func (s *BoxerSuite) TestRemoveAuth(c *C) {
 		c.Assert(message.Success, Equals, true)
 		c.Assert(box.AuthUsername, Equals, "")
 		c.Assert(box.AuthPassword, Equals, "")
+		s.assertInvalidateCartman(c, box)
 	})
 }
 
