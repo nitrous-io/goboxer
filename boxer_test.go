@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/action-io/goboxer/cartman"
+	"github.com/action-io/goboxer/lxc"
 	"github.com/action-io/goboxer/mount"
 	"github.com/action-io/goboxer/quota"
 	"github.com/action-io/goboxer/s3"
@@ -92,7 +93,7 @@ func (s *BoxerSuite) assertBoxState(c *C, b *Box, state string) {
 	c.Assert(b.State, Equals, state)
 	stdout, _ := exec.Command("lxc-info", "-n", b.MountName()).CombinedOutput()
 	info := strings.ToLower(string(stdout))
-	c.Assert(strings.Contains(info, state), Equals, true)
+	c.Assert(strings.Contains(info, state), Equals, true, Commentf("Expected state %s; lxc-info says '%s'", state, strings.TrimSpace(info)))
 }
 
 func (s *BoxerSuite) mergeProvisionStrategy(p testProvisionStrategy) {
@@ -1395,8 +1396,63 @@ func (s *BoxerSuite) TestChangeBoxSpecsPass(c *C) {
 			Path: box.LxcPath() + "_delta",
 		})
 		c.Assert(newLimit.Limit > 2*900*1000, Equals, true)
+	})
+}
+
+func (s *BoxerSuite) TestChangeBoxSpecsPassOnRunningBox(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+		var mockData map[string]interface{}
+		json.Unmarshal(
+			[]byte("{\"memory\":\"384M\"}"),
+			&mockData)
+		_, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:start", defaultMsg),
+			s.makeMessage("aio:configure", func(msg *Message) {
+				msg.DataType = "aio:configure:change_specs"
+				msg.Data = mockData
+			}))
 
 		s.assertBoxState(c, box, "running")
+		DoesContain(c, map[string][]string{
+			box.LxcPath() + "/config": {
+				"lxc.cgroup.memory.limit_in_bytes = 384M",
+			},
+		})
+		newMemLimit, err := lxc.CgroupGet(box.MountName(), "memory.limit_in_bytes")
+		c.Assert(err, IsNil)
+		c.Assert(strings.TrimSpace(newMemLimit), Equals,
+			strconv.Itoa(quota.ConvertValueUnitToByte(quota.ValueUnit{384, "M"})*1024))
+		newTotalLimit, err := lxc.CgroupGet(box.MountName(), "memory.memsw.limit_in_bytes")
+		c.Assert(err, IsNil)
+		c.Assert(strings.TrimSpace(newTotalLimit), Equals,
+			strconv.Itoa(quota.ConvertValueUnitToByte(quota.ParseValueUnit(box.TotalMemory()))*1024))
+	})
+}
+
+func (s *BoxerSuite) TestChangeBoxSpecsPassOnStoppedBox(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+		var mockData map[string]interface{}
+		json.Unmarshal(
+			[]byte("{\"memory\":\"384M\",\"diskSpace\":\"2048M\",\"cpuShares\":2048}"),
+			&mockData)
+		_, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:stop", defaultMsg),
+			s.makeMessage("aio:configure", func(msg *Message) {
+				msg.DataType = "aio:configure:change_specs"
+				msg.Data = mockData
+			}))
+
+		_, box = s.receiveMessages("mclovins-container-1",
+			s.makeMessage("aio:start", defaultMsg))
+		DoesContain(c, map[string][]string{
+			box.LxcPath() + "/config": {
+				"lxc.cgroup.memory.limit_in_bytes = 384M",
+			},
+		})
 	})
 }
 
@@ -1481,6 +1537,17 @@ func (s *BoxerSuite) TestInfo(c *C) {
 		c.Assert(message.BoxId, Equals, 1)
 		c.Assert(message.Success, Equals, true)
 		c.Assert(message.Info.LxcStatus, Equals, "RUNNING")
+		c.Assert(message.Info.MemoryUsage > 1.0, Equals, true)
+
+		message, _ = s.receiveMessages("mclovins-container-1",
+			s.makeMessage("aio:stop", defaultMsg),
+			s.makeMessage("aio:info_request", defaultMsg))
+		c.Assert(message.Type, Equals, "aio:info_response")
+		c.Assert(message.Id, Equals, "testboxer")
+		c.Assert(message.BoxId, Equals, 1)
+		c.Assert(message.Success, Equals, true)
+		c.Assert(message.Info.LxcStatus, Equals, "STOPPED")
+		c.Assert(message.Info.MemoryUsage, Equals, -1.0)
 	})
 }
 

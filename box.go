@@ -46,6 +46,15 @@ type BoxInfo struct {
 	LxcStatus    string  `json:"lxcStatus,omitempty"`
 }
 
+// MemorySpecChange contains old and new ValueUnit strings for memory and total
+// memory
+type MemorySpecChange struct {
+	OldMemory      string
+	OldTotalMemory string
+	NewMemory      string
+	NewTotalMemory string
+}
+
 // UniqueId is the guaranteed unique id *only* for the current box over its lifetime
 // i.e. a box will be guaranteed not to have its mountpoint clash when
 // umount/remount when uid is implemented
@@ -296,6 +305,10 @@ func (b *Box) Snapshot(snapshotId int) (snapshot *Snapshot, err error) {
 	return
 }
 
+func (b *Box) CgroupSet(subsystem, value string) error {
+	return lxc.CgroupSet(b.MountName(), subsystem, value)
+}
+
 func (b *Box) UpdateAuth(auth BoxAuth) error {
 	b.AuthUsername = auth.Username
 	b.AuthPassword = auth.Password
@@ -519,10 +532,7 @@ func (b *Box) UnsetQuota() error {
 }
 
 func (b *Box) ChangeSpec(spec *BoxSpec) error {
-	if err := b.handleSpecChange(spec, false); err != nil {
-		return err
-	}
-	return b.Restart(spec)
+	return b.handleSpecChange(spec, false)
 }
 
 func (b *Box) CurrentSpec() *BoxSpec {
@@ -560,7 +570,6 @@ func (b *Box) Mount(root string) error {
 		fmt.Sprintf("%s:Mount", b.ContainerName()),
 	)(time.Now())
 
-	lxcBoxPath := b.LxcPath()
 	boxDeltaPath := b.ContainerDeltaPath()
 	mountMethod := b.getMountMethod()
 	switch mountMethod {
@@ -578,7 +587,7 @@ func (b *Box) Mount(root string) error {
 		// FIXME: MountBind to make it similar to boxer. Ideally we probably
 		// want to symlink as it doesnt make any difference and seems to be
 		// more stable. Less mountpoint is better
-		err := mount.MountBind(boxPath, lxcBoxPath)
+		err := mount.MountBind(boxPath, b.LxcPath())
 		if err != nil {
 			return &BoxOpError{Op: "overlayfs/aufs mount-bind", Err: err}
 		}
@@ -613,6 +622,10 @@ func (b *Box) Unmount(root string) error {
 	return nil
 }
 
+func (b *Box) lxcMounted() (bool, error) {
+	return mount.Mounted(b.LxcPath())
+}
+
 func (b *Box) DeleteContainerData() error {
 	// if golang failed to remove container, drops into cmdline as it seems to
 	// work all the times. We just prefer to do it in golang first.
@@ -643,16 +656,29 @@ func (b *Box) MemoryUsageInBytes() (int, error) {
 }
 
 func (b *Box) Info() (BoxInfo, error) {
+	const MemoryUsageNotApplicable = -1.0
 	var info BoxInfo
-	if memoryUsage, err := b.MemoryUsageInBytes(); err != nil {
-		return info, err
+	if b.State == "running" {
+		if memoryUsage, err := b.MemoryUsageInBytes(); err != nil {
+			return info, err
+		} else {
+			info.MemoryUsage = float64(memoryUsage) / (1024 * 1024)
+		}
 	} else {
-		info.MemoryUsage = float64(memoryUsage) / (1024 * 1024)
+		info.MemoryUsage = MemoryUsageNotApplicable
 	}
-	if state, err := lxc.Status(b.MountName()); err != nil {
-		return info, err
-	} else {
+	state, err := lxc.Status(b.MountName())
+	if err == nil {
 		info.LxcStatus = state
+	} else {
+		if b.State == "stopped" {
+			// Stopped boxes will fail lxc.Status because they are unmounted so
+			// lxc-info will not find their config file and consider them
+			// non-existent.  Thus we swallow errors for stopped boxes
+			info.LxcStatus = "STOPPED"
+		} else {
+			return info, err
+		}
 	}
 	quotaInfo, err := b.quota().ViewLimit(b.quotaArg())
 	if err != nil {
@@ -692,6 +718,10 @@ func (b *Box) RemoveEnv(data []string) (err error) {
 // the mounted path, not the _delta path
 func (b *Box) handleSpecChange(spec *BoxSpec, forceWriteConfig bool) error {
 	willWriteConfig := false
+	msc := &MemorySpecChange{
+		OldMemory:      b.Memory,
+		OldTotalMemory: b.TotalMemory(),
+	}
 	if spec.Memory != b.Memory {
 		b.Memory = spec.Memory
 		willWriteConfig = true
@@ -705,8 +735,20 @@ func (b *Box) handleSpecChange(spec *BoxSpec, forceWriteConfig bool) error {
 		willWriteConfig = true
 	}
 	if willWriteConfig || forceWriteConfig {
-		if err := b.writeConfig(); err != nil {
+		if err := b.boxer.ResourcePool.SaveBox(b); err != nil {
+			return &BoxOpError{Op: "save", Err: err}
+		}
+		mounted, err := b.lxcMounted()
+		if err != nil {
 			return &BoxOpError{Op: "write lxc config", Err: err}
+		}
+		if mounted {
+			// if not mounted (stopped state), the config will be written upon
+			// next Start()
+			err = b.writeConfig()
+			if err != nil {
+				return &BoxOpError{Op: "write lxc config", Err: err}
+			}
 		}
 	}
 	if len(spec.DiskSpace) > 0 && spec.DiskSpace != b.DiskSpace {
@@ -717,7 +759,45 @@ func (b *Box) handleSpecChange(spec *BoxSpec, forceWriteConfig bool) error {
 			return &BoxOpError{Op: "set disk quota", Err: err}
 		}
 	}
+	// apply new memory quota immediately for running boxes
+	if b.State == "running" && (b.Memory != msc.OldMemory || b.TotalMemory() != msc.OldTotalMemory) {
+		msc.NewMemory = b.Memory
+		msc.NewTotalMemory = b.TotalMemory()
+		if err := b.liveUpdateMemory(msc); err != nil {
+			return &BoxOpError{Op: "live adjust memory quota", Err: err}
+		}
+	}
 	return nil
+}
+
+func (b *Box) liveUpdateMemory(msc *MemorySpecChange) error {
+	order := msc.settingOrder()
+	for _, kvPair := range order {
+		k, v := kvPair[0], kvPair[1]
+		if err := b.CgroupSet(k, v); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// memorySettingOrder returns a slice of arguments to lxc-cgroup (slice of
+// strings) signifying what order to change the settings in.   lxc-cgroup
+// enforces invariant:
+//   memory.limit_in_bytes < memory.memsw.limit_in_bytes
+// so we need to order operations accordingly
+func (msc *MemorySpecChange) settingOrder() [][]string {
+	var (
+		memKeyValue      = []string{"memory.limit_in_bytes", msc.NewMemory}
+		totalMemKeyValue = []string{"memory.memsw.limit_in_bytes", msc.NewTotalMemory}
+	)
+	stringToByte := func(s string) int {
+		return quota.ConvertValueUnitToByte(quota.ParseValueUnit(s))
+	}
+	if stringToByte(msc.OldMemory) > stringToByte(msc.NewTotalMemory) {
+		return [][]string{memKeyValue, totalMemKeyValue}
+	}
+	return [][]string{totalMemKeyValue, memKeyValue}
 }
 
 func (b *Box) quotaArg() quota.QuotaArg {
