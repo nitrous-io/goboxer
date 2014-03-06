@@ -5,7 +5,7 @@ import (
 
 	"github.com/action-io/goboxer/utils"
 	"github.com/garyburd/redigo/redis"
-	. "launchpad.net/gocheck"
+	. "github.com/motain/gocheck"
 )
 
 type ResourcePoolSuite struct {

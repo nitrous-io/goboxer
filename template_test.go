@@ -1,8 +1,8 @@
 package goboxer
 
 import (
+	. "github.com/motain/gocheck"
 	"io/ioutil"
-	. "launchpad.net/gocheck"
 	"os"
 )
 

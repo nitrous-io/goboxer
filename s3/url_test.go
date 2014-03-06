@@ -1,7 +1,7 @@
 package s3
 
 import (
-	. "launchpad.net/gocheck"
+	. "github.com/motain/gocheck"
 )
 
 type URLSuite struct{}

@@ -1,7 +1,7 @@
 package ip
 
 import (
-	. "launchpad.net/gocheck"
+	. "github.com/motain/gocheck"
 	"os/exec"
 	"strconv"
 	"strings"

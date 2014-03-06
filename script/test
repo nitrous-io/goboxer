@@ -8,6 +8,8 @@ spec=${1}
 
 go get -t ./...
 go test -i ./...
+go get -u github.com/motain/gocheck
+
 if [ -z "${spec}" ]; then
   go test -gocheck.v github.com/action-io/goboxer/... -timeout 1000s
   go test -test.v github.com/action-io/goboxer/host

@@ -2,7 +2,7 @@ package cartman
 
 import (
 	"fmt"
-	. "launchpad.net/gocheck"
+	. "github.com/motain/gocheck"
 	"net/http"
 	"net/http/httptest"
 	"net/url"

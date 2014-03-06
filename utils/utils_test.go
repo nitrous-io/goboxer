@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	. "launchpad.net/gocheck"
+	. "github.com/motain/gocheck"
 )
 
 // hook up gocheck into go test runner

@@ -1,7 +1,7 @@
 package quota
 
 import (
-	. "launchpad.net/gocheck"
+	. "github.com/motain/gocheck"
 )
 
 type ValueUnitSuite struct{}
