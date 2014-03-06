@@ -17,6 +17,9 @@ import (
 	"github.com/action-io/goboxer/quota"
 	"github.com/action-io/goboxer/s3"
 	"github.com/action-io/goboxer/utils"
+
+	pr "github.com/action-io/goboxer/provisioner"
+	_ "github.com/action-io/goboxer/provisioner/lxc"
 )
 
 const UID_START = 15000
@@ -91,6 +94,8 @@ type Box struct {
 	CpuQuota         float64
 	// hold a reference to boxer so that we can access mutex capabilities
 	boxer *Boxer
+	// reference to the provisioner
+	provisioner pr.Provisioner
 }
 
 type BoxOpError struct {
@@ -141,6 +146,13 @@ func (b *Box) CpuQuotaMicroseconds() int {
 	return int(b.CpuQuota * DEFAULT_CPU_PERIOD)
 }
 
+func (b *Box) getProvisioner() pr.Provisioner {
+	if b.provisioner == nil {
+		b.provisioner, _ = pr.GetProvisioner("lxc", b.Disk)
+	}
+	return b.provisioner
+}
+
 // Create a new box
 //
 // This create a new box. The chosen provisioning scheme will depend on
@@ -150,12 +162,14 @@ func (b *Box) Create() error {
 	defer logger.LogDuration(
 		fmt.Sprintf("%s:Create", b.ContainerName()),
 	)(time.Now())
-	if err := b.generateUniqueId(); err != nil {
-		return &BoxOpError{Op: "generate unique ID", Err: err}
+	data, err := b.getProvisioner().Create(b.ContainerName(), b.Template)
+	if err != nil {
+		return &BoxOpError{Op: "provisioner create", Err: err}
 	}
-	if err := b.Mount(b.boxer.Root); err != nil {
-		return &BoxOpError{Op: "mount box", Err: err}
-	}
+	b.UniqueId = data.Id
+	b.State = data.Status
+	// because we keep the same path for lxc now, the following functions
+	// should still work
 	if err := b.generateUserContent(); err != nil {
 		return &BoxOpError{Op: "generate user content", Err: err}
 	}
@@ -189,7 +203,6 @@ func (b *Box) Create() error {
 	if err := b.SetQuota(); err != nil {
 		return err
 	}
-	b.State = "stopped"
 	return nil
 }
 
@@ -197,32 +210,34 @@ func (b *Box) Start(spec *BoxSpec) error {
 	defer logger.LogDuration(
 		fmt.Sprintf("%s:Start %s", b.ContainerName(), b.MountName()),
 	)(time.Now())
-	if err := b.Mount(b.boxer.Root); err != nil {
+	beforeStart := func(data *pr.Data) error {
+		if err := b.WritePublicKeys(); err != nil {
+			return &BoxOpError{Op: "write public keys", Err: err}
+		}
+		if err := b.setPortForwarding(); err != nil {
+			return &BoxOpError{Op: "set port forwarding", Err: err}
+		}
+		// this change spec without restarting the box
+		if err := b.handleSpecChange(spec, true); err != nil {
+			return &BoxOpError{Op: "spec change", Err: err}
+		}
+		if err := b.addPartsInitUpstart(); err != nil {
+			return &BoxOpError{Op: "parts init upstart", Err: err}
+		}
+		if err := b.addNitrousboxrcUpstart(); err != nil {
+			return &BoxOpError{Op: "nitrousboxrc upstart", Err: err}
+		}
+		if err := b.addNitrousboxrcSample(); err != nil {
+			return &BoxOpError{Op: "nitrousboxrc sample", Err: err}
+		}
+		return nil
+	}
+	data, err := b.getProvisioner().Start(b.ContainerName(), b.UniqueId,
+		beforeStart)
+	if err != nil {
 		return err
 	}
-	if err := b.WritePublicKeys(); err != nil {
-		return &BoxOpError{Op: "write public keys", Err: err}
-	}
-	if err := b.setPortForwarding(); err != nil {
-		return &BoxOpError{Op: "set port forwarding", Err: err}
-	}
-	// this change spec without restarting the box
-	if err := b.handleSpecChange(spec, true); err != nil {
-		return &BoxOpError{Op: "spec change", Err: err}
-	}
-	if err := b.addPartsInitUpstart(); err != nil {
-		return &BoxOpError{Op: "parts init upstart", Err: err}
-	}
-	if err := b.addNitrousboxrcUpstart(); err != nil {
-		return &BoxOpError{Op: "nitrousboxrc upstart", Err: err}
-	}
-	if err := b.addNitrousboxrcSample(); err != nil {
-		return &BoxOpError{Op: "nitrousboxrc sample", Err: err}
-	}
-	err := lxc.Start(b.ContainerName(), b.MountName())
-	if err != nil {
-		return &BoxOpError{Op: "lxc-start " + b.MountName(), Err: err}
-	}
+	b.State = data.Status
 	return nil
 }
 
@@ -240,13 +255,13 @@ func (b *Box) Stop() error {
 		// ignore error from unset port forwarding here as its not harmful
 		logger.Printf("%v", &BoxOpError{Op: "unset port forwarding", Err: err})
 	}
-	if lxc.Poweroff(b.MountName()) != nil {
-		utils.RunCommand("pkill", "-9", "-u", b.Uid())
-		if err := lxc.Stop(b.ContainerName(), b.MountName()); err != nil {
-			return &BoxOpError{Op: "lxc-stop " + b.MountName(), Err: err}
-		}
+	data, err := b.getProvisioner().Stop(b.ContainerName(), b.UniqueId, b.Uid())
+	if err != nil {
+		return err
 	}
-	return b.Unmount(b.boxer.Root)
+	b.UniqueId = data.Id
+	b.State = data.Status
+	return nil
 }
 
 func (b *Box) Destroy() error {
@@ -259,7 +274,7 @@ func (b *Box) Destroy() error {
 	if err := b.UnsetQuota(); err != nil {
 		return &BoxOpError{Op: "unset quota", Err: err}
 	}
-	return b.DeleteContainerData()
+	return b.getProvisioner().Destroy(b.ContainerName(), b.UniqueId)
 }
 
 func (b *Box) Snapshot(snapshotId int) (snapshot *Snapshot, err error) {
@@ -575,83 +590,8 @@ func (b *Box) UpdatePremiumStatus() error {
 	}
 }
 
-func (b *Box) Mount(root string) error {
-	b.boxer.Lock(b.Id)
-	defer b.boxer.Unlock(b.Id)
-	defer logger.LogDuration(
-		fmt.Sprintf("%s:Mount", b.ContainerName()),
-	)(time.Now())
-
-	boxDeltaPath := b.ContainerDeltaPath()
-	mountMethod := b.getMountMethod()
-	switch mountMethod {
-	case "overlayfs", "aufs":
-		// overlayfs or aufs strategy
-		//
-		// we are going to create a delta folder which will hold user data,
-		// union with the base container template in the same disk, and mount
-		// it over to root ( /var/lib/lxc )
-		boxPath := b.ContainerFS()
-		baseContainerPath := path.Join(b.Disk, "base_container_template")
-		if err := mount.Union(b.getMountMethod(), boxPath, boxDeltaPath, baseContainerPath); err != nil {
-			return &BoxOpError{Op: "overlayfs/aufs mount", Err: err}
-		}
-		// FIXME: MountBind to make it similar to boxer. Ideally we probably
-		// want to symlink as it doesnt make any difference and seems to be
-		// more stable. Less mountpoint is better
-		err := mount.MountBind(boxPath, b.LxcPath())
-		if err != nil {
-			return &BoxOpError{Op: "overlayfs/aufs mount-bind", Err: err}
-		}
-		return err
-	default:
-		return fmt.Errorf("box: %s is not a supported mount method", mountMethod)
-	}
-}
-
-// Unmount will always regenerate an unique id for the box, so it guarantees
-// that the next mount operation will success even if `Unmount` fails
-func (b *Box) Unmount(root string) error {
-	b.boxer.Lock(b.Id)
-	defer b.boxer.Unlock(b.Id)
-	defer logger.LogDuration(
-		fmt.Sprintf("%s:Unmount", b.ContainerName()),
-	)(time.Now())
-	// always re-generate a new unique id when unmount the path
-	defer b.generateUniqueId()
-	mountMethod := b.getMountMethod()
-	if err := mount.Unmount(mountMethod, b.LxcPath()); err != nil {
-		logger.Println(&BoxOpError{Op: mountMethod + " unmount", Err: err})
-	}
-	switch mountMethod {
-	case "overlayfs", "aufs":
-		if err := mount.Unmount(mountMethod, b.ContainerFS()); err != nil {
-			logger.Println(&BoxOpError{Op: mountMethod + " unmount", Err: err})
-		}
-	default:
-		return fmt.Errorf("%s is not a supported unmount method", mountMethod)
-	}
-	return nil
-}
-
 func (b *Box) lxcMounted() (bool, error) {
 	return mount.Mounted(b.LxcPath())
-}
-
-func (b *Box) DeleteContainerData() error {
-	// if golang failed to remove container, drops into cmdline as it seems to
-	// work all the times. We just prefer to do it in golang first.
-	if err := os.RemoveAll(b.ContainerDeltaPath()); err != nil {
-		err = utils.RunCommand("rm", "-r", "-f", b.ContainerDeltaPath())
-		if err != nil {
-			return &BoxOpError{Op: "remove container delta", Err: err}
-		}
-	}
-	err := os.RemoveAll(b.ContainerFS())
-	if err != nil {
-		return &BoxOpError{Op: "remove container FS", Err: err}
-	}
-	return nil
 }
 
 // Return current memory usage of the box as memory cgroup reported it
