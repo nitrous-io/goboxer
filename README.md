@@ -42,7 +42,7 @@ Install the recommended git hooks in the `misc/git` directory with: `script/inst
 ### Running tests
 
 1. Change to goboxer directory: `cd $HOME/goboxer`.
-1. Install dependencies: `go get` and `go get launchpad.net/gocheck`.
+1. Install dependencies: `go get` and `go get github.com/motain/gocheck`
 1. `make test`. *Ideally* it should pass!!!
 
 #### Running tests in a Docker container

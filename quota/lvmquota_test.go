@@ -2,7 +2,7 @@
 package quota
 
 import (
-	. "launchpad.net/gocheck"
+	. "github.com/motain/gocheck"
 	"math"
 	"os"
 )

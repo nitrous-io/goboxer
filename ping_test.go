@@ -2,8 +2,8 @@ package goboxer
 
 import (
 	"github.com/garyburd/redigo/redis"
+	. "github.com/motain/gocheck"
 	"io/ioutil"
-	. "launchpad.net/gocheck"
 	"net/http"
 	"net/http/httptest"
 )

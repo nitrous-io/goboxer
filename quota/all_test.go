@@ -1,8 +1,8 @@
 package quota
 
 import (
+	. "github.com/motain/gocheck"
 	"io/ioutil"
-	. "launchpad.net/gocheck"
 	"os"
 	"os/exec"
 	"strings"

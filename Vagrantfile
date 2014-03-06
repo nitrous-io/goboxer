@@ -41,7 +41,7 @@ $script = <<SCRIPT
   ln -fs $HOME/gocode/src/github.com/action-io/goboxer $HOME/goboxer
   cd $HOME/gocode/src/github.com/action-io/goboxer
   /usr/local/go/bin/go get
-  /usr/local/go/bin/go get launchpad.net/gocheck
+  /usr/local/go/bin/go get github.com/motain/gocheck
   chown -R vagrant:vagrant $HOME/gocode
 
   ./script/install_hooks

@@ -1,7 +1,7 @@
 package goboxer
 
 import (
-	. "launchpad.net/gocheck"
+	. "github.com/motain/gocheck"
 )
 
 type BoxLockerSuite struct{}

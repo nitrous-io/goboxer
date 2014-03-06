@@ -3,7 +3,7 @@ package goboxer
 import (
 	"encoding/json"
 	"github.com/action-io/goboxer/utils"
-	. "launchpad.net/gocheck"
+	. "github.com/motain/gocheck"
 )
 
 type BoxSuite struct{}

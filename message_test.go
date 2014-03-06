@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/action-io/goboxer/utils"
-	. "launchpad.net/gocheck"
+	. "github.com/motain/gocheck"
 )
 
 type MessageSuite struct{}

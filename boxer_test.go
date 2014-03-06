@@ -25,7 +25,7 @@ import (
 	"github.com/action-io/goboxer/quota"
 	"github.com/action-io/goboxer/s3"
 	"github.com/garyburd/redigo/redis"
-	. "launchpad.net/gocheck"
+	. "github.com/motain/gocheck"
 )
 
 type BoxerSuite struct {

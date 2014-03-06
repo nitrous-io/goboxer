@@ -2,7 +2,7 @@ package goboxer
 
 import (
 	"github.com/action-io/goboxer/utils"
-	. "launchpad.net/gocheck"
+	. "github.com/motain/gocheck"
 )
 
 type CoachListenerSuite struct{}

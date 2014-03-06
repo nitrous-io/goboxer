@@ -2,8 +2,8 @@ package goboxer
 
 import (
 	"fmt"
+	. "github.com/motain/gocheck"
 	"io/ioutil"
-	. "launchpad.net/gocheck"
 	"os"
 	"os/exec"
 	"strings"

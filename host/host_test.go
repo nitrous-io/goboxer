@@ -1,7 +1,7 @@
 package host
 
 import (
-	. "launchpad.net/gocheck"
+	. "github.com/motain/gocheck"
 	"testing"
 )
 
