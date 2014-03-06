@@ -3,6 +3,9 @@
 set -o errexit
 shopt -s nullglob
 
+if [[ ! `losetup -a | grep /dev/loop2` ]]; then
+  losetup /dev/loop2 $HOME/ext4_disk.img
+fi
 # make sure that /lxc/disk2 is mounted
 if [[ `cat /proc/mounts | grep "/lxc/disk2\s\+"` ]]; then
   umount /lxc/disk2
