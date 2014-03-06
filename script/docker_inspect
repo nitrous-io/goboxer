@@ -10,7 +10,7 @@ fi
 if [[ `cat /proc/mounts | grep "/lxc/disk2\s\+"` ]]; then
   umount /lxc/disk2
 fi
-#mount -t ext4 -o defaults,usrquota,noatime /dev/loop2 /lxc/disk2
+mount -t ext4 -o defaults,usrquota,noatime /dev/loop2 /lxc/disk2
 (quotaon -a) || true
 
 # setup iptables
