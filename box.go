@@ -13,9 +13,7 @@ import (
 
 	"github.com/action-io/goboxer/ip"
 	"github.com/action-io/goboxer/lxc"
-	"github.com/action-io/goboxer/mount"
 	"github.com/action-io/goboxer/quota"
-	"github.com/action-io/goboxer/s3"
 	"github.com/action-io/goboxer/utils"
 
 	pr "github.com/action-io/goboxer/provisioner"
@@ -162,39 +160,53 @@ func (b *Box) Create() error {
 	defer logger.LogDuration(
 		fmt.Sprintf("%s:Create", b.ContainerName()),
 	)(time.Now())
-	data, err := b.getProvisioner().Create(b.ContainerName(), b.Template)
-	if err != nil {
-		return &BoxOpError{Op: "provisioner create", Err: err}
+	var data *pr.Data
+	var err error
+
+	if b.willUseTemplate() {
+		data, err = b.getProvisioner().Create(b.ContainerName(), b.Template)
+		if err != nil {
+			return &BoxOpError{Op: "create box from template", Err: err}
+		}
+	} else {
+		data, err = b.getProvisioner().CreateFromSnapshot(b.ContainerName(),
+			b.Template, b.boxer.S3Auth)
+		if err != nil {
+			return &BoxOpError{Op: "create box from snapshot", Err: err}
+		}
 	}
 	b.UniqueId = data.Id
 	b.State = data.Status
-	// because we keep the same path for lxc now, the following functions
-	// should still work
-	if err := b.generateUserContent(); err != nil {
-		return &BoxOpError{Op: "generate user content", Err: err}
+	if b.willUseTemplate() {
+		if err := b.setWorkspace(data.RootPath); err != nil {
+			return &BoxOpError{Op: "set workspace", Err: err}
+		}
+		if err := b.addReadme(data.RootPath); err != nil {
+			return &BoxOpError{Op: "add readme", Err: err}
+		}
 	}
 	if err := b.writeConfig(); err != nil {
 		return &BoxOpError{Op: "write lxc config", Err: err}
 	}
-	if err := b.setEtcAction(); err != nil {
+	if err := b.setEtcAction(data.RootPath); err != nil {
 		return &BoxOpError{Op: "create /etc/action", Err: err}
 	}
 	if err := b.UpdatePremiumStatus(); err != nil {
 		return err
 	}
-	if err := b.setHostname(); err != nil {
+	if err := b.setHostname(data.RootPath); err != nil {
 		return &BoxOpError{Op: "set host name", Err: err}
 	}
-	if err := b.setHosts(); err != nil {
+	if err := b.setHosts(data.RootPath); err != nil {
 		return &BoxOpError{Op: "set /etc/hosts", Err: err}
 	}
-	if err := b.setNetworkInterface(); err != nil {
+	if err := b.setNetworkInterface(data.RootPath); err != nil {
 		return &BoxOpError{Op: "set network interface", Err: err}
 	}
-	if err := b.setDefaultKeyPair(); err != nil {
+	if err := b.setDefaultKeyPair(data.RootPath); err != nil {
 		return &BoxOpError{Op: "set default key pair", Err: err}
 	}
-	if err := b.setPermission(); err != nil {
+	if err := b.setPermission(data.RootPath); err != nil {
 		return &BoxOpError{Op: "set permission", Err: err}
 	}
 	if err := b.SetQuota(); err != nil {
@@ -298,7 +310,7 @@ func (b *Box) Snapshot(snapshotId int) (snapshot *Snapshot, err error) {
 
 	tarName := fmt.Sprintf("%s-snapshot-%d.tar.gz", b.ContainerName(), snapshotId)
 	logger.Printf("%s: creating snapshot tarball %s\n", b.ContainerName(), tarName)
-	tarPath, err := Tar(tarName, b.ContainerUserHomePath())
+	tarPath, err := Tar(tarName, homePath(b.RootFS()))
 	if err != nil {
 		err = fmt.Errorf("Snapshot: failed to compress delta %v", err)
 		return
@@ -362,11 +374,7 @@ func (b *Box) PublicKeysPath() string {
 }
 
 func (b *Box) LxcPath() string {
-	return path.Join(b.boxer.Root, b.MountName())
-}
-
-func (b *Box) ContainerFS() string {
-	return path.Join(b.Disk, b.MountName())
+	return b.getProvisioner().GetLxc(b.ContainerName(), b.UniqueId)
 }
 
 func (b *Box) EnvPath() string {
@@ -376,26 +384,7 @@ func (b *Box) EnvPath() string {
 // rootfs of the container. This is the root after unionized so its typically
 // will be in boxer.Root i.e /var/lib/lxc
 func (b *Box) RootFS() string {
-	return path.Join(b.boxer.Root, b.MountName(), "rootfs")
-}
-
-// path of the box's templates.  (i.e. ruby_template.tar.gz,
-// python_template.tar.gz etc)
-func (b *Box) TemplatePath() string {
-	templateName := b.Template + ".tar.gz"
-	return path.Join(b.boxer.Root, templateName)
-}
-
-// we actually want the delta folders for non-lvm containers to be consistent
-// because they will never be mountpoints, so we use Box#ContainerName() here
-// and not Box#MountName()
-func (b *Box) ContainerDeltaPath() string {
-	return path.Join(b.Disk, b.ContainerName()+"_delta")
-}
-
-// ContainerUserHomePath returns the full path to the user's home directory.
-func (b *Box) ContainerUserHomePath() string {
-	return path.Join(b.ContainerDeltaPath(), "rootfs", "home", "action")
+	return b.getProvisioner().GetRoot(b.ContainerName(), b.UniqueId)
 }
 
 func (b *Box) Uid() string {
@@ -591,7 +580,7 @@ func (b *Box) UpdatePremiumStatus() error {
 }
 
 func (b *Box) lxcMounted() (bool, error) {
-	return mount.Mounted(b.LxcPath())
+	return b.getProvisioner().IsMounted(b.ContainerName(), b.UniqueId)
 }
 
 // Return current memory usage of the box as memory cgroup reported it
@@ -759,7 +748,6 @@ func (b *Box) quotaArg() quota.QuotaArg {
 		Disk:  b.Disk,
 		Limit: b.DiskSpace,
 	}
-	arg.Path = b.ContainerUserHomePath()
 	return arg
 }
 
@@ -787,24 +775,20 @@ func (b *Box) writeConfig() error {
 	// we want to re-check the box values here to make sure that only valid lxc
 	// config value will be saved
 	b.Prepare()
-	lxcConfigPath := path.Join(b.LxcPath(), "config")
-	lxcConfig, err := os.Create(lxcConfigPath)
-	if err != nil {
-		return err
-	}
-	defer lxcConfig.Close()
-	return LxcTemplateCompiled.Execute(lxcConfig, b)
+	return b.getProvisioner().SetConfig(b.ContainerName(), b.UniqueId,
+		func(config *os.File) error {
+			return LxcTemplateCompiled.Execute(config, b)
+		})
 }
 
 // set correct permission for user's home folder so he/she can write onto it
-func (b *Box) setPermission() error {
+func (b *Box) setPermission(root string) error {
 	defer logger.LogDuration(
 		fmt.Sprintf("%s:SetPermission", b.ContainerName()),
 	)(time.Now())
 	uid := b.Uid()
 	gid := b.Gid()
 	permission := fmt.Sprintf("%s:%s", b.Uid(), b.Gid())
-	root := b.RootFS()
 	if err := utils.RunCommand("chroot", root, "usermod", "-u", uid, "action"); err != nil {
 		return err
 	}
@@ -836,13 +820,8 @@ func (b *Box) unsetPortForwarding() error {
 	}
 }
 
-func (b *Box) extractTemplate() error {
-	boxHomePath := path.Join(b.RootFS(), "home", "action")
-	return Untar(b.TemplatePath(), boxHomePath)
-}
-
-func (b *Box) setEtcAction() error {
-	actionPath := path.Join(b.RootFS(), "etc", "action")
+func (b *Box) setEtcAction(root string) error {
+	actionPath := path.Join(root, "etc", "action")
 	if err := os.MkdirAll(actionPath, 0755); err != nil {
 		return err
 	}
@@ -865,8 +844,8 @@ func (b *Box) setEtcAction() error {
 	return err
 }
 
-func (b *Box) setHostname() error {
-	hostNamePath := path.Join(b.RootFS(), "etc", "hostname")
+func (b *Box) setHostname(root string) error {
+	hostNamePath := path.Join(root, "etc", "hostname")
 	hostName, err := os.Create(hostNamePath)
 	if err != nil {
 		return err
@@ -876,8 +855,8 @@ func (b *Box) setHostname() error {
 	return err
 }
 
-func (b *Box) setHosts() error {
-	hostsPath := path.Join(b.RootFS(), "etc", "hosts")
+func (b *Box) setHosts(root string) error {
+	hostsPath := path.Join(root, "etc", "hosts")
 	hosts, err := os.Create(hostsPath)
 	if err != nil {
 		return err
@@ -886,8 +865,8 @@ func (b *Box) setHosts() error {
 	return HostsTemplateCompiled.Execute(hosts, b)
 }
 
-func (b *Box) setNetworkInterface() error {
-	networkConfigPath := path.Join(b.RootFS(), "etc", "network", "interfaces")
+func (b *Box) setNetworkInterface(root string) error {
+	networkConfigPath := path.Join(root, "etc", "network", "interfaces")
 	networkConfig, err := os.Create(networkConfigPath)
 	if err != nil {
 		return err
@@ -896,13 +875,13 @@ func (b *Box) setNetworkInterface() error {
 	return NetworkConfigCompiled.Execute(networkConfig, b)
 }
 
-func (b *Box) setWorkspace() error {
-	workspacePath := path.Join(b.RootFS(), "home", "action", "workspace")
+func (b *Box) setWorkspace(root string) error {
+	workspacePath := path.Join(root, "home", "action", "workspace")
 	return os.MkdirAll(workspacePath, 0755)
 }
 
-func (b *Box) addReadme() error {
-	readmePath := path.Join(b.RootFS(), "home", "action", "README.md")
+func (b *Box) addReadme(root string) error {
+	readmePath := path.Join(root, "home", "action", "README.md")
 	readme, err := os.Create(readmePath)
 	if err != nil {
 		return err
@@ -911,8 +890,8 @@ func (b *Box) addReadme() error {
 	return RuntimeTemplates.Get(b.Runtime).Execute(readme, b)
 }
 
-func (b *Box) setDefaultKeyPair() error {
-	sshPath := path.Join(b.RootFS(), "home", "action", ".ssh")
+func (b *Box) setDefaultKeyPair(root string) error {
+	sshPath := path.Join(root, "home", "action", ".ssh")
 	sshKeyFile := path.Join(sshPath, "id_rsa")
 	if err := os.MkdirAll(sshPath, 0755); err != nil {
 		return err
@@ -965,46 +944,12 @@ func (b *Box) addNitrousboxrcSample() error {
 	return utils.RunCommand("chroot", b.RootFS(), "chown", "-R", permission, samplePath)
 }
 
-func (b *Box) generateUniqueId() error {
-	b.UniqueId = strconv.FormatInt(time.Now().UnixNano(), 10)
-	return b.save()
+func (b *Box) willUseTemplate() bool {
+	return len(b.SnapshotUrl) == 0
 }
 
-// this is used in Create() to generate the user content for the box. User
-// content can come from a snapshot on s3, or from predefined template
-func (b *Box) generateUserContent() error {
-	if len(b.SnapshotUrl) > 0 {
-		// parse snapshot url which should be an s3 path
-		url, err := s3.ParseUrl(b.SnapshotUrl)
-		if err != nil {
-			return &BoxOpError{Op: "parse s3 url", Err: err}
-		}
-		client, err := b.boxer.S3Auth.NewClient(url.Region, url.Bucket)
-		if err != nil {
-			return &BoxOpError{Op: "create s3 client", Err: err}
-		}
-		stream, err := client.Download(url.File)
-		if err != nil {
-			return &BoxOpError{Op: "download s3 stream", Err: err}
-		}
-		if err := os.MkdirAll(b.ContainerUserHomePath(), 0755); err != nil {
-			return &BoxOpError{Op: "creating user home directory", Err: err}
-		}
-		if err := UntarStream(stream, b.ContainerUserHomePath()); err != nil {
-			return &BoxOpError{Op: "untar s3 stream", Err: err}
-		}
-	} else {
-		if err := b.extractTemplate(); err != nil {
-			return &BoxOpError{Op: "extract template", Err: err}
-		}
-		if err := b.setWorkspace(); err != nil {
-			return &BoxOpError{Op: "set workspace", Err: err}
-		}
-		if err := b.addReadme(); err != nil {
-			return &BoxOpError{Op: "add readme", Err: err}
-		}
-	}
-	return nil
+func homePath(root string) string {
+	return path.Join(root, "home", "action")
 }
 
 // wraps around boxer and resourcePool so we have a single place to trigger

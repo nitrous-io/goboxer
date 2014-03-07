@@ -271,8 +271,6 @@ func (s *BoxerSuite) TestCreateBox(c *C) {
 		c.Assert(box.PublicKeys, DeepEquals, []string{"ssh-rsa QWER", "ssh-rsa ASDF"})
 
 		root := box.LxcPath()
-		c.Assert(root, Equals, "/var/lib/lxc/mclovins-container-1-"+
-			box.UniqueId)
 
 		// actually mount the container at /var/lib/lxc after create
 		isMounted, _ := mount.Mounted(root)
@@ -344,8 +342,6 @@ func (s *BoxerSuite) TestCreateWithSnapshot(c *C) {
 		c.Assert(box.PublicKeys, DeepEquals, []string{"ssh-rsa QWER", "ssh-rsa ASDF"})
 
 		root := box.LxcPath()
-		c.Assert(root, Equals, "/var/lib/lxc/mclovins-container-1-"+
-			box.UniqueId)
 
 		// actually mount the container at /var/lib/lxc after create
 		isMounted, _ := mount.Mounted(root)
@@ -880,8 +876,6 @@ func (s *BoxerSuite) TestDestroy(c *C) {
 		message, box := s.receiveMessages("mclovins-container-1",
 			s.makeCreateMessage(defaultMsg))
 		containerPlace := []string{box.LxcPath()}
-		containerPlace = append(containerPlace, box.ContainerFS())
-		containerPlace = append(containerPlace, box.ContainerDeltaPath())
 
 		message, box = s.receiveMessages("mclovins-container-1",
 			s.makeMessage("aio:destroy", defaultMsg))
@@ -911,7 +905,7 @@ func (s *BoxerSuite) TestDestroyWithDeeplyNestedPath(c *C) {
 			s.makeCreateMessage(defaultMsg),
 			s.makeMessage("aio:start", defaultMsg))
 		// create a deeply nested path
-		paths := []string{box.ContainerDeltaPath()}
+		paths := []string{box.RootFS()}
 		for i := 0; i < 1000; i++ {
 			paths = append(paths, "holla")
 		}
@@ -941,7 +935,6 @@ func (s *BoxerSuite) TestRestart(c *C) {
 		s.assertBoxState(c, box, "running")
 
 		containerPlace := []string{box.LxcPath()}
-		containerPlace = append(containerPlace, box.ContainerDeltaPath())
 		DoesExist(c, containerPlace)
 	})
 }

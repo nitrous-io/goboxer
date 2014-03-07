@@ -72,39 +72,6 @@ func (s *BoxSuite) TestMountName(c *C) {
 	c.Assert(b.MountName(), Equals, "test-123-123456")
 }
 
-func (s *BoxSuite) TestLxcPath(c *C) {
-	b := &Box{Name: "test", Id: 123, UniqueId: "123456"}
-	b.boxer = &Boxer{Root: "/var/lib/lxc"}
-	c.Assert(b.LxcPath(), Equals, "/var/lib/lxc/test-123-123456")
-}
-
-func (s *BoxSuite) TestContainerFS(c *C) {
-	b := &Box{Name: "test", Id: 123, UniqueId: "123456", Disk: "/lxc/disk1",
-		MountMethod: "aufs"}
-	b.boxer = &Boxer{Root: "/var/lib/lxc"}
-	c.Assert(b.ContainerFS(), Equals, "/lxc/disk1/test-123-123456")
-}
-
-func (s *BoxSuite) TestRootFS(c *C) {
-	b := &Box{Name: "test", Id: 123, UniqueId: "123456", Disk: "/lxc/disk1",
-		MountMethod: "aufs"}
-	b.boxer = &Boxer{Root: "/var/lib/lxc"}
-	c.Assert(b.RootFS(), Equals, "/var/lib/lxc/test-123-123456/rootfs")
-}
-
-func (s *BoxSuite) TestContainerDeltaPath(c *C) {
-	b := &Box{Name: "test", Id: 123, UniqueId: "123456", Disk: "/lxc/disk1",
-		MountMethod: "aufs"}
-	b.boxer = &Boxer{Root: "/var/lib/lxc"}
-	c.Assert(b.ContainerDeltaPath(), Equals, "/lxc/disk1/test-123_delta")
-}
-
-func (s *BoxSuite) TestContainerUserHomePath(c *C) {
-	b := &Box{Name: "test", Id: 123, UniqueId: "123456", Disk: "/lxc/disk1", MountMethod: "aufs"}
-	b.boxer = &Boxer{Root: "/var/lib/lxc"}
-	c.Assert(b.ContainerUserHomePath(), Equals, "/lxc/disk1/test-123_delta/rootfs/home/action")
-}
-
 func (s *BoxSuite) TestCpuSetString(c *C) {
 	b := &Box{CpuSet: []int{0}}
 	c.Assert(b.CpuSetStr(), Equals, "0")
