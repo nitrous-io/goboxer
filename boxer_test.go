@@ -278,6 +278,18 @@ func (s *BoxerSuite) TestCreateBox(c *C) {
 		isMounted, _ := mount.Mounted(root)
 		c.Assert(isMounted, Equals, true)
 
+		// check to see if ssh keys are different from
+		// base_container_template. If they are, fail test.
+		sshKeyTypes := []string{"rsa", "dsa", "ecdsa"}
+		baseContainerPath := filepath.Join(box.Disk, "base_container_template")
+		for _, keyType := range sshKeyTypes {
+			baseKey, _ := ioutil.ReadFile(filepath.Join(baseContainerPath,
+				"rootfs", "etc", "ssh", fmt.Sprintf("ssh_host_%s_key", keyType)))
+			containerKey, _ := ioutil.ReadFile(filepath.Join(root, "rootfs",
+				"etc", "ssh", fmt.Sprintf("ssh_host_%s_key", keyType)))
+			c.Assert(string(baseKey), Not(Equals), string(containerKey))
+		}
+
 		spec := boxContentSpec{
 			Exists: []string{
 				root,
