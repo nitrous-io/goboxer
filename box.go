@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/action-io/goboxer/archive"
 	"github.com/action-io/goboxer/ip"
 	"github.com/action-io/goboxer/lxc"
 	"github.com/action-io/goboxer/quota"
@@ -340,7 +341,7 @@ func (b *Box) Snapshot(snapshotId int) (snapshot *Snapshot, err error) {
 	tarName := fmt.Sprintf("%s-snapshot-%d.tar.gz", b.ContainerName(), snapshotId)
 	logger.Printf("%s: creating snapshot tarball %s\n", b.ContainerName(), tarName)
 
-	tarPath, err := Tar(tarName, path.Join(b.RootFS(), "home", "action"))
+	tarPath, err := archive.Tar(tarName, path.Join(b.RootFS(), "home", "action"))
 	if err != nil {
 		err = fmt.Errorf("Snapshot: failed to compress delta %v", err)
 		return
