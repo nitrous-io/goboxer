@@ -43,18 +43,29 @@ type lxcConfig struct {
 // defined
 func (p *Provisioner) Create(config pr.Config) (id string, root string, err error) {
 	id, root, err = p.createBarebox(config)
+	config.Id = id
 	if err != nil {
 		return
 	}
 	templatePath := path.Join(p.root, config.Template+".tar.gz")
 	homePath := path.Join(root, "home", "action")
 	err = archive.Untar(templatePath, homePath)
+	if err != nil {
+		return
+	}
+	tasks := tasks{
+		setWorkspace,
+		setReadme,
+	}
+	tasks = append(tasks, defaultProvisioningTasks...)
+	err = tasks.execute(p.lxcConfig(config))
 	return
 }
 
 func (p *Provisioner) CreateFromSnapshot(config pr.Config,
 	aws s3.AuthInterface) (id string, root string, err error) {
 	id, root, err = p.createBarebox(config)
+	config.Id = id
 	if err != nil {
 		return
 	}
@@ -83,6 +94,7 @@ func (p *Provisioner) CreateFromSnapshot(config pr.Config,
 		err = &pr.OpError{Op: "untar s3 stream", Err: err}
 		return
 	}
+	err = defaultProvisioningTasks.execute(p.lxcConfig(config))
 	return
 }
 
@@ -217,6 +229,15 @@ func (p *Provisioner) writeConfig(config pr.Config) error {
 		LxcPath: boxPath,
 		RootFS:  path.Join(boxPath, "rootfs"),
 	})
+}
+
+func (p *Provisioner) lxcConfig(config pr.Config) lxcConfig {
+	boxPath := path.Join(p.root, mountName(config))
+	return lxcConfig{
+		Config:  config,
+		LxcPath: boxPath,
+		RootFS:  path.Join(boxPath, "rootfs"),
+	}
 }
 
 // mount name of the container. Only apply for lxc container
