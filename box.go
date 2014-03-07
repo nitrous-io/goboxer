@@ -22,7 +22,6 @@ import (
 )
 
 const UID_START = 15000
-const THIN_VG = "boxes"
 const DEFAULT_SWAPPINESS = 60
 const DEFAULT_CPU_SHARES = 512
 const DEFAULT_CPU_PERIOD = 1000000 // cpu.cfs_period_us: 1 million microseconds
@@ -231,15 +230,6 @@ func (b *Box) Start(spec *BoxSpec) error {
 		}
 		if err := b.changeQuota(spec); err != nil {
 			return &BoxOpError{Op: "spec change", Err: err}
-		}
-		if err := b.addPartsInitUpstart(); err != nil {
-			return &BoxOpError{Op: "parts init upstart", Err: err}
-		}
-		if err := b.addNitrousboxrcUpstart(); err != nil {
-			return &BoxOpError{Op: "nitrousboxrc upstart", Err: err}
-		}
-		if err := b.addNitrousboxrcSample(); err != nil {
-			return &BoxOpError{Op: "nitrousboxrc sample", Err: err}
 		}
 		return nil
 	}
@@ -585,10 +575,6 @@ func (b *Box) UpdatePremiumStatus() error {
 	}
 }
 
-func (b *Box) lxcMounted() (bool, error) {
-	return b.getProvisioner().IsMounted(b.ContainerName(), b.UniqueId)
-}
-
 // Return current memory usage of the box as memory cgroup reported it
 // the unit if B, so if we want to convert to MB, it needs to be divided with
 // 1024 * 1024
@@ -683,14 +669,10 @@ func (b *Box) quotaArg() quota.QuotaArg {
 	return arg
 }
 
-func (b *Box) getQuotaMethod() string {
-	return b.QuotaMethod
-}
-
 // return the quota strategy that the box should use. The return object will be
 // an instance that supports quota.QuotaInterface interface
 func (b *Box) quota() quota.QuotaInterface {
-	return quota.Provisioner.GetQuota(b.getQuotaMethod())
+	return quota.Provisioner.GetQuota(b.QuotaMethod)
 }
 
 func (b *Box) setPortForwarding() error {
@@ -713,42 +695,6 @@ func (b *Box) unsetPortForwarding() error {
 	} else {
 		return ip.Close(strPort, b.Ip, "22")
 	}
-}
-
-func (b *Box) addPartsInitUpstart() error {
-	confPath := path.Join(b.RootFS(), "etc", "init", "parts-init.conf")
-	confFile, err := os.Create(confPath)
-	if err != nil {
-		return err
-	}
-	defer confFile.Close()
-	return PartsInitConfTemplateCompiled.Execute(confFile, UpstartConfSettings)
-}
-
-func (b *Box) addNitrousboxrcUpstart() error {
-	confPath := path.Join(b.RootFS(), "etc", "init", "run-nitrousboxrc.conf")
-	confFile, err := os.Create(confPath)
-	if err != nil {
-		return err
-	}
-	defer confFile.Close()
-	return RunNitrousboxrcConfTemplateCompiled.Execute(confFile, UpstartConfSettings)
-}
-
-func (b *Box) addNitrousboxrcSample() error {
-	samplePath := path.Join("home", UpstartConfSettings["ActionUser"], UpstartConfSettings["NitrousboxrcSample"])
-	sampleFile, err := os.Create(path.Join(b.RootFS(), samplePath))
-	if err != nil {
-		return err
-	}
-	err = NitrousboxrcSampleTemplateCompiled.Execute(sampleFile, UpstartConfSettings)
-	if err != nil {
-		sampleFile.Close()
-		return err
-	}
-	sampleFile.Close()
-	permission := fmt.Sprintf("%s:%s", b.Uid(), b.Gid())
-	return utils.RunCommand("chroot", b.RootFS(), "chown", "-R", permission, samplePath)
 }
 
 func (b *Box) willUseTemplate() bool {

@@ -33,6 +33,12 @@ var defaultProvisioningTasks = tasks{
 	setPermission,
 }
 
+var defaultStartingTasks = tasks{
+	setPartsInitUpstart,
+	setNitrousboxrcUpstart,
+	setNitrousboxrcSample,
+}
+
 func setWorkspace(config lxcConfig) error {
 	workspacePath := path.Join(config.RootFS, "home", "action", "workspace")
 	if err := os.MkdirAll(workspacePath, 0755); err != nil {
@@ -158,4 +164,40 @@ func setPermission(config lxcConfig) error {
 		return err
 	}
 	return utils.RunCommand("chroot", config.RootFS, "chown", "-R", permission, "/home/action")
+}
+
+func setPartsInitUpstart(config lxcConfig) error {
+	confPath := path.Join(config.RootFS, "etc", "init", "parts-init.conf")
+	confFile, err := os.Create(confPath)
+	if err != nil {
+		return err
+	}
+	defer confFile.Close()
+	return PartsInitConfTemplateCompiled.Execute(confFile, UpstartConfSettings)
+}
+
+func setNitrousboxrcUpstart(config lxcConfig) error {
+	confPath := path.Join(config.RootFS, "etc", "init", "run-nitrousboxrc.conf")
+	confFile, err := os.Create(confPath)
+	if err != nil {
+		return err
+	}
+	defer confFile.Close()
+	return RunNitrousboxrcConfTemplateCompiled.Execute(confFile, UpstartConfSettings)
+}
+
+func setNitrousboxrcSample(config lxcConfig) error {
+	samplePath := path.Join("home", UpstartConfSettings["ActionUser"], UpstartConfSettings["NitrousboxrcSample"])
+	sampleFile, err := os.Create(path.Join(config.RootFS, samplePath))
+	if err != nil {
+		return err
+	}
+	err = NitrousboxrcSampleTemplateCompiled.Execute(sampleFile, UpstartConfSettings)
+	if err != nil {
+		sampleFile.Close()
+		return err
+	}
+	sampleFile.Close()
+	permission := fmt.Sprintf("%s:%s", config.Uid, config.Uid)
+	return utils.RunCommand("chroot", config.RootFS, "chown", "-R", permission, samplePath)
 }
