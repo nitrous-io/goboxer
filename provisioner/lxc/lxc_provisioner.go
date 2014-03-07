@@ -113,6 +113,10 @@ func (p *Provisioner) Start(config pr.Config,
 		err = &pr.OpError{Op: "beforeStart callback " + config.ContainerName, Err: err}
 		return
 	}
+	if err = defaultStartingTasks.execute(p.lxcConfig(config)); err != nil {
+		err = &pr.OpError{Op: "preparing to start " + config.ContainerName, Err: err}
+		return
+	}
 	err = lxcCmd.Start(config.ContainerName, config.ContainerName+"-"+config.Id)
 	if err != nil {
 		err = &pr.OpError{Op: "lxc-start " + config.ContainerName, Err: err}
