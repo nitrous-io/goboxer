@@ -48,15 +48,6 @@ type BoxInfo struct {
 	LxcStatus    string  `json:"lxcStatus,omitempty"`
 }
 
-// MemorySpecChange contains old and new ValueUnit strings for memory and total
-// memory
-type MemorySpecChange struct {
-	OldMemory      string
-	OldTotalMemory string
-	NewMemory      string
-	NewTotalMemory string
-}
-
 // UniqueId is the guaranteed unique id *only* for the current box over its lifetime
 // i.e. a box will be guaranteed not to have its mountpoint clash when
 // umount/remount when uid is implemented
@@ -152,6 +143,7 @@ func (b *Box) provisionerConfig() pr.Config {
 	return pr.Config{
 		Id:                    b.UniqueId,
 		ContainerName:         b.ContainerName(),
+		ContainerId:           b.Id,
 		Uid:                   b.Uid(),
 		Template:              b.Template,
 		Ip:                    b.Ip,
@@ -168,6 +160,8 @@ func (b *Box) provisionerConfig() pr.Config {
 		CpuSetStr:             b.CpuSetStr(),
 		PublicKeys:            b.PublicKeys,
 		SnapshotUrl:           b.SnapshotUrl,
+		Runtime:               b.Runtime,
+		Premium:               b.Premium,
 	}
 }
 
@@ -201,17 +195,16 @@ func (b *Box) Create() error {
 	defer logger.LogDuration(
 		fmt.Sprintf("%s:Create", b.ContainerName()),
 	)(time.Now())
-	var rootPath string
 	var id string
 	var err error
 
 	if b.willUseTemplate() {
-		id, rootPath, err = b.getProvisioner().Create(b.provisionerConfig())
+		id, _, err = b.getProvisioner().Create(b.provisionerConfig())
 		if err != nil {
 			return &BoxOpError{Op: "create box from template", Err: err}
 		}
 	} else {
-		id, rootPath, err = b.getProvisioner().CreateFromSnapshot(b.provisionerConfig(),
+		id, _, err = b.getProvisioner().CreateFromSnapshot(b.provisionerConfig(),
 			b.boxer.S3Auth)
 		if err != nil {
 			return &BoxOpError{Op: "create box from snapshot", Err: err}
@@ -219,35 +212,6 @@ func (b *Box) Create() error {
 	}
 	b.UniqueId = id
 	b.State = "stopped"
-	if b.willUseTemplate() {
-		if err := b.setWorkspace(rootPath); err != nil {
-			return &BoxOpError{Op: "set workspace", Err: err}
-		}
-		if err := b.addReadme(rootPath); err != nil {
-			return &BoxOpError{Op: "add readme", Err: err}
-		}
-	}
-	if err := b.setEtcAction(rootPath); err != nil {
-		return &BoxOpError{Op: "create /etc/action", Err: err}
-	}
-	if err := b.UpdatePremiumStatus(); err != nil {
-		return err
-	}
-	if err := b.setHostname(rootPath); err != nil {
-		return &BoxOpError{Op: "set host name", Err: err}
-	}
-	if err := b.setHosts(rootPath); err != nil {
-		return &BoxOpError{Op: "set /etc/hosts", Err: err}
-	}
-	if err := b.setNetworkInterface(rootPath); err != nil {
-		return &BoxOpError{Op: "set network interface", Err: err}
-	}
-	if err := b.setDefaultKeyPair(rootPath); err != nil {
-		return &BoxOpError{Op: "set default key pair", Err: err}
-	}
-	if err := b.setPermission(rootPath); err != nil {
-		return &BoxOpError{Op: "set permission", Err: err}
-	}
 	if err := b.SetQuota(); err != nil {
 		return err
 	}
@@ -729,23 +693,6 @@ func (b *Box) quota() quota.QuotaInterface {
 	return quota.Provisioner.GetQuota(b.getQuotaMethod())
 }
 
-// set correct permission for user's home folder so he/she can write onto it
-func (b *Box) setPermission(root string) error {
-	defer logger.LogDuration(
-		fmt.Sprintf("%s:SetPermission", b.ContainerName()),
-	)(time.Now())
-	uid := b.Uid()
-	gid := b.Gid()
-	permission := fmt.Sprintf("%s:%s", b.Uid(), b.Gid())
-	if err := utils.RunCommand("chroot", root, "usermod", "-u", uid, "action"); err != nil {
-		return err
-	}
-	if err := utils.RunCommand("chroot", root, "groupmod", "-g", gid, "action"); err != nil {
-		return err
-	}
-	return utils.RunCommand("chroot", root, "chown", "-R", permission, "/home/action")
-}
-
 func (b *Box) setPortForwarding() error {
 	b.boxer.Lock(b.Id)
 	defer b.boxer.Unlock(b.Id)
@@ -766,94 +713,6 @@ func (b *Box) unsetPortForwarding() error {
 	} else {
 		return ip.Close(strPort, b.Ip, "22")
 	}
-}
-
-func (b *Box) setEtcAction(root string) error {
-	actionPath := path.Join(root, "etc", "action")
-	if err := os.MkdirAll(actionPath, 0755); err != nil {
-		return err
-	}
-	// set box_id
-	boxIdFile, err := os.Create(path.Join(actionPath, "box_id"))
-	if err != nil {
-		return err
-	}
-	defer boxIdFile.Close()
-	if _, err = boxIdFile.WriteString(strconv.Itoa(b.Id)); err != nil {
-		return err
-	}
-	// set box_user
-	boxUserFile, err := os.Create(path.Join(actionPath, "box_user"))
-	if err != nil {
-		return err
-	}
-	defer boxUserFile.Close()
-	_, err = boxUserFile.WriteString("action")
-	return err
-}
-
-func (b *Box) setHostname(root string) error {
-	hostNamePath := path.Join(root, "etc", "hostname")
-	hostName, err := os.Create(hostNamePath)
-	if err != nil {
-		return err
-	}
-	defer hostName.Close()
-	_, err = hostName.WriteString(b.ContainerName())
-	return err
-}
-
-func (b *Box) setHosts(root string) error {
-	hostsPath := path.Join(root, "etc", "hosts")
-	hosts, err := os.Create(hostsPath)
-	if err != nil {
-		return err
-	}
-	defer hosts.Close()
-	return HostsTemplateCompiled.Execute(hosts, b)
-}
-
-func (b *Box) setNetworkInterface(root string) error {
-	networkConfigPath := path.Join(root, "etc", "network", "interfaces")
-	networkConfig, err := os.Create(networkConfigPath)
-	if err != nil {
-		return err
-	}
-	defer networkConfig.Close()
-	return NetworkConfigCompiled.Execute(networkConfig, b)
-}
-
-func (b *Box) setWorkspace(root string) error {
-	workspacePath := path.Join(root, "home", "action", "workspace")
-	return os.MkdirAll(workspacePath, 0755)
-}
-
-func (b *Box) addReadme(root string) error {
-	readmePath := path.Join(root, "home", "action", "README.md")
-	readme, err := os.Create(readmePath)
-	if err != nil {
-		return err
-	}
-	defer readme.Close()
-	return RuntimeTemplates.Get(b.Runtime).Execute(readme, b)
-}
-
-func (b *Box) setDefaultKeyPair(root string) error {
-	sshPath := path.Join(root, "home", "action", ".ssh")
-	sshKeyFile := path.Join(sshPath, "id_rsa")
-	if err := os.MkdirAll(sshPath, 0755); err != nil {
-		return err
-	}
-	if _, err := os.Stat(sshKeyFile); os.IsNotExist(err) {
-		sshKeygen := fmt.Sprintf("ssh-keygen -N '' -f %s -b 1024 -t rsa -q",
-			sshKeyFile)
-		if err := utils.RunCommand("/bin/sh", "-c", sshKeygen); err != nil {
-			return err
-		}
-	} else {
-		return err
-	}
-	return nil
 }
 
 func (b *Box) addPartsInitUpstart() error {

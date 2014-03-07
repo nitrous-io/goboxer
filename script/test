@@ -12,6 +12,7 @@ go get -u github.com/motain/gocheck
 
 if [ -z "${spec}" ]; then
   go test -gocheck.v github.com/action-io/goboxer/... -timeout 1000s
+  go test -test.v github.com/action-io/goboxer/provisioner/...
   go test -test.v github.com/action-io/goboxer/host
   go test -test.v github.com/action-io/goboxer/quota
   go test -test.v github.com/action-io/goboxer/cartman
