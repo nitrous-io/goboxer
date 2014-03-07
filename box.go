@@ -939,12 +939,11 @@ func (b *Box) setHosts() error {
 
 func (b *Box) regenerateSSHHostKeys() error {
 	keyTypes := []string{"rsa", "dsa", "ecdsa"}
-	dsaKeyPath := path.join(b.RootFS(), "etc", "ssh", "ssh_host_ecdsa_key")
 
 	for i := range keyTypes {
-		keyPath := path.join(b.RootFS(), "etc", "ssh", fmt.Sprintf("ssh_host_%s_key", keyTypes[i]))
+		keyPath := path.Join(b.RootFS(), "etc", "ssh", fmt.Sprintf("ssh_host_%s_key", keyTypes[i]))
 		sshKeygen := fmt.Sprintf("yes | ssh-keygen -N '' -f %s -t %s -q", keyPath, keyTypes[i])
-		if err := utils.runCommand("/bin/sh", "-c", sshKeygen); err != nil {
+		if err := utils.RunCommand("/bin/sh", "-c", sshKeygen); err != nil {
 			return err
 		}
 	}
