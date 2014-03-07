@@ -200,7 +200,6 @@ func CreateBoxHandler(m Message, boxer *Boxer) (msg Message) {
 		Premium:          m.Premium,
 	}
 	box.boxer = boxer
-	box.Prepare()
 	if err := box.Create(); err != nil {
 		logger.Printf("ERROR: Failed to create %v, err: %v\n", box, err)
 		// Try to destroy the box.

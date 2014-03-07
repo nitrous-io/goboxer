@@ -10,13 +10,6 @@ type BoxSuite struct{}
 
 var _ = Suite(&BoxSuite{})
 
-func (s *BoxSuite) TestPrepare(c *C) {
-	b := &Box{}
-	b.Prepare()
-	c.Assert(b.Swappiness, Equals, 60) // FIXME How to stub constants in Golang?
-	c.Assert(b.CpuShares, Equals, 512)
-}
-
 func (s *BoxSuite) TestTotalMemory(c *C) {
 	b := &Box{Memory: "384M"}
 	c.Assert(b.TotalMemory(), Equals, "576M")

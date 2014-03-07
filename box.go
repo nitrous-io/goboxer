@@ -111,18 +111,7 @@ func BoxFromJSON(boxJSON []byte) (*Box, error) {
 	if err := json.Unmarshal(boxJSON, box); err != nil {
 		return nil, err
 	}
-	box.Prepare()
 	return box, nil
-}
-
-// Prepare the box with useful default value
-func (b *Box) Prepare() {
-	if b.Swappiness == 0 {
-		b.Swappiness = DEFAULT_SWAPPINESS
-	}
-	if b.CpuShares == 0 {
-		b.CpuShares = DEFAULT_CPU_SHARES
-	}
 }
 
 // return the valid value that should be applied to `cpuset.cpus`
@@ -151,6 +140,57 @@ func (b *Box) getProvisioner() pr.Provisioner {
 	return b.provisioner
 }
 
+func (b *Box) provisionerConfig() pr.Config {
+	if b.Swappiness == 0 {
+		b.Swappiness = DEFAULT_SWAPPINESS
+	}
+	if b.CpuShares == 0 {
+		b.CpuShares = DEFAULT_CPU_SHARES
+	}
+
+	return pr.Config{
+		Id:                    b.UniqueId,
+		ContainerName:         b.ContainerName(),
+		Uid:                   b.Uid(),
+		Template:              b.Template,
+		Ip:                    b.Ip,
+		Gateway:               b.Gateway,
+		NetworkInterface:      b.NetworkInterface,
+		MacAddress:            b.MacAddress(),
+		Memory:                b.Memory,
+		TotalMemory:           b.TotalMemory(),
+		CpuShares:             b.CpuShares,
+		CpuQuota:              b.CpuQuota,
+		CpuPeriodMicroseconds: b.CpuPeriodMicroseconds(),
+		CpuQuotaMicroseconds:  b.CpuQuotaMicroseconds(),
+		CpuSet:                b.CpuSet,
+		CpuSetStr:             b.CpuSetStr(),
+		PublicKeys:            b.PublicKeys,
+		SnapshotUrl:           b.SnapshotUrl,
+	}
+}
+
+func (b *Box) getConfigFromSpec(spec *BoxSpec) pr.Config {
+	msc := pr.MemorySpecChange{
+		OldMemory:      b.Memory,
+		OldTotalMemory: b.TotalMemory(),
+	}
+	if spec.Memory != b.Memory {
+		b.Memory = spec.Memory
+	}
+	if spec.CpuShares != b.CpuShares {
+		b.CpuShares = spec.CpuShares
+	}
+	if spec.VirtualMemory != b.VirtualMemory {
+		b.VirtualMemory = spec.VirtualMemory
+	}
+	config := b.provisionerConfig()
+	msc.NewMemory = b.Memory
+	msc.NewTotalMemory = b.TotalMemory()
+	config.MemorySpecChange = msc
+	return config
+}
+
 // Create a new box
 //
 // This create a new box. The chosen provisioning scheme will depend on
@@ -160,56 +200,54 @@ func (b *Box) Create() error {
 	defer logger.LogDuration(
 		fmt.Sprintf("%s:Create", b.ContainerName()),
 	)(time.Now())
-	var data *pr.Data
+	var rootPath string
+	var id string
 	var err error
 
 	if b.willUseTemplate() {
-		data, err = b.getProvisioner().Create(b.ContainerName(), b.Template)
+		id, rootPath, err = b.getProvisioner().Create(b.provisionerConfig())
 		if err != nil {
 			return &BoxOpError{Op: "create box from template", Err: err}
 		}
 	} else {
-		data, err = b.getProvisioner().CreateFromSnapshot(b.ContainerName(),
-			b.Template, b.boxer.S3Auth)
+		id, rootPath, err = b.getProvisioner().CreateFromSnapshot(b.provisionerConfig(),
+			b.boxer.S3Auth)
 		if err != nil {
 			return &BoxOpError{Op: "create box from snapshot", Err: err}
 		}
 	}
-	b.UniqueId = data.Id
-	b.State = data.Status
+	b.UniqueId = id
+	b.State = "stopped"
 	if b.willUseTemplate() {
-		if err := b.setWorkspace(data.RootPath); err != nil {
+		if err := b.setWorkspace(rootPath); err != nil {
 			return &BoxOpError{Op: "set workspace", Err: err}
 		}
-		if err := b.addReadme(data.RootPath); err != nil {
+		if err := b.addReadme(rootPath); err != nil {
 			return &BoxOpError{Op: "add readme", Err: err}
 		}
 	}
-	if err := b.writeConfig(); err != nil {
-		return &BoxOpError{Op: "write lxc config", Err: err}
-	}
-	if err := b.setEtcAction(data.RootPath); err != nil {
+	if err := b.setEtcAction(rootPath); err != nil {
 		return &BoxOpError{Op: "create /etc/action", Err: err}
 	}
 	if err := b.UpdatePremiumStatus(); err != nil {
 		return err
 	}
-	if err := b.setHostname(data.RootPath); err != nil {
+	if err := b.setHostname(rootPath); err != nil {
 		return &BoxOpError{Op: "set host name", Err: err}
 	}
-	if err := b.setHosts(data.RootPath); err != nil {
+	if err := b.setHosts(rootPath); err != nil {
 		return &BoxOpError{Op: "set /etc/hosts", Err: err}
 	}
 	if err := b.regenerateSSHHostKeys(); err != nil {
 		return &BoxOpError{Op: "regenerate SSH host keys", Err: err}
 	}
-	if err := b.setNetworkInterface(data.RootPath); err != nil {
+	if err := b.setNetworkInterface(rootPath); err != nil {
 		return &BoxOpError{Op: "set network interface", Err: err}
 	}
-	if err := b.setDefaultKeyPair(data.RootPath); err != nil {
+	if err := b.setDefaultKeyPair(rootPath); err != nil {
 		return &BoxOpError{Op: "set default key pair", Err: err}
 	}
-	if err := b.setPermission(data.RootPath); err != nil {
+	if err := b.setPermission(rootPath); err != nil {
 		return &BoxOpError{Op: "set permission", Err: err}
 	}
 	if err := b.SetQuota(); err != nil {
@@ -222,15 +260,14 @@ func (b *Box) Start(spec *BoxSpec) error {
 	defer logger.LogDuration(
 		fmt.Sprintf("%s:Start %s", b.ContainerName(), b.MountName()),
 	)(time.Now())
-	beforeStart := func(data *pr.Data) error {
+	beforeStart := func(root string) error {
 		if err := b.WritePublicKeys(); err != nil {
 			return &BoxOpError{Op: "write public keys", Err: err}
 		}
 		if err := b.setPortForwarding(); err != nil {
 			return &BoxOpError{Op: "set port forwarding", Err: err}
 		}
-		// this change spec without restarting the box
-		if err := b.handleSpecChange(spec, true); err != nil {
+		if err := b.changeQuota(spec); err != nil {
 			return &BoxOpError{Op: "spec change", Err: err}
 		}
 		if err := b.addPartsInitUpstart(); err != nil {
@@ -244,12 +281,11 @@ func (b *Box) Start(spec *BoxSpec) error {
 		}
 		return nil
 	}
-	data, err := b.getProvisioner().Start(b.ContainerName(), b.UniqueId,
-		beforeStart)
+	_, _, err := b.getProvisioner().Start(b.getConfigFromSpec(spec), beforeStart)
 	if err != nil {
 		return err
 	}
-	b.State = data.Status
+	b.State = "running"
 	return nil
 }
 
@@ -267,12 +303,12 @@ func (b *Box) Stop() error {
 		// ignore error from unset port forwarding here as its not harmful
 		logger.Printf("%v", &BoxOpError{Op: "unset port forwarding", Err: err})
 	}
-	data, err := b.getProvisioner().Stop(b.ContainerName(), b.UniqueId, b.Uid())
+	id, err := b.getProvisioner().Stop(b.provisionerConfig())
 	if err != nil {
 		return err
 	}
-	b.UniqueId = data.Id
-	b.State = data.Status
+	b.UniqueId = id
+	b.State = "stopped"
 	return nil
 }
 
@@ -286,7 +322,7 @@ func (b *Box) Destroy() error {
 	if err := b.UnsetQuota(); err != nil {
 		return &BoxOpError{Op: "unset quota", Err: err}
 	}
-	return b.getProvisioner().Destroy(b.ContainerName(), b.UniqueId)
+	return b.getProvisioner().Destroy(b.provisionerConfig())
 }
 
 func (b *Box) Snapshot(snapshotId int) (snapshot *Snapshot, err error) {
@@ -303,7 +339,8 @@ func (b *Box) Snapshot(snapshotId int) (snapshot *Snapshot, err error) {
 
 	tarName := fmt.Sprintf("%s-snapshot-%d.tar.gz", b.ContainerName(), snapshotId)
 	logger.Printf("%s: creating snapshot tarball %s\n", b.ContainerName(), tarName)
-	tarPath, err := Tar(tarName, homePath(b.RootFS()))
+
+	tarPath, err := Tar(tarName, path.Join(b.RootFS(), "home", "action"))
 	if err != nil {
 		err = fmt.Errorf("Snapshot: failed to compress delta %v", err)
 		return
@@ -324,10 +361,6 @@ func (b *Box) Snapshot(snapshotId int) (snapshot *Snapshot, err error) {
 	}
 	snapshot = &Snapshot{Url: snapshotUrl, Size: uncompressedSize}
 	return
-}
-
-func (b *Box) CgroupSet(subsystem, value string) error {
-	return lxc.CgroupSet(b.MountName(), subsystem, value)
 }
 
 func (b *Box) UpdateAuth(auth BoxAuth) error {
@@ -548,7 +581,15 @@ func (b *Box) UnsetQuota() error {
 }
 
 func (b *Box) ChangeSpec(spec *BoxSpec) error {
-	return b.handleSpecChange(spec, false)
+	config := b.getConfigFromSpec(spec)
+	err := b.getProvisioner().ChangeConfig(config)
+	if err != nil {
+		return err
+	}
+	if err := b.changeQuota(spec); err != nil {
+		return err
+	}
+	return b.boxer.ResourcePool.SaveBox(b)
 }
 
 func (b *Box) CurrentSpec() *BoxSpec {
@@ -655,48 +696,7 @@ func (b *Box) RemoveEnv(data []string) (err error) {
 	return
 }
 
-// this requires the box to be mounted because we are writing lxc config into
-// the mounted path, not the _delta path
-func (b *Box) handleSpecChange(spec *BoxSpec, forceWriteConfig bool) error {
-	defer func() {
-		// make sure that we attempt to save the box after spec change
-		// There *may* be failure here but the chance of that are very small so
-		// we just log and ignore the error here.
-		if saveErr := b.save(); saveErr != nil {
-			logger.Debugln("save: err: %v", saveErr)
-		}
-	}()
-	willWriteConfig := false
-	msc := &MemorySpecChange{
-		OldMemory:      b.Memory,
-		OldTotalMemory: b.TotalMemory(),
-	}
-	if spec.Memory != b.Memory {
-		b.Memory = spec.Memory
-		willWriteConfig = true
-	}
-	if spec.CpuShares != b.CpuShares {
-		b.CpuShares = spec.CpuShares
-		willWriteConfig = true
-	}
-	if spec.VirtualMemory != b.VirtualMemory {
-		b.VirtualMemory = spec.VirtualMemory
-		willWriteConfig = true
-	}
-	if willWriteConfig || forceWriteConfig {
-		mounted, err := b.lxcMounted()
-		if err != nil {
-			return &BoxOpError{Op: "write lxc config", Err: err}
-		}
-		if mounted {
-			// if not mounted (stopped state), the config will be written upon
-			// next Start()
-			err = b.writeConfig()
-			if err != nil {
-				return &BoxOpError{Op: "write lxc config", Err: err}
-			}
-		}
-	}
+func (b *Box) changeQuota(spec *BoxSpec) error {
 	if len(spec.DiskSpace) > 0 && spec.DiskSpace != b.DiskSpace {
 		oldDiskSpace := b.DiskSpace
 		b.DiskSpace = spec.DiskSpace
@@ -705,45 +705,7 @@ func (b *Box) handleSpecChange(spec *BoxSpec, forceWriteConfig bool) error {
 			return &BoxOpError{Op: "set disk quota", Err: err}
 		}
 	}
-	// apply new memory quota immediately for running boxes
-	if b.State == "running" && (b.Memory != msc.OldMemory || b.TotalMemory() != msc.OldTotalMemory) {
-		msc.NewMemory = b.Memory
-		msc.NewTotalMemory = b.TotalMemory()
-		if err := b.liveUpdateMemory(msc); err != nil {
-			return &BoxOpError{Op: "live adjust memory quota", Err: err}
-		}
-	}
 	return nil
-}
-
-func (b *Box) liveUpdateMemory(msc *MemorySpecChange) error {
-	order := msc.settingOrder()
-	for _, kvPair := range order {
-		k, v := kvPair[0], kvPair[1]
-		if err := b.CgroupSet(k, v); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// memorySettingOrder returns a slice of arguments to lxc-cgroup (slice of
-// strings) signifying what order to change the settings in.   lxc-cgroup
-// enforces invariant:
-//   memory.limit_in_bytes < memory.memsw.limit_in_bytes
-// so we need to order operations accordingly
-func (msc *MemorySpecChange) settingOrder() [][]string {
-	var (
-		memKeyValue      = []string{"memory.limit_in_bytes", msc.NewMemory}
-		totalMemKeyValue = []string{"memory.memsw.limit_in_bytes", msc.NewTotalMemory}
-	)
-	stringToByte := func(s string) int {
-		return quota.ConvertValueUnitToByte(quota.ParseValueUnit(s))
-	}
-	if stringToByte(msc.OldMemory) > stringToByte(msc.NewTotalMemory) {
-		return [][]string{memKeyValue, totalMemKeyValue}
-	}
-	return [][]string{totalMemKeyValue, memKeyValue}
 }
 
 func (b *Box) quotaArg() quota.QuotaArg {
@@ -756,15 +718,6 @@ func (b *Box) quotaArg() quota.QuotaArg {
 	return arg
 }
 
-func (b *Box) getMountMethod() string {
-	if b.MountMethod == "aufs" || b.Aufs {
-		return "aufs"
-	} else if b.MountMethod == "failed" {
-		return "failed"
-	}
-	return "overlayfs"
-}
-
 func (b *Box) getQuotaMethod() string {
 	return b.QuotaMethod
 }
@@ -773,17 +726,6 @@ func (b *Box) getQuotaMethod() string {
 // an instance that supports quota.QuotaInterface interface
 func (b *Box) quota() quota.QuotaInterface {
 	return quota.Provisioner.GetQuota(b.getQuotaMethod())
-}
-
-// rewrite lxc config of the box
-func (b *Box) writeConfig() error {
-	// we want to re-check the box values here to make sure that only valid lxc
-	// config value will be saved
-	b.Prepare()
-	return b.getProvisioner().SetConfig(b.ContainerName(), b.UniqueId,
-		func(config *os.File) error {
-			return LxcTemplateCompiled.Execute(config, b)
-		})
 }
 
 // set correct permission for user's home folder so he/she can write onto it
