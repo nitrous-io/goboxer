@@ -995,8 +995,10 @@ func (s *BoxerSuite) TestRestartSetsCpuSet(c *C) {
 
 		// Manually remove cpuset.cpus config from the lxc config file so we can
 		// verify that restarting a box will set it.
-		box.CpuSet = []int{}
-		box.writeConfig()
+		provisioner := box.getProvisioner()
+		config := box.provisionerConfig()
+		config.CpuSet = []int{}
+		provisioner.ChangeConfig(config)
 		DoesNotContain(c, map[string][]string{
 			box.LxcPath() + "/config": {"lxc.cgroup.cpuset.cpus"},
 		})
