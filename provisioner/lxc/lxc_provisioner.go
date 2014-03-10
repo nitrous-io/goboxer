@@ -162,7 +162,7 @@ func (p *Provisioner) Destroy(config pr.Config) error {
 }
 
 func (p *Provisioner) ChangeConfig(config pr.Config) error {
-	mounted, err := p.IsMounted(config.ContainerName, config.Id)
+	mounted, err := p.isMounted(config.ContainerName, config.Id)
 	if err != nil {
 		return err
 	}
@@ -191,15 +191,15 @@ func (p *Provisioner) ChangeConfig(config pr.Config) error {
 	return nil
 }
 
-func (p *Provisioner) GetLxc(name, id string) string {
-	return path.Join(p.root, name+"-"+id)
+func (p *Provisioner) GetConfig(name, id string) string {
+	return path.Join(p.root, name+"-"+id, "config")
 }
 
 func (p *Provisioner) GetRoot(name, id string) string {
 	return path.Join(p.root, name+"-"+id, "rootfs")
 }
 
-func (p *Provisioner) IsMounted(name, id string) (bool, error) {
+func (p *Provisioner) isMounted(name, id string) (bool, error) {
 	return mount.Mounted(path.Join(p.root, name+"-"+id))
 }
 
