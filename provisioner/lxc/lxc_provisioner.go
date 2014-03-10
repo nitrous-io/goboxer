@@ -179,7 +179,8 @@ func (p *Provisioner) ChangeConfig(config pr.Config) error {
 	if err != nil {
 		return err
 	}
-	if status == lxcCmd.RUNNING {
+	if status == lxcCmd.RUNNING && (config.Memory != config.MemorySpecChange.OldMemory ||
+		config.TotalMemory != config.MemorySpecChange.OldTotalMemory) {
 		order := config.MemorySpecChange.SettingOrder()
 		for _, kvPair := range order {
 			k, v := kvPair[0], kvPair[1]

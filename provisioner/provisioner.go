@@ -7,8 +7,6 @@ import (
 
 type InitFunc func(root string) (Provisioner, error)
 
-type CallbackFunc func(root string) error
-
 // Represents settings of a container
 type Config struct {
 	Id                    string
@@ -36,6 +34,8 @@ type Config struct {
 
 	MemorySpecChange
 }
+
+type CallbackFunc func(root string) error
 
 type Provisioner interface {
 	// Create a container with the supplied config
