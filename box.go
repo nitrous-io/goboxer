@@ -86,6 +86,7 @@ type Box struct {
 	SnapshotId       int      `json:"-"`
 	SnapshotUrl      string   `json:"-"`
 	PublicKeys       []string `json:"publicKeys"`
+	CustomDomain     string   `json:"customDomain"`
 	CpuSet           []int
 	CpuQuota         float64
 	// hold a reference to boxer so that we can access mutex capabilities
@@ -312,10 +313,21 @@ func (b *Box) CgroupSet(subsystem, value string) error {
 func (b *Box) UpdateAuth(auth BoxAuth) error {
 	b.AuthUsername = auth.Username
 	b.AuthPassword = auth.Password
-	if err := b.boxer.ResourcePool.SaveBox(b); err != nil {
+	return b.save()
+}
+
+func (b *Box) UpdateCustomDomain(customDomain string) error {
+	if err := b.resourcePool().RemoveDomain(b.CustomDomain); err != nil {
 		return err
 	}
-	return b.boxer.Cartman.InvalidateCache(b.ContainerName())
+	b.CustomDomain = customDomain
+	if err := b.save(); err != nil {
+		return err
+	}
+	if len(b.CustomDomain) > 0 {
+		return b.resourcePool().SetDomain(customDomain, b.ContainerName())
+	}
+	return nil
 }
 
 func (b *Box) MountName() string {
@@ -418,7 +430,7 @@ func (b *Box) SetPublicKeys(keys []string) error {
 	b.PublicKeys = keys
 
 	// Write to Redis.
-	if err := b.boxer.ResourcePool.SaveBox(b); err != nil {
+	if err := b.save(); err != nil {
 		return err
 	}
 
@@ -490,7 +502,7 @@ func (b *Box) AddPublicKey(key string) error {
 		}
 	}
 	b.PublicKeys = append(b.GetPublicKeys(), key)
-	if err := b.boxer.ResourcePool.SaveBox(b); err != nil {
+	if err := b.save(); err != nil {
 		return err
 	}
 	return b.writePublicKeysFileIfExists(b.PublicKeys)
@@ -508,7 +520,7 @@ func (b *Box) RemovePublicKey(key string) error {
 		}
 	}
 	b.PublicKeys = newKeys
-	if err := b.boxer.ResourcePool.SaveBox(b); err != nil {
+	if err := b.save(); err != nil {
 		return err
 	}
 	return b.writePublicKeysFileIfExists(b.PublicKeys)
@@ -1015,7 +1027,7 @@ func (b *Box) addNitrousboxrcSample() error {
 
 func (b *Box) generateUniqueId() error {
 	b.UniqueId = strconv.FormatInt(time.Now().UnixNano(), 10)
-	return b.boxer.ResourcePool.SaveBox(b)
+	return b.save()
 }
 
 // this is used in Create() to generate the user content for the box. User
@@ -1053,6 +1065,19 @@ func (b *Box) generateUserContent() error {
 		}
 	}
 	return nil
+}
+
+// wraps around boxer and resourcePool so we have a single place to trigger
+// callbacks after save
+func (b *Box) save() error {
+	if err := b.resourcePool().SaveBox(b); err != nil {
+		return err
+	}
+	return b.boxer.Cartman.InvalidateCache(b.ContainerName())
+}
+
+func (b *Box) resourcePool() *ResourcePool {
+	return b.boxer.ResourcePool
 }
 
 func (b *Box) String() string {

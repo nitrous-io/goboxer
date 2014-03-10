@@ -479,6 +479,26 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 		}
 		message.Success = true
 		return message
+	case "aio:configure:update_custom_domain":
+		var customDomain string
+		message.DataType = "aio:configured:custom_domain"
+		data, ok := (m.Data).(map[string]interface{})
+		if !ok {
+			return boxer.NewInvalidParamMessage()
+		}
+		if data["custom_domain"] == nil {
+			customDomain = ""
+		} else {
+			customDomain, ok = data["custom_domain"].(string)
+			if !ok {
+				return boxer.NewInvalidParamMessage()
+			}
+		}
+		message.Success = true
+		if err := box.UpdateCustomDomain(customDomain); err != nil {
+			message.Success = false
+		}
+		return message
 	case "aio:configure:update_premium":
 		message.DataType = "aio:configured:update_premium"
 		data, ok := (m.Data).(map[string]interface{})
