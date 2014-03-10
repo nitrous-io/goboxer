@@ -33,7 +33,7 @@ type Provisioner struct {
 type lxcConfig struct {
 	pr.Config
 	LxcPath string
-	RootFS  string
+	Rootfs  string
 }
 
 // Creation strategy
@@ -231,7 +231,7 @@ func (p *Provisioner) writeConfig(config pr.Config) error {
 	return LxcTemplateCompiled.Execute(configFile, lxcConfig{
 		Config:  config,
 		LxcPath: boxPath,
-		RootFS:  path.Join(boxPath, "rootfs"),
+		Rootfs:  path.Join(boxPath, "rootfs"),
 	})
 }
 
@@ -240,7 +240,7 @@ func (p *Provisioner) lxcConfig(config pr.Config) lxcConfig {
 	return lxcConfig{
 		Config:  config,
 		LxcPath: boxPath,
-		RootFS:  path.Join(boxPath, "rootfs"),
+		Rootfs:  path.Join(boxPath, "rootfs"),
 	}
 }
 

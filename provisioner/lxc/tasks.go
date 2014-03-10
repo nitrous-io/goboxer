@@ -40,7 +40,7 @@ var defaultStartingTasks = tasks{
 }
 
 func setWorkspace(config lxcConfig) error {
-	workspacePath := path.Join(config.RootFS, "home", "action", "workspace")
+	workspacePath := path.Join(config.Rootfs, "home", "action", "workspace")
 	if err := os.MkdirAll(workspacePath, 0755); err != nil {
 		return &pr.OpError{Op: "set workspace", Err: err}
 	}
@@ -48,7 +48,7 @@ func setWorkspace(config lxcConfig) error {
 }
 
 func setReadme(config lxcConfig) error {
-	readmePath := path.Join(config.RootFS, "home", "action", "README.md")
+	readmePath := path.Join(config.Rootfs, "home", "action", "README.md")
 	readme, err := os.Create(readmePath)
 	if err != nil {
 		return &pr.OpError{Op: "set readme", Err: err}
@@ -58,7 +58,7 @@ func setReadme(config lxcConfig) error {
 }
 
 func setEtcAction(config lxcConfig) error {
-	actionPath := path.Join(config.RootFS, "etc", "action")
+	actionPath := path.Join(config.Rootfs, "etc", "action")
 	if err := os.MkdirAll(actionPath, 0755); err != nil {
 		return &pr.OpError{Op: "mkdir etc action", Err: err}
 	}
@@ -85,7 +85,7 @@ func setEtcAction(config lxcConfig) error {
 }
 
 func setPremiumStatus(config lxcConfig) error {
-	actionPath := path.Join(config.RootFS, "etc", "action")
+	actionPath := path.Join(config.Rootfs, "etc", "action")
 	premiumPath := path.Join(actionPath, "premium")
 	if config.Premium {
 		if err := os.MkdirAll(actionPath, 0755); err != nil {
@@ -104,7 +104,7 @@ func setPremiumStatus(config lxcConfig) error {
 }
 
 func setHostname(config lxcConfig) error {
-	hostNamePath := path.Join(config.RootFS, "etc", "hostname")
+	hostNamePath := path.Join(config.Rootfs, "etc", "hostname")
 	hostName, err := os.Create(hostNamePath)
 	if err != nil {
 		return err
@@ -115,7 +115,7 @@ func setHostname(config lxcConfig) error {
 }
 
 func setHosts(config lxcConfig) error {
-	hostsPath := path.Join(config.RootFS, "etc", "hosts")
+	hostsPath := path.Join(config.Rootfs, "etc", "hosts")
 	hosts, err := os.Create(hostsPath)
 	if err != nil {
 		return err
@@ -125,7 +125,7 @@ func setHosts(config lxcConfig) error {
 }
 
 func setNetworkInterface(config lxcConfig) error {
-	networkConfigPath := path.Join(config.RootFS, "etc", "network", "interfaces")
+	networkConfigPath := path.Join(config.Rootfs, "etc", "network", "interfaces")
 	networkConfig, err := os.Create(networkConfigPath)
 	if err != nil {
 		return err
@@ -135,7 +135,7 @@ func setNetworkInterface(config lxcConfig) error {
 }
 
 func setDefaultKeyPair(config lxcConfig) error {
-	sshPath := path.Join(config.RootFS, "home", "action", ".ssh")
+	sshPath := path.Join(config.Rootfs, "home", "action", ".ssh")
 	sshKeyFile := path.Join(sshPath, "id_rsa")
 	if err := os.MkdirAll(sshPath, 0755); err != nil {
 		return err
@@ -157,17 +157,17 @@ func setPermission(config lxcConfig) error {
 	uid := config.Uid
 	gid := config.Uid // same as uid
 	permission := fmt.Sprintf("%s:%s", uid, gid)
-	if err := utils.RunCommand("chroot", config.RootFS, "usermod", "-u", uid, "action"); err != nil {
+	if err := utils.RunCommand("chroot", config.Rootfs, "usermod", "-u", uid, "action"); err != nil {
 		return err
 	}
-	if err := utils.RunCommand("chroot", config.RootFS, "groupmod", "-g", gid, "action"); err != nil {
+	if err := utils.RunCommand("chroot", config.Rootfs, "groupmod", "-g", gid, "action"); err != nil {
 		return err
 	}
-	return utils.RunCommand("chroot", config.RootFS, "chown", "-R", permission, "/home/action")
+	return utils.RunCommand("chroot", config.Rootfs, "chown", "-R", permission, "/home/action")
 }
 
 func setPartsInitUpstart(config lxcConfig) error {
-	confPath := path.Join(config.RootFS, "etc", "init", "parts-init.conf")
+	confPath := path.Join(config.Rootfs, "etc", "init", "parts-init.conf")
 	confFile, err := os.Create(confPath)
 	if err != nil {
 		return err
@@ -177,7 +177,7 @@ func setPartsInitUpstart(config lxcConfig) error {
 }
 
 func setNitrousboxrcUpstart(config lxcConfig) error {
-	confPath := path.Join(config.RootFS, "etc", "init", "run-nitrousboxrc.conf")
+	confPath := path.Join(config.Rootfs, "etc", "init", "run-nitrousboxrc.conf")
 	confFile, err := os.Create(confPath)
 	if err != nil {
 		return err
@@ -188,7 +188,7 @@ func setNitrousboxrcUpstart(config lxcConfig) error {
 
 func setNitrousboxrcSample(config lxcConfig) error {
 	samplePath := path.Join("home", UpstartConfSettings["ActionUser"], UpstartConfSettings["NitrousboxrcSample"])
-	sampleFile, err := os.Create(path.Join(config.RootFS, samplePath))
+	sampleFile, err := os.Create(path.Join(config.Rootfs, samplePath))
 	if err != nil {
 		return err
 	}
@@ -199,5 +199,5 @@ func setNitrousboxrcSample(config lxcConfig) error {
 	}
 	sampleFile.Close()
 	permission := fmt.Sprintf("%s:%s", config.Uid, config.Uid)
-	return utils.RunCommand("chroot", config.RootFS, "chown", "-R", permission, samplePath)
+	return utils.RunCommand("chroot", config.Rootfs, "chown", "-R", permission, samplePath)
 }

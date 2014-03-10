@@ -292,7 +292,7 @@ func (b *Box) Snapshot(snapshotId int) (snapshot *Snapshot, err error) {
 	tarName := fmt.Sprintf("%s-snapshot-%d.tar.gz", b.ContainerName(), snapshotId)
 	logger.Printf("%s: creating snapshot tarball %s\n", b.ContainerName(), tarName)
 
-	tarPath, err := archive.Tar(tarName, path.Join(b.RootFS(), "home", "action"))
+	tarPath, err := archive.Tar(tarName, path.Join(b.Rootfs(), "home", "action"))
 	if err != nil {
 		err = fmt.Errorf("Snapshot: failed to compress delta %v", err)
 		return
@@ -355,16 +355,16 @@ func (b *Box) ContainerName() string {
 }
 
 func (b *Box) PublicKeysPath() string {
-	return path.Join(b.RootFS(), "etc", "ssh", "univ_public_keys")
+	return path.Join(b.Rootfs(), "etc", "ssh", "univ_public_keys")
 }
 
 func (b *Box) EnvPath() string {
-	return path.Join(b.RootFS(), "etc", "environment")
+	return path.Join(b.Rootfs(), "etc", "environment")
 }
 
 // rootfs of the container. This is the root after unionized so its typically
 // will be in boxer.Root i.e /var/lib/lxc
-func (b *Box) RootFS() string {
+func (b *Box) Rootfs() string {
 	return b.getProvisioner().GetRoot(b.ContainerName(), b.UniqueId)
 }
 
@@ -550,7 +550,7 @@ func (b *Box) CurrentSpec() *BoxSpec {
 }
 
 func (b *Box) UpdatePremiumStatus() error {
-	actionPath := path.Join(b.RootFS(), "etc", "action")
+	actionPath := path.Join(b.Rootfs(), "etc", "action")
 	premiumPath := path.Join(actionPath, "premium")
 	if b.Premium {
 		if err := os.MkdirAll(actionPath, 0755); err != nil {
