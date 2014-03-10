@@ -68,7 +68,7 @@ lxc.cgroup.devices.allow = c 10:232 rwm
 lxc.utsname = {{.ContainerName}}
 
 {{$LXCPATH := .LxcPath}}
-{{$ROOTFS := .RootFS}}
+{{$ROOTFS := .Rootfs}}
 lxc.rootfs = {{$ROOTFS}}
 lxc.mount.entry = proc proc proc nodev,noexec,nosuid 0 0
 lxc.mount.entry = sysfs sys sysfs defaults 0 0

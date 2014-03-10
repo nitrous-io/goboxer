@@ -279,7 +279,7 @@ func (s *BoxerSuite) TestCreateBox(c *C) {
 
 		c.Assert(box.PublicKeys, DeepEquals, []string{"ssh-rsa QWER", "ssh-rsa ASDF"})
 
-		root := box.RootFS()
+		root := box.Rootfs()
 
 		spec := boxContentSpec{
 			Exists: []string{
@@ -345,7 +345,7 @@ func (s *BoxerSuite) TestCreateWithSnapshot(c *C) {
 
 		c.Assert(box.PublicKeys, DeepEquals, []string{"ssh-rsa QWER", "ssh-rsa ASDF"})
 
-		root := box.RootFS()
+		root := box.Rootfs()
 
 		spec := boxContentSpec{
 			Exists: []string{
@@ -429,7 +429,7 @@ func (s *BoxerSuite) TestCreatePremiumBox(c *C) {
 			}))
 
 		DoesContain(c, map[string][]string{
-			box.RootFS() + "/etc/action/premium": {"1"},
+			box.Rootfs() + "/etc/action/premium": {"1"},
 		})
 
 		b, _ := s.ResourcePool.FindBox("mclovins-container-1")
@@ -451,7 +451,7 @@ func (s *BoxerSuite) TestStop(c *C) {
 
 		c.Assert(box.State, Equals, "stopped")
 		DoesNotExist(c, []string{
-			box.RootFS(),
+			box.Rootfs(),
 		})
 
 		AssertIptablesOutput(c, "192.168.254.2:22", false)
@@ -474,7 +474,7 @@ func (s *BoxerSuite) TestStart(c *C) {
 		s.assertBoxState(c, box, "running")
 
 		DoesExist(c, []string{
-			box.RootFS(),
+			box.Rootfs(),
 		})
 	})
 }
@@ -489,7 +489,7 @@ func (s *BoxerSuite) TestStartSetsPublicKeys(c *C) {
 		c.Assert(message.Type, Equals, "aio:started")
 		c.Assert(message.Success, Equals, true)
 		DoesContain(c, map[string][]string{
-			box.RootFS() + "/etc/ssh/univ_public_keys": {
+			box.Rootfs() + "/etc/ssh/univ_public_keys": {
 				"ssh-rsa QWER",
 				"ssh-rsa ASDF",
 			},
@@ -509,7 +509,7 @@ func (s *BoxerSuite) TestStartAcceptsPublicKeys(c *C) {
 		c.Assert(message.Type, Equals, "aio:started")
 		c.Assert(message.Success, Equals, true)
 		DoesContain(c, map[string][]string{
-			box.RootFS() + "/etc/ssh/univ_public_keys": {
+			box.Rootfs() + "/etc/ssh/univ_public_keys": {
 				"ssh-rsa second",
 				"ssh-rsa third",
 			},
@@ -528,7 +528,7 @@ func (s *BoxerSuite) TestStartSetsPublicKeysOnStoppedBox(c *C) {
 		c.Assert(message.Type, Equals, "aio:started")
 		c.Assert(message.Success, Equals, true)
 		DoesContain(c, map[string][]string{
-			box.RootFS() + "/etc/ssh/univ_public_keys": {"ssh-rsa 1"},
+			box.Rootfs() + "/etc/ssh/univ_public_keys": {"ssh-rsa 1"},
 		})
 		c.Assert(box.PublicKeys, DeepEquals, []string{"ssh-rsa 1"})
 
@@ -541,10 +541,10 @@ func (s *BoxerSuite) TestStartSetsPublicKeysOnStoppedBox(c *C) {
 		c.Assert(message.Type, Equals, "aio:started")
 		c.Assert(message.Success, Equals, true)
 		DoesNotContain(c, map[string][]string{
-			box.RootFS() + "/etc/ssh/univ_public_keys": {"ssh-rsa 1"},
+			box.Rootfs() + "/etc/ssh/univ_public_keys": {"ssh-rsa 1"},
 		})
 		DoesContain(c, map[string][]string{
-			box.RootFS() + "/etc/ssh/univ_public_keys": {
+			box.Rootfs() + "/etc/ssh/univ_public_keys": {
 				"ssh-rsa 2",
 				"ssh-rsa 3",
 			},
@@ -567,7 +567,7 @@ func (s *BoxerSuite) TestStartPersistsPublicKeysFromFile(c *C) {
 		c.Assert(message.Type, Equals, "aio:started")
 		c.Assert(message.Success, Equals, true)
 		DoesExist(c, []string{
-			box.RootFS() + "/etc/ssh/univ_public_keys",
+			box.Rootfs() + "/etc/ssh/univ_public_keys",
 		})
 		c.Assert(box.PublicKeys, DeepEquals, []string{})
 
@@ -577,7 +577,7 @@ func (s *BoxerSuite) TestStartPersistsPublicKeysFromFile(c *C) {
 		box.WritePublicKeys()
 		box.PublicKeys = []string(nil) // Reset to no keys in Redis.
 		DoesContain(c, map[string][]string{
-			box.RootFS() + "/etc/ssh/univ_public_keys": {
+			box.Rootfs() + "/etc/ssh/univ_public_keys": {
 				"ssh-rsa QWER",
 				"ssh-rsa ASDF",
 			},
@@ -593,7 +593,7 @@ func (s *BoxerSuite) TestStartPersistsPublicKeysFromFile(c *C) {
 		c.Assert(message.Type, Equals, "aio:started")
 		c.Assert(message.Success, Equals, true)
 		DoesContain(c, map[string][]string{
-			box.RootFS() + "/etc/ssh/univ_public_keys": {
+			box.Rootfs() + "/etc/ssh/univ_public_keys": {
 				"ssh-rsa QWER",
 				"ssh-rsa ASDF",
 			},
@@ -639,7 +639,7 @@ func (s *BoxerSuite) TestStartWithNewSpecs(c *C) {
 		c.Assert(message.Success, Equals, true)
 
 		spec := boxContentSpec{
-			Exists: []string{box.RootFS()},
+			Exists: []string{box.Rootfs()},
 			Contains: map[string][]string{
 				lxcConfigPath(box): []string{
 					"lxc.cgroup.memory.limit_in_bytes = 640M",
@@ -753,11 +753,11 @@ func (s *BoxerSuite) TestStartWritesNitrousboxrcFiles(c *C) {
 		c.Assert(message.Success, Equals, true)
 
 		DoesContain(c, map[string][]string{
-			box.RootFS() + "/etc/init/run-nitrousboxrc.conf": {
+			box.Rootfs() + "/etc/init/run-nitrousboxrc.conf": {
 				"setuid action",
 				"setgid action",
 			},
-			box.RootFS() + "/home/action/.nitrousboxrc.sample": {
+			box.Rootfs() + "/home/action/.nitrousboxrc.sample": {
 				"cp ~/.nitrousboxrc.sample ~/.nitrousboxrc",
 				"chmod +x ~/.nitrousboxrc",
 			},
@@ -786,19 +786,19 @@ func (s *BoxerSuite) TestStartRunsPartsInit(c *C) {
 echo $@ > /home/action/parts-inited
 touch /etc/pam.d/shouldnotexist
 `
-		partsFile, err := os.Create(filepath.Join(box.RootFS(), "usr", "bin", "parts"))
+		partsFile, err := os.Create(filepath.Join(box.Rootfs(), "usr", "bin", "parts"))
 		c.Assert(err, IsNil)
 		partsFile.WriteString(partsData)
 		partsFile.Chmod(os.FileMode(0755))
 		partsFile.Sync()
 		partsFile.Close()
-		err = os.RemoveAll(box.RootFS() + "/home/action/parts-inited")
+		err = os.RemoveAll(box.Rootfs() + "/home/action/parts-inited")
 		c.Assert(err, IsNil)
 
 		_, box = s.receiveMessages("mclovins-container-1",
 			s.makeMessage("aio:restart", defaultMsg))
 
-		initedPath := box.RootFS() + "/home/action/parts-inited"
+		initedPath := box.Rootfs() + "/home/action/parts-inited"
 		RetryEvery(1*time.Second, 10*time.Second, func() bool {
 			return exists(initedPath)
 		})
@@ -809,7 +809,7 @@ touch /etc/pam.d/shouldnotexist
 		})
 		// check that parts init is running without privileges
 		DoesNotExist(c, []string{
-			box.RootFS() + "/etc/pam.d/shouldnotexist",
+			box.Rootfs() + "/etc/pam.d/shouldnotexist",
 		})
 	})
 }
@@ -833,19 +833,19 @@ func (s *BoxerSuite) TestStartRunsNitrousboxrc(c *C) {
 echo check logging
 touch filetouch # check pwd
 rm /etc/sudoers # check privileges, stderr logging`
-		rcFile, err := os.Create(filepath.Join(box.RootFS(), "home", "action", ".nitrousboxrc"))
+		rcFile, err := os.Create(filepath.Join(box.Rootfs(), "home", "action", ".nitrousboxrc"))
 		c.Assert(err, IsNil)
 		rcFile.WriteString(rcData)
 		rcFile.Chmod(os.FileMode(0755))
 		rcFile.Sync()
 		rcFile.Close()
-		err = os.RemoveAll(box.RootFS() + "/home/action/nitrousboxrc.log")
+		err = os.RemoveAll(box.Rootfs() + "/home/action/nitrousboxrc.log")
 		c.Assert(err, IsNil)
 
 		_, box = s.receiveMessages("mclovins-container-1",
 			s.makeMessage("aio:restart", defaultMsg))
 
-		logPath := box.RootFS() + "/home/action/.nitrousboxrc.log"
+		logPath := box.Rootfs() + "/home/action/.nitrousboxrc.log"
 		RetryEvery(1*time.Second, 10*time.Second, func() bool {
 			return exists(logPath)
 		})
@@ -862,8 +862,8 @@ rm /etc/sudoers # check privileges, stderr logging`
 		startCount := strings.Count(fileContent, "Starting")
 		c.Assert(startCount, Equals, 1, Commentf("Expected .nitrousboxrc to run once, ran %d times", startCount))
 		DoesExist(c, []string{
-			box.RootFS() + "/home/action/filetouch",
-			box.RootFS() + "/etc/sudoers",
+			box.Rootfs() + "/home/action/filetouch",
+			box.Rootfs() + "/etc/sudoers",
 		})
 	})
 }
@@ -873,7 +873,7 @@ func (s *BoxerSuite) TestDestroy(c *C) {
 		stratValue testProvisionStrategy) {
 		message, box := s.receiveMessages("mclovins-container-1",
 			s.makeCreateMessage(defaultMsg))
-		containerPlace := []string{box.RootFS()}
+		containerPlace := []string{box.Rootfs()}
 
 		message, box = s.receiveMessages("mclovins-container-1",
 			s.makeMessage("aio:destroy", defaultMsg))
@@ -903,7 +903,7 @@ func (s *BoxerSuite) TestDestroyWithDeeplyNestedPath(c *C) {
 			s.makeCreateMessage(defaultMsg),
 			s.makeMessage("aio:start", defaultMsg))
 		// create a deeply nested path
-		paths := []string{box.RootFS()}
+		paths := []string{box.Rootfs()}
 		for i := 0; i < 1000; i++ {
 			paths = append(paths, "holla")
 		}
@@ -932,7 +932,7 @@ func (s *BoxerSuite) TestRestart(c *C) {
 
 		s.assertBoxState(c, box, "running")
 
-		containerPlace := []string{box.RootFS()}
+		containerPlace := []string{box.Rootfs()}
 		DoesExist(c, containerPlace)
 	})
 }
@@ -1132,7 +1132,7 @@ func (s *BoxerSuite) TestStopStartNewlyPremiumBox(c *C) {
 		c.Assert(message.BoxId, Equals, 1)
 		c.Assert(message.Success, Equals, true)
 		DoesContain(c, map[string][]string{
-			box.RootFS() + "/etc/action/premium": {"1"},
+			box.Rootfs() + "/etc/action/premium": {"1"},
 			lxcConfigPath(box):                   {"lxc.cgroup.cpu.cfs_period_us = 1000000"},
 			lxcConfigPath(box):                   {"lxc.cgroup.cpu.cfs_quota_us = 500000"},
 		})
@@ -1149,7 +1149,7 @@ func (s *BoxerSuite) TestStopStartNewlyPremiumBox(c *C) {
 		c.Assert(message.Success, Equals, true)
 
 		DoesContain(c, map[string][]string{
-			box.RootFS() + "/etc/action/premium": {"1"},
+			box.Rootfs() + "/etc/action/premium": {"1"},
 			lxcConfigPath(box):                   {"lxc.cgroup.cpu.cfs_period_us = 1000000"},
 			lxcConfigPath(box):                   {"lxc.cgroup.cpu.cfs_quota_us = 1000000"},
 		})
@@ -1177,7 +1177,7 @@ func (s *BoxerSuite) TestUpdatePremium(c *C) {
 		c.Assert(message.Success, Equals, true)
 
 		DoesContain(c, map[string][]string{
-			box.RootFS() + "/etc/action/premium": {"1"},
+			box.Rootfs() + "/etc/action/premium": {"1"},
 		})
 
 		s.assertInvalidateCartman(c, box)
@@ -1191,7 +1191,7 @@ func (s *BoxerSuite) TestUpdatePremium(c *C) {
 			}))
 
 		DoesNotExist(c, []string{
-			box.RootFS() + "/etc/action/premium",
+			box.Rootfs() + "/etc/action/premium",
 		})
 
 		s.assertInvalidateCartman(c, box)
@@ -1221,7 +1221,7 @@ func (s *BoxerSuite) TestAddPublicKey(c *C) {
 			"ssh-rsa publickey",
 		})
 		DoesContain(c, map[string][]string{
-			box.RootFS() + "/etc/ssh/univ_public_keys": {
+			box.Rootfs() + "/etc/ssh/univ_public_keys": {
 				"ssh-rsa QWER",
 				"ssh-rsa ASDF",
 				"ssh-rsa publickey",
@@ -1249,7 +1249,7 @@ func (s *BoxerSuite) TestAddPublicKeyToStoppedBox(c *C) {
 		c.Assert(message.DataType, Equals, "aio:configured:add_public_key")
 		c.Assert(box.State, Equals, "stopped")
 		DoesNotExist(c, []string{
-			box.RootFS(),
+			box.Rootfs(),
 		})
 
 		// Public keys are persisted to Redis and won't be available on the
@@ -1282,7 +1282,7 @@ func (s *BoxerSuite) TestAddPublicKeyStripsNewlines(c *C) {
 			"ssh-rsa publickey",
 		})
 		DoesContain(c, map[string][]string{
-			box.RootFS() + "/etc/ssh/univ_public_keys": {
+			box.Rootfs() + "/etc/ssh/univ_public_keys": {
 				"ssh-rsa QWER",
 				"ssh-rsa publickey",
 			},
@@ -1303,7 +1303,7 @@ func (s *BoxerSuite) TestRemovePublicKey(c *C) {
 
 		c.Assert(box.PublicKeys, DeepEquals, []string{"ssh-rsa QWER", "ssh-rsa ASDF"})
 		DoesContain(c, map[string][]string{
-			box.RootFS() + "/etc/ssh/univ_public_keys": {
+			box.Rootfs() + "/etc/ssh/univ_public_keys": {
 				"ssh-rsa QWER",
 				"ssh-rsa ASDF",
 			},
@@ -1323,10 +1323,10 @@ func (s *BoxerSuite) TestRemovePublicKey(c *C) {
 
 		c.Assert(box.PublicKeys, DeepEquals, []string{"ssh-rsa ASDF"})
 		DoesContain(c, map[string][]string{
-			box.RootFS() + "/etc/ssh/univ_public_keys": {"ssh-rsa ASDF"},
+			box.Rootfs() + "/etc/ssh/univ_public_keys": {"ssh-rsa ASDF"},
 		})
 		DoesNotContain(c, map[string][]string{
-			box.RootFS() + "/etc/ssh/univ_public_keys": {"ssh-rsa QWER"},
+			box.Rootfs() + "/etc/ssh/univ_public_keys": {"ssh-rsa QWER"},
 		})
 	})
 }
@@ -1348,7 +1348,7 @@ func (s *BoxerSuite) TestRemovePublicKeyFromStoppedBox(c *C) {
 		c.Assert(message.DataType, Equals, "aio:configured:remove_public_key")
 		c.Assert(box.State, Equals, "stopped")
 		DoesNotExist(c, []string{
-			box.RootFS(),
+			box.Rootfs(),
 		})
 
 		// Public keys are persisted to Redis.
@@ -1580,7 +1580,7 @@ func (s *BoxerSuite) TestSetEnvVariables(c *C) {
 		c.Assert(message.Success, Equals, true)
 
 		DoesContain(c, map[string][]string{
-			box.RootFS() + "/etc/environment": []string{
+			box.Rootfs() + "/etc/environment": []string{
 				"RDS_HOST=mysql://insecure",
 				"RDS_PASSWORD=mysql-insecure",
 			},
@@ -1610,13 +1610,13 @@ func (s *BoxerSuite) TestDoubleSetEnvVariables(c *C) {
 
 		spec := boxContentSpec{
 			Contains: map[string][]string{
-				box.RootFS() + "/etc/environment": []string{
+				box.Rootfs() + "/etc/environment": []string{
 					"RDS_HOST=mysql://secure",
 					"RDS_PASSWORD=mysql-insecure",
 				},
 			},
 			NotContains: map[string][]string{
-				box.RootFS() + "/etc/environment": []string{
+				box.Rootfs() + "/etc/environment": []string{
 					"RDS_HOST=mysql://insecure",
 				},
 			},
@@ -1654,12 +1654,12 @@ func (s *BoxerSuite) TestRemoveEnvVariables(c *C) {
 
 		spec := boxContentSpec{
 			Contains: map[string][]string{
-				box.RootFS() + "/etc/environment": []string{
+				box.Rootfs() + "/etc/environment": []string{
 					"REDIS_HOST=127.0.0.1",
 				},
 			},
 			NotContains: map[string][]string{
-				box.RootFS() + "/etc/environment": []string{
+				box.Rootfs() + "/etc/environment": []string{
 					"RDS_HOST=mysql://insecure",
 					"RDS_PASSWORD=mysql-insecure",
 				},
