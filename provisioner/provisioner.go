@@ -9,14 +9,6 @@ type InitFunc func(root string) (Provisioner, error)
 
 type CallbackFunc func(root string) error
 
-type Data struct {
-	Name      string // name of the container
-	Id        string // unique id for a container
-	RootPath  string // root path of the container
-	DeltaPath string // delta path of the container
-	Status    string // current status of the container
-}
-
 // Represents settings of a container
 type Config struct {
 	Id                    string
@@ -64,16 +56,14 @@ type Provisioner interface {
 	// destroy the container
 	Destroy(config Config) error
 
+	// change lxc-related config of a container
 	ChangeConfig(config Config) error
 
 	// get the current path to the container root
 	GetRoot(name, id string) string
 
-	// get current path to the container lxc path.
-	GetLxc(name, id string) string
-
-	// check if the current container is mounted at the correct path
-	IsMounted(name, id string) (bool, error)
+	// get lxc config path
+	GetConfig(name, id string) string
 }
 
 type OpError struct {
@@ -86,7 +76,7 @@ func (e *OpError) Error() string {
 }
 
 var (
-	NoopCallback       = func(data *Data) error { return nil }
+	NoopCallback       = func(root string) error { return nil }
 	DefaultProvisioner string
 	provisioners       map[string]InitFunc
 )

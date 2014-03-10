@@ -358,10 +358,6 @@ func (b *Box) PublicKeysPath() string {
 	return path.Join(b.RootFS(), "etc", "ssh", "univ_public_keys")
 }
 
-func (b *Box) LxcPath() string {
-	return b.getProvisioner().GetLxc(b.ContainerName(), b.UniqueId)
-}
-
 func (b *Box) EnvPath() string {
 	return path.Join(b.RootFS(), "etc", "environment")
 }
