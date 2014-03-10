@@ -2,6 +2,7 @@ package goboxer
 
 import (
 	"encoding/json"
+	. "github.com/action-io/goboxer/checks"
 	"github.com/action-io/goboxer/utils"
 	. "github.com/motain/gocheck"
 )
@@ -82,7 +83,9 @@ func (s *BoxSuite) TestCpuQuotaMicroseconds(c *C) {
 }
 
 func (s *BoxSuite) TestStringer(c *C) {
-	b := &Box{Id: 1, Name: "fogell", UniqueId: "1234", State: "stopped", Ip: "192.168.1.100", Port: 10000, Disk: "/lxc/disk1", MountMethod: "aufs", BoxerId: "testboxer", Premium: false}
+	b := &Box{Id: 1, Name: "fogell", UniqueId: "1234", State: "stopped",
+		Ip: "192.168.1.100", Port: 10000, Disk: "/lxc/disk1",
+		MountMethod: "aufs", BoxerId: "testboxer", Premium: false}
 	c.Assert(b.String(), Contains, "Id:1")
 	c.Assert(b.String(), Contains, "Name:fogell")
 	c.Assert(b.String(), Contains, "UniqueId:1234")

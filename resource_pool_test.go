@@ -3,6 +3,7 @@ package goboxer
 import (
 	"time"
 
+	. "github.com/action-io/goboxer/checks"
 	"github.com/action-io/goboxer/utils"
 	"github.com/garyburd/redigo/redis"
 	. "github.com/motain/gocheck"
