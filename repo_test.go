@@ -26,21 +26,42 @@ type RepoSuite struct {
 var _ = Suite(&RepoSuite{})
 
 func (s *RepoSuite) SetUpSuite(c *C) {
-	fakeRepo := func(cmd *exec.Cmd, wd string) ([]byte, error) {
-		if err := os.MkdirAll(wd, 0755); err != nil {
+	os.RemoveAll(ScratchDir)
+	fakeRepo := func(wd string, cmds ...*exec.Cmd) ([]byte, error) {
+		var (
+			output []byte
+			err    error
+		)
+		if err = os.MkdirAll(wd, 0755); err != nil {
 			return []byte{}, err
 		}
-		cmd.Dir = wd
-		return cmd.CombinedOutput()
+		for _, cmd := range cmds {
+			cmd.Dir = wd
+			output, err = cmd.CombinedOutput()
+			if err != nil {
+				return output, err
+			}
+		}
+		return output, err
 	}
 
-	out, err := fakeRepo(exec.Command("git", "init"), FakeGitRepoPath)
-	c.Assert(err, IsNil, Commentf("Error on git init: %s\nOutput: %s", err, out))
+	out, err := fakeRepo(FakeGitRepoPath,
+		exec.Command("git", "init"),
+		exec.Command("touch", ".gitignore"),
+		exec.Command("git", "add", ".gitignore"),
+		exec.Command("git", "commit", "-m", "Initial Commit"),
+	)
+	c.Assert(err, IsNil, Commentf("Error on git fake: %s\nOutput: %s", err, out))
 
-	out, err = fakeRepo(exec.Command("hg", "init"), FakeHgRepoPath)
-	c.Assert(err, IsNil, Commentf("Error on hg init: %s\nOutput: %s", err, out))
+	out, err = fakeRepo(FakeHgRepoPath,
+		exec.Command("hg", "init"),
+		exec.Command("touch", ".hgignore"),
+		exec.Command("hg", "add", ".hgignore"),
+		exec.Command("hg", "commit", "-m", "Initial Commit"),
+	)
+	c.Assert(err, IsNil, Commentf("Error on hg fake: %s\nOutput: %s", err, out))
 
-	out, err = fakeRepo(exec.Command("echo", "no-op"), BadRepoPath)
+	out, err = fakeRepo(BadRepoPath, exec.Command("echo", "no-op"))
 	c.Assert(err, IsNil, Commentf("Error on no-op: %s\nOutput: %s", err, out))
 }
 
@@ -73,4 +94,59 @@ func (s *RepoSuite) TestIdentifyScm(c *C) {
 	c.Assert(s.HgRepo.Scm, Equals, ScmMercurial)
 	s.BadRepo.identifyScm()
 	c.Assert(s.BadRepo.Scm, Equals, ScmUnsupported)
+}
+
+func (s *RepoSuite) TestFreshLocation(c *C) {
+	url := "https://github.com/papers-we-love/papers-we-love.git"
+	dir, _ := (&Repo{Url: url}).freshLocation(ScratchDir)
+	c.Assert(dir, Equals, path.Join(ScratchDir, "papers-we-love"))
+
+	for _, suffix := range []string{"", "1", "2", "3"} {
+		os.Mkdir(path.Join(ScratchDir, "papers-we-love"+suffix), 0755)
+	}
+
+	dir, _ = (&Repo{Url: url}).freshLocation(ScratchDir)
+	c.Assert(dir, Equals, path.Join(ScratchDir, "papers-we-love4"))
+
+	os.Mkdir(path.Join(ScratchDir, "papers-we-love4"), 0755)
+	_, err := (&Repo{Url: url}).freshLocation(ScratchDir)
+	c.Check(err, NotNil)
+	c.Assert(err.Error(), Equals, "No applicable destination directory")
+}
+
+func (s *RepoSuite) TestCloneGit(c *C) {
+	cloneDir := path.Join(ScratchDir, "clone-dest")
+	os.MkdirAll(cloneDir, 0755)
+	s.GitRepo.Clone(cloneDir)
+	cmd := exec.Command("git", "status")
+	cmd.Dir = path.Join(cloneDir, "fake-git")
+	c.Assert(cmd.Run(), IsNil)
+}
+
+func (s *RepoSuite) TestCloneHg(c *C) {
+	cloneDir := path.Join(ScratchDir, "clone-dest")
+	os.MkdirAll(cloneDir, 0755)
+	s.HgRepo.Clone(cloneDir)
+	cmd := exec.Command("hg", "summary")
+	cmd.Dir = path.Join(cloneDir, "fake-hg")
+	c.Assert(cmd.Run(), IsNil)
+}
+
+func (s *RepoSuite) TestCloneUnsupported(c *C) {
+	cloneDir := path.Join(ScratchDir, "clone-dest")
+	os.MkdirAll(cloneDir, 0755)
+	err := s.BadRepo.Clone(cloneDir)
+	c.Check(err, NotNil)
+	c.Assert(err.Error(), Equals,
+		fmt.Sprintf("SCM for %s cannot be determined", s.BadRepo.Url))
+}
+
+func (s *RepoSuite) TestCloneWithExecCommandError(c *C) {
+	cloneDir := path.Join(ScratchDir, "clone-dest")
+	os.MkdirAll(cloneDir, 0755)
+	s.GitRepo.Scm = ScmMercurial
+	err := s.GitRepo.Clone(cloneDir)
+
+	// FIXME: need to change Clone() to return more descriptive errors
+	c.Assert(err, ErrorMatches, "exit status 255")
 }
