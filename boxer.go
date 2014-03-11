@@ -8,6 +8,7 @@ package goboxer
 import (
 	"fmt"
 	"runtime"
+	"runtime/debug"
 	"time"
 
 	"github.com/action-io/goboxer/cartman"
@@ -110,7 +111,8 @@ func (boxer *Boxer) ReceiveAsync(message Message) MessageChannel {
 func (boxer *Boxer) Receive(msg Message) (message Message) {
 	defer func() {
 		if r := recover(); r != nil {
-			logger.Println("PANIC", r)
+			logger.Println("goboxer: PANIC", r)
+			debug.PrintStack()
 			message = boxer.NewInvalidParamMessage()
 		}
 	}()
