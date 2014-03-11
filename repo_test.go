@@ -9,10 +9,6 @@ import (
 	. "github.com/motain/gocheck"
 )
 
-const (
-	ScratchDir = "/tmp/repo-test"
-)
-
 var (
 	FakeGitRepoPath = path.Join(ScratchDir, "fake-git")
 	FakeHgRepoPath  = path.Join(ScratchDir, "fake-hg")
@@ -27,42 +23,14 @@ var _ = Suite(&RepoSuite{})
 
 func (s *RepoSuite) SetUpSuite(c *C) {
 	os.RemoveAll(ScratchDir)
-	fakeRepo := func(wd string, cmds ...*exec.Cmd) ([]byte, error) {
-		var (
-			output []byte
-			err    error
-		)
-		if err = os.MkdirAll(wd, 0755); err != nil {
-			return []byte{}, err
-		}
-		for _, cmd := range cmds {
-			cmd.Dir = wd
-			output, err = cmd.CombinedOutput()
-			if err != nil {
-				return output, err
-			}
-		}
-		return output, err
-	}
+	err := MakeRepo(FakeGitRepoPath, ScmGit)
+	c.Assert(err, IsNil, Commentf("Error on git fake: %s\n", err))
 
-	out, err := fakeRepo(FakeGitRepoPath,
-		exec.Command("git", "init"),
-		exec.Command("touch", ".gitignore"),
-		exec.Command("git", "add", ".gitignore"),
-		exec.Command("git", "commit", "-m", "Initial Commit"),
-	)
-	c.Assert(err, IsNil, Commentf("Error on git fake: %s\nOutput: %s", err, out))
+	err = MakeRepo(FakeHgRepoPath, ScmMercurial)
+	c.Assert(err, IsNil, Commentf("Error on hg fake: %s\n", err))
 
-	out, err = fakeRepo(FakeHgRepoPath,
-		exec.Command("hg", "init"),
-		exec.Command("touch", ".hgignore"),
-		exec.Command("hg", "add", ".hgignore"),
-		exec.Command("hg", "commit", "-m", "Initial Commit"),
-	)
-	c.Assert(err, IsNil, Commentf("Error on hg fake: %s\nOutput: %s", err, out))
-
-	out, err = fakeRepo(BadRepoPath, exec.Command("echo", "no-op"))
-	c.Assert(err, IsNil, Commentf("Error on no-op: %s\nOutput: %s", err, out))
+	err = MakeRepo(BadRepoPath, ScmUnsupported)
+	c.Assert(err, IsNil, Commentf("Error on unsupported fake: %s\n", err))
 }
 
 func (s *RepoSuite) TearDownSuite(c *C) {

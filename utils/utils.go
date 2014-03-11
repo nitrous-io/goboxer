@@ -155,3 +155,24 @@ func PipeCommands(commands ...*exec.Cmd) ([]byte, error) {
 
 	return output, nil
 }
+
+// MultiRun runs multiple cmds in working dir wd.  On error, returns the output
+// and error of the problem command, otherwise returns the output of the last
+// command and nil.
+func MultiRun(wd string, commands ...*exec.Cmd) ([]byte, error) {
+	var (
+		output []byte
+		err    error
+	)
+	if err = os.MkdirAll(wd, 0755); err != nil {
+		return []byte{}, err
+	}
+	for _, cmd := range commands {
+		cmd.Dir = wd
+		output, err = cmd.CombinedOutput()
+		if err != nil {
+			return output, err
+		}
+	}
+	return output, err
+}

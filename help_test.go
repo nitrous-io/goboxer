@@ -10,7 +10,11 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/action-io/goboxer/utils"
 )
+
+const ScratchDir = "/tmp/goboxer-tests" // where file artifacts are placed
 
 // Hook up gocheck into go test runner.
 func Test(t *testing.T) { TestingT(t) }
@@ -149,4 +153,29 @@ func AssertIptablesOutput(c *C, str string, assertion bool) {
 	output, _ := exec.Command("iptables", "-L", "-n", "-t", "nat").Output()
 	c.Assert(strings.Contains(string(output), "192.168.254.2:22"), Equals,
 		assertion)
+}
+
+func MakeRepo(repoPath string, scm uint) error {
+	if err := os.MkdirAll(repoPath, 0755); err != nil {
+		return err
+	}
+	makeRepo := func(scmCommand string) error {
+		_, err := utils.MultiRun(repoPath,
+			exec.Command(scmCommand, "init"),
+			exec.Command("touch", fmt.Sprintf(".%signore", scmCommand)),
+			exec.Command(scmCommand, "add", fmt.Sprintf(".%signore", scmCommand)),
+			exec.Command(scmCommand, "commit", "-m", "Initial Commit"))
+		return err
+	}
+	switch scm {
+	case ScmGit:
+		return makeRepo("git")
+	case ScmMercurial:
+		return makeRepo("hg")
+	case ScmUnsupported:
+		return nil
+	default:
+		panic("Switch not exhaustive")
+	}
+	panic("Switch should return")
 }
