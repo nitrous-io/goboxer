@@ -11,16 +11,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/action-io/goboxer/archive"
 	"github.com/action-io/goboxer/ip"
 	"github.com/action-io/goboxer/lxc"
-	"github.com/action-io/goboxer/mount"
 	"github.com/action-io/goboxer/quota"
-	"github.com/action-io/goboxer/s3"
 	"github.com/action-io/goboxer/utils"
+
+	pr "github.com/action-io/goboxer/provisioner"
+	_ "github.com/action-io/goboxer/provisioner/lxc"
 )
 
 const UID_START = 15000
-const THIN_VG = "boxes"
 const DEFAULT_SWAPPINESS = 60
 const DEFAULT_CPU_SHARES = 512
 const DEFAULT_CPU_PERIOD = 1000000 // cpu.cfs_period_us: 1 million microseconds
@@ -44,15 +45,6 @@ type BoxInfo struct {
 	StorageUsage float64 `json:"storageUsage,omitempty"`
 	MemoryUsage  float64 `json:"memoryUsage,omitempty"`
 	LxcStatus    string  `json:"lxcStatus,omitempty"`
-}
-
-// MemorySpecChange contains old and new ValueUnit strings for memory and total
-// memory
-type MemorySpecChange struct {
-	OldMemory      string
-	OldTotalMemory string
-	NewMemory      string
-	NewTotalMemory string
 }
 
 // UniqueId is the guaranteed unique id *only* for the current box over its lifetime
@@ -91,6 +83,8 @@ type Box struct {
 	CpuQuota         float64
 	// hold a reference to boxer so that we can access mutex capabilities
 	boxer *Boxer
+	// reference to the provisioner
+	provisioner pr.Provisioner
 }
 
 type BoxOpError struct {
@@ -108,18 +102,7 @@ func BoxFromJSON(boxJSON []byte) (*Box, error) {
 	if err := json.Unmarshal(boxJSON, box); err != nil {
 		return nil, err
 	}
-	box.Prepare()
 	return box, nil
-}
-
-// Prepare the box with useful default value
-func (b *Box) Prepare() {
-	if b.Swappiness == 0 {
-		b.Swappiness = DEFAULT_SWAPPINESS
-	}
-	if b.CpuShares == 0 {
-		b.CpuShares = DEFAULT_CPU_SHARES
-	}
 }
 
 // return the valid value that should be applied to `cpuset.cpus`
@@ -141,6 +124,67 @@ func (b *Box) CpuQuotaMicroseconds() int {
 	return int(b.CpuQuota * DEFAULT_CPU_PERIOD)
 }
 
+func (b *Box) getProvisioner() pr.Provisioner {
+	if b.provisioner == nil {
+		b.provisioner, _ = pr.GetProvisioner("lxc", b.Disk)
+	}
+	return b.provisioner
+}
+
+func (b *Box) provisionerConfig() pr.Config {
+	if b.Swappiness == 0 {
+		b.Swappiness = DEFAULT_SWAPPINESS
+	}
+	if b.CpuShares == 0 {
+		b.CpuShares = DEFAULT_CPU_SHARES
+	}
+
+	return pr.Config{
+		Id:                    b.UniqueId,
+		ContainerName:         b.ContainerName(),
+		ContainerId:           b.Id,
+		Uid:                   b.Uid(),
+		Template:              b.Template,
+		Ip:                    b.Ip,
+		Gateway:               b.Gateway,
+		NetworkInterface:      b.NetworkInterface,
+		MacAddress:            b.MacAddress(),
+		Memory:                b.Memory,
+		TotalMemory:           b.TotalMemory(),
+		CpuShares:             b.CpuShares,
+		CpuQuota:              b.CpuQuota,
+		CpuPeriodMicroseconds: b.CpuPeriodMicroseconds(),
+		CpuQuotaMicroseconds:  b.CpuQuotaMicroseconds(),
+		CpuSet:                b.CpuSet,
+		CpuSetStr:             b.CpuSetStr(),
+		PublicKeys:            b.PublicKeys,
+		SnapshotUrl:           b.SnapshotUrl,
+		Runtime:               b.Runtime,
+		Premium:               b.Premium,
+	}
+}
+
+func (b *Box) getConfigFromSpec(spec *BoxSpec) pr.Config {
+	msc := pr.MemorySpecChange{
+		OldMemory:      b.Memory,
+		OldTotalMemory: b.TotalMemory(),
+	}
+	if spec.Memory != b.Memory {
+		b.Memory = spec.Memory
+	}
+	if spec.CpuShares != b.CpuShares {
+		b.CpuShares = spec.CpuShares
+	}
+	if spec.VirtualMemory != b.VirtualMemory {
+		b.VirtualMemory = spec.VirtualMemory
+	}
+	config := b.provisionerConfig()
+	msc.NewMemory = b.Memory
+	msc.NewTotalMemory = b.TotalMemory()
+	config.MemorySpecChange = msc
+	return config
+}
+
 // Create a new box
 //
 // This create a new box. The chosen provisioning scheme will depend on
@@ -150,43 +194,26 @@ func (b *Box) Create() error {
 	defer logger.LogDuration(
 		fmt.Sprintf("%s:Create", b.ContainerName()),
 	)(time.Now())
-	if err := b.generateUniqueId(); err != nil {
-		return &BoxOpError{Op: "generate unique ID", Err: err}
+	var id string
+	var err error
+
+	if b.willUseTemplate() {
+		id, _, err = b.getProvisioner().Create(b.provisionerConfig())
+		if err != nil {
+			return &BoxOpError{Op: "create box from template", Err: err}
+		}
+	} else {
+		id, _, err = b.getProvisioner().CreateFromSnapshot(b.provisionerConfig(),
+			b.boxer.S3Auth)
+		if err != nil {
+			return &BoxOpError{Op: "create box from snapshot", Err: err}
+		}
 	}
-	if err := b.Mount(b.boxer.Root); err != nil {
-		return &BoxOpError{Op: "mount box", Err: err}
-	}
-	if err := b.generateUserContent(); err != nil {
-		return &BoxOpError{Op: "generate user content", Err: err}
-	}
-	if err := b.writeConfig(); err != nil {
-		return &BoxOpError{Op: "write lxc config", Err: err}
-	}
-	if err := b.setEtcAction(); err != nil {
-		return &BoxOpError{Op: "create /etc/action", Err: err}
-	}
-	if err := b.UpdatePremiumStatus(); err != nil {
-		return err
-	}
-	if err := b.setHostname(); err != nil {
-		return &BoxOpError{Op: "set host name", Err: err}
-	}
-	if err := b.setHosts(); err != nil {
-		return &BoxOpError{Op: "set /etc/hosts", Err: err}
-	}
-	if err := b.setNetworkInterface(); err != nil {
-		return &BoxOpError{Op: "set network interface", Err: err}
-	}
-	if err := b.setDefaultKeyPair(); err != nil {
-		return &BoxOpError{Op: "set default key pair", Err: err}
-	}
-	if err := b.setPermission(); err != nil {
-		return &BoxOpError{Op: "set permission", Err: err}
-	}
+	b.UniqueId = id
+	b.State = "stopped"
 	if err := b.SetQuota(); err != nil {
 		return err
 	}
-	b.State = "stopped"
 	return nil
 }
 
@@ -194,32 +221,23 @@ func (b *Box) Start(spec *BoxSpec) error {
 	defer logger.LogDuration(
 		fmt.Sprintf("%s:Start %s", b.ContainerName(), b.MountName()),
 	)(time.Now())
-	if err := b.Mount(b.boxer.Root); err != nil {
+	beforeStart := func(root string) error {
+		if err := b.WritePublicKeys(); err != nil {
+			return &BoxOpError{Op: "write public keys", Err: err}
+		}
+		if err := b.setPortForwarding(); err != nil {
+			return &BoxOpError{Op: "set port forwarding", Err: err}
+		}
+		if err := b.changeQuota(spec); err != nil {
+			return &BoxOpError{Op: "spec change", Err: err}
+		}
+		return nil
+	}
+	_, _, err := b.getProvisioner().Start(b.getConfigFromSpec(spec), beforeStart)
+	if err != nil {
 		return err
 	}
-	if err := b.WritePublicKeys(); err != nil {
-		return &BoxOpError{Op: "write public keys", Err: err}
-	}
-	if err := b.setPortForwarding(); err != nil {
-		return &BoxOpError{Op: "set port forwarding", Err: err}
-	}
-	// this change spec without restarting the box
-	if err := b.handleSpecChange(spec, true); err != nil {
-		return &BoxOpError{Op: "spec change", Err: err}
-	}
-	if err := b.addPartsInitUpstart(); err != nil {
-		return &BoxOpError{Op: "parts init upstart", Err: err}
-	}
-	if err := b.addNitrousboxrcUpstart(); err != nil {
-		return &BoxOpError{Op: "nitrousboxrc upstart", Err: err}
-	}
-	if err := b.addNitrousboxrcSample(); err != nil {
-		return &BoxOpError{Op: "nitrousboxrc sample", Err: err}
-	}
-	err := lxc.Start(b.ContainerName(), b.MountName())
-	if err != nil {
-		return &BoxOpError{Op: "lxc-start " + b.MountName(), Err: err}
-	}
+	b.State = "running"
 	return nil
 }
 
@@ -237,13 +255,13 @@ func (b *Box) Stop() error {
 		// ignore error from unset port forwarding here as its not harmful
 		logger.Printf("%v", &BoxOpError{Op: "unset port forwarding", Err: err})
 	}
-	if lxc.Poweroff(b.MountName()) != nil {
-		utils.RunCommand("pkill", "-9", "-u", b.Uid())
-		if err := lxc.Stop(b.ContainerName(), b.MountName()); err != nil {
-			return &BoxOpError{Op: "lxc-stop " + b.MountName(), Err: err}
-		}
+	id, err := b.getProvisioner().Stop(b.provisionerConfig())
+	if err != nil {
+		return err
 	}
-	return b.Unmount(b.boxer.Root)
+	b.UniqueId = id
+	b.State = "stopped"
+	return nil
 }
 
 func (b *Box) Restart(spec *BoxSpec) error {
@@ -266,7 +284,7 @@ func (b *Box) Destroy() error {
 	if err := b.UnsetQuota(); err != nil {
 		return &BoxOpError{Op: "unset quota", Err: err}
 	}
-	return b.DeleteContainerData()
+	return b.getProvisioner().Destroy(b.provisionerConfig())
 }
 
 func (b *Box) Snapshot(snapshotId int) (snapshot *Snapshot, err error) {
@@ -283,7 +301,8 @@ func (b *Box) Snapshot(snapshotId int) (snapshot *Snapshot, err error) {
 
 	tarName := fmt.Sprintf("%s-snapshot-%d.tar.gz", b.ContainerName(), snapshotId)
 	logger.Printf("%s: creating snapshot tarball %s\n", b.ContainerName(), tarName)
-	tarPath, err := Tar(tarName, b.ContainerUserHomePath())
+
+	tarPath, err := archive.Tar(tarName, path.Join(b.Rootfs(), "home", "action"))
 	if err != nil {
 		err = fmt.Errorf("Snapshot: failed to compress delta %v", err)
 		return
@@ -304,10 +323,6 @@ func (b *Box) Snapshot(snapshotId int) (snapshot *Snapshot, err error) {
 	}
 	snapshot = &Snapshot{Url: snapshotUrl, Size: uncompressedSize}
 	return
-}
-
-func (b *Box) CgroupSet(subsystem, value string) error {
-	return lxc.CgroupSet(b.MountName(), subsystem, value)
 }
 
 func (b *Box) UpdateAuth(auth BoxAuth) error {
@@ -343,44 +358,17 @@ func (b *Box) ContainerName() string {
 }
 
 func (b *Box) PublicKeysPath() string {
-	return path.Join(b.RootFS(), "etc", "ssh", "univ_public_keys")
-}
-
-func (b *Box) LxcPath() string {
-	return path.Join(b.boxer.Root, b.MountName())
-}
-
-func (b *Box) ContainerFS() string {
-	return path.Join(b.Disk, b.MountName())
+	return path.Join(b.Rootfs(), "etc", "ssh", "univ_public_keys")
 }
 
 func (b *Box) EnvPath() string {
-	return path.Join(b.RootFS(), "etc", "environment")
+	return path.Join(b.Rootfs(), "etc", "environment")
 }
 
 // rootfs of the container. This is the root after unionized so its typically
 // will be in boxer.Root i.e /var/lib/lxc
-func (b *Box) RootFS() string {
-	return path.Join(b.boxer.Root, b.MountName(), "rootfs")
-}
-
-// path of the box's templates.  (i.e. ruby_template.tar.gz,
-// python_template.tar.gz etc)
-func (b *Box) TemplatePath() string {
-	templateName := b.Template + ".tar.gz"
-	return path.Join(b.boxer.Root, templateName)
-}
-
-// we actually want the delta folders for non-lvm containers to be consistent
-// because they will never be mountpoints, so we use Box#ContainerName() here
-// and not Box#MountName()
-func (b *Box) ContainerDeltaPath() string {
-	return path.Join(b.Disk, b.ContainerName()+"_delta")
-}
-
-// ContainerUserHomePath returns the full path to the user's home directory.
-func (b *Box) ContainerUserHomePath() string {
-	return path.Join(b.ContainerDeltaPath(), "rootfs", "home", "action")
+func (b *Box) Rootfs() string {
+	return b.getProvisioner().GetRoot(b.ContainerName(), b.UniqueId)
 }
 
 func (b *Box) Uid() string {
@@ -544,7 +532,15 @@ func (b *Box) UnsetQuota() error {
 }
 
 func (b *Box) ChangeSpec(spec *BoxSpec) error {
-	return b.handleSpecChange(spec, false)
+	config := b.getConfigFromSpec(spec)
+	err := b.getProvisioner().ChangeConfig(config)
+	if err != nil {
+		return err
+	}
+	if err := b.changeQuota(spec); err != nil {
+		return err
+	}
+	return b.boxer.ResourcePool.SaveBox(b)
 }
 
 func (b *Box) CurrentSpec() *BoxSpec {
@@ -557,7 +553,7 @@ func (b *Box) CurrentSpec() *BoxSpec {
 }
 
 func (b *Box) UpdatePremiumStatus() error {
-	actionPath := path.Join(b.RootFS(), "etc", "action")
+	actionPath := path.Join(b.Rootfs(), "etc", "action")
 	premiumPath := path.Join(actionPath, "premium")
 	if b.Premium {
 		if err := os.MkdirAll(actionPath, 0755); err != nil {
@@ -573,85 +569,6 @@ func (b *Box) UpdatePremiumStatus() error {
 	} else {
 		return os.RemoveAll(premiumPath)
 	}
-}
-
-func (b *Box) Mount(root string) error {
-	b.boxer.Lock(b.Id)
-	defer b.boxer.Unlock(b.Id)
-	defer logger.LogDuration(
-		fmt.Sprintf("%s:Mount", b.ContainerName()),
-	)(time.Now())
-
-	boxDeltaPath := b.ContainerDeltaPath()
-	mountMethod := b.getMountMethod()
-	switch mountMethod {
-	case "overlayfs", "aufs":
-		// overlayfs or aufs strategy
-		//
-		// we are going to create a delta folder which will hold user data,
-		// union with the base container template in the same disk, and mount
-		// it over to root ( /var/lib/lxc )
-		boxPath := b.ContainerFS()
-		baseContainerPath := path.Join(b.Disk, "base_container_template")
-		if err := mount.Union(b.getMountMethod(), boxPath, boxDeltaPath, baseContainerPath); err != nil {
-			return &BoxOpError{Op: "overlayfs/aufs mount", Err: err}
-		}
-		// FIXME: MountBind to make it similar to boxer. Ideally we probably
-		// want to symlink as it doesnt make any difference and seems to be
-		// more stable. Less mountpoint is better
-		err := mount.MountBind(boxPath, b.LxcPath())
-		if err != nil {
-			return &BoxOpError{Op: "overlayfs/aufs mount-bind", Err: err}
-		}
-		return err
-	default:
-		return fmt.Errorf("box: %s is not a supported mount method", mountMethod)
-	}
-}
-
-// Unmount will always regenerate an unique id for the box, so it guarantees
-// that the next mount operation will success even if `Unmount` fails
-func (b *Box) Unmount(root string) error {
-	b.boxer.Lock(b.Id)
-	defer b.boxer.Unlock(b.Id)
-	defer logger.LogDuration(
-		fmt.Sprintf("%s:Unmount", b.ContainerName()),
-	)(time.Now())
-	// always re-generate a new unique id when unmount the path
-	defer b.generateUniqueId()
-	mountMethod := b.getMountMethod()
-	if err := mount.Unmount(mountMethod, b.LxcPath()); err != nil {
-		logger.Println(&BoxOpError{Op: mountMethod + " unmount", Err: err})
-	}
-	switch mountMethod {
-	case "overlayfs", "aufs":
-		if err := mount.Unmount(mountMethod, b.ContainerFS()); err != nil {
-			logger.Println(&BoxOpError{Op: mountMethod + " unmount", Err: err})
-		}
-	default:
-		return fmt.Errorf("%s is not a supported unmount method", mountMethod)
-	}
-	return nil
-}
-
-func (b *Box) lxcMounted() (bool, error) {
-	return mount.Mounted(b.LxcPath())
-}
-
-func (b *Box) DeleteContainerData() error {
-	// if golang failed to remove container, drops into cmdline as it seems to
-	// work all the times. We just prefer to do it in golang first.
-	if err := os.RemoveAll(b.ContainerDeltaPath()); err != nil {
-		err = utils.RunCommand("rm", "-r", "-f", b.ContainerDeltaPath())
-		if err != nil {
-			return &BoxOpError{Op: "remove container delta", Err: err}
-		}
-	}
-	err := os.RemoveAll(b.ContainerFS())
-	if err != nil {
-		return &BoxOpError{Op: "remove container FS", Err: err}
-	}
-	return nil
 }
 
 // Return current memory usage of the box as memory cgroup reported it
@@ -726,43 +643,7 @@ func (b *Box) RemoveEnv(data []string) (err error) {
 	return
 }
 
-// this requires the box to be mounted because we are writing lxc config into
-// the mounted path, not the _delta path
-func (b *Box) handleSpecChange(spec *BoxSpec, forceWriteConfig bool) error {
-	willWriteConfig := false
-	msc := &MemorySpecChange{
-		OldMemory:      b.Memory,
-		OldTotalMemory: b.TotalMemory(),
-	}
-	if spec.Memory != b.Memory {
-		b.Memory = spec.Memory
-		willWriteConfig = true
-	}
-	if spec.CpuShares != b.CpuShares {
-		b.CpuShares = spec.CpuShares
-		willWriteConfig = true
-	}
-	if spec.VirtualMemory != b.VirtualMemory {
-		b.VirtualMemory = spec.VirtualMemory
-		willWriteConfig = true
-	}
-	if willWriteConfig || forceWriteConfig {
-		if err := b.boxer.ResourcePool.SaveBox(b); err != nil {
-			return &BoxOpError{Op: "save", Err: err}
-		}
-		mounted, err := b.lxcMounted()
-		if err != nil {
-			return &BoxOpError{Op: "write lxc config", Err: err}
-		}
-		if mounted {
-			// if not mounted (stopped state), the config will be written upon
-			// next Start()
-			err = b.writeConfig()
-			if err != nil {
-				return &BoxOpError{Op: "write lxc config", Err: err}
-			}
-		}
-	}
+func (b *Box) changeQuota(spec *BoxSpec) error {
 	if len(spec.DiskSpace) > 0 && spec.DiskSpace != b.DiskSpace {
 		oldDiskSpace := b.DiskSpace
 		b.DiskSpace = spec.DiskSpace
@@ -771,45 +652,7 @@ func (b *Box) handleSpecChange(spec *BoxSpec, forceWriteConfig bool) error {
 			return &BoxOpError{Op: "set disk quota", Err: err}
 		}
 	}
-	// apply new memory quota immediately for running boxes
-	if b.State == "running" && (b.Memory != msc.OldMemory || b.TotalMemory() != msc.OldTotalMemory) {
-		msc.NewMemory = b.Memory
-		msc.NewTotalMemory = b.TotalMemory()
-		if err := b.liveUpdateMemory(msc); err != nil {
-			return &BoxOpError{Op: "live adjust memory quota", Err: err}
-		}
-	}
 	return nil
-}
-
-func (b *Box) liveUpdateMemory(msc *MemorySpecChange) error {
-	order := msc.settingOrder()
-	for _, kvPair := range order {
-		k, v := kvPair[0], kvPair[1]
-		if err := b.CgroupSet(k, v); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// memorySettingOrder returns a slice of arguments to lxc-cgroup (slice of
-// strings) signifying what order to change the settings in.   lxc-cgroup
-// enforces invariant:
-//   memory.limit_in_bytes < memory.memsw.limit_in_bytes
-// so we need to order operations accordingly
-func (msc *MemorySpecChange) settingOrder() [][]string {
-	var (
-		memKeyValue      = []string{"memory.limit_in_bytes", msc.NewMemory}
-		totalMemKeyValue = []string{"memory.memsw.limit_in_bytes", msc.NewTotalMemory}
-	)
-	stringToByte := func(s string) int {
-		return quota.ConvertValueUnitToByte(quota.ParseValueUnit(s))
-	}
-	if stringToByte(msc.OldMemory) > stringToByte(msc.NewTotalMemory) {
-		return [][]string{memKeyValue, totalMemKeyValue}
-	}
-	return [][]string{totalMemKeyValue, memKeyValue}
 }
 
 func (b *Box) quotaArg() quota.QuotaArg {
@@ -819,59 +662,13 @@ func (b *Box) quotaArg() quota.QuotaArg {
 		Disk:  b.Disk,
 		Limit: b.DiskSpace,
 	}
-	arg.Path = b.ContainerUserHomePath()
 	return arg
-}
-
-func (b *Box) getMountMethod() string {
-	if b.MountMethod == "aufs" || b.Aufs {
-		return "aufs"
-	} else if b.MountMethod == "failed" {
-		return "failed"
-	}
-	return "overlayfs"
-}
-
-func (b *Box) getQuotaMethod() string {
-	return b.QuotaMethod
 }
 
 // return the quota strategy that the box should use. The return object will be
 // an instance that supports quota.QuotaInterface interface
 func (b *Box) quota() quota.QuotaInterface {
-	return quota.Provisioner.GetQuota(b.getQuotaMethod())
-}
-
-// rewrite lxc config of the box
-func (b *Box) writeConfig() error {
-	// we want to re-check the box values here to make sure that only valid lxc
-	// config value will be saved
-	b.Prepare()
-	lxcConfigPath := path.Join(b.LxcPath(), "config")
-	lxcConfig, err := os.Create(lxcConfigPath)
-	if err != nil {
-		return err
-	}
-	defer lxcConfig.Close()
-	return LxcTemplateCompiled.Execute(lxcConfig, b)
-}
-
-// set correct permission for user's home folder so he/she can write onto it
-func (b *Box) setPermission() error {
-	defer logger.LogDuration(
-		fmt.Sprintf("%s:SetPermission", b.ContainerName()),
-	)(time.Now())
-	uid := b.Uid()
-	gid := b.Gid()
-	permission := fmt.Sprintf("%s:%s", b.Uid(), b.Gid())
-	root := b.RootFS()
-	if err := utils.RunCommand("chroot", root, "usermod", "-u", uid, "action"); err != nil {
-		return err
-	}
-	if err := utils.RunCommand("chroot", root, "groupmod", "-g", gid, "action"); err != nil {
-		return err
-	}
-	return utils.RunCommand("chroot", root, "chown", "-R", permission, "/home/action")
+	return quota.Provisioner.GetQuota(b.QuotaMethod)
 }
 
 func (b *Box) setPortForwarding() error {
@@ -896,175 +693,12 @@ func (b *Box) unsetPortForwarding() error {
 	}
 }
 
-func (b *Box) extractTemplate() error {
-	boxHomePath := path.Join(b.RootFS(), "home", "action")
-	return Untar(b.TemplatePath(), boxHomePath)
+func (b *Box) willUseTemplate() bool {
+	return len(b.SnapshotUrl) == 0
 }
 
-func (b *Box) setEtcAction() error {
-	actionPath := path.Join(b.RootFS(), "etc", "action")
-	if err := os.MkdirAll(actionPath, 0755); err != nil {
-		return err
-	}
-	// set box_id
-	boxIdFile, err := os.Create(path.Join(actionPath, "box_id"))
-	if err != nil {
-		return err
-	}
-	defer boxIdFile.Close()
-	if _, err = boxIdFile.WriteString(strconv.Itoa(b.Id)); err != nil {
-		return err
-	}
-	// set box_user
-	boxUserFile, err := os.Create(path.Join(actionPath, "box_user"))
-	if err != nil {
-		return err
-	}
-	defer boxUserFile.Close()
-	_, err = boxUserFile.WriteString("action")
-	return err
-}
-
-func (b *Box) setHostname() error {
-	hostNamePath := path.Join(b.RootFS(), "etc", "hostname")
-	hostName, err := os.Create(hostNamePath)
-	if err != nil {
-		return err
-	}
-	defer hostName.Close()
-	_, err = hostName.WriteString(b.ContainerName())
-	return err
-}
-
-func (b *Box) setHosts() error {
-	hostsPath := path.Join(b.RootFS(), "etc", "hosts")
-	hosts, err := os.Create(hostsPath)
-	if err != nil {
-		return err
-	}
-	defer hosts.Close()
-	return HostsTemplateCompiled.Execute(hosts, b)
-}
-
-func (b *Box) setNetworkInterface() error {
-	networkConfigPath := path.Join(b.RootFS(), "etc", "network", "interfaces")
-	networkConfig, err := os.Create(networkConfigPath)
-	if err != nil {
-		return err
-	}
-	defer networkConfig.Close()
-	return NetworkConfigCompiled.Execute(networkConfig, b)
-}
-
-func (b *Box) setWorkspace() error {
-	workspacePath := path.Join(b.RootFS(), "home", "action", "workspace")
-	return os.MkdirAll(workspacePath, 0755)
-}
-
-func (b *Box) addReadme() error {
-	readmePath := path.Join(b.RootFS(), "home", "action", "README.md")
-	readme, err := os.Create(readmePath)
-	if err != nil {
-		return err
-	}
-	defer readme.Close()
-	return RuntimeTemplates.Get(b.Runtime).Execute(readme, b)
-}
-
-func (b *Box) setDefaultKeyPair() error {
-	sshPath := path.Join(b.RootFS(), "home", "action", ".ssh")
-	sshKeyFile := path.Join(sshPath, "id_rsa")
-	if err := os.MkdirAll(sshPath, 0755); err != nil {
-		return err
-	}
-	if _, err := os.Stat(sshKeyFile); os.IsNotExist(err) {
-		sshKeygen := fmt.Sprintf("ssh-keygen -N '' -f %s -b 1024 -t rsa -q",
-			sshKeyFile)
-		if err := utils.RunCommand("/bin/sh", "-c", sshKeygen); err != nil {
-			return err
-		}
-	} else {
-		return err
-	}
-	return nil
-}
-
-func (b *Box) addPartsInitUpstart() error {
-	confPath := path.Join(b.RootFS(), "etc", "init", "parts-init.conf")
-	confFile, err := os.Create(confPath)
-	if err != nil {
-		return err
-	}
-	defer confFile.Close()
-	return PartsInitConfTemplateCompiled.Execute(confFile, UpstartConfSettings)
-}
-
-func (b *Box) addNitrousboxrcUpstart() error {
-	confPath := path.Join(b.RootFS(), "etc", "init", "run-nitrousboxrc.conf")
-	confFile, err := os.Create(confPath)
-	if err != nil {
-		return err
-	}
-	defer confFile.Close()
-	return RunNitrousboxrcConfTemplateCompiled.Execute(confFile, UpstartConfSettings)
-}
-
-func (b *Box) addNitrousboxrcSample() error {
-	samplePath := path.Join("home", UpstartConfSettings["ActionUser"], UpstartConfSettings["NitrousboxrcSample"])
-	sampleFile, err := os.Create(path.Join(b.RootFS(), samplePath))
-	if err != nil {
-		return err
-	}
-	err = NitrousboxrcSampleTemplateCompiled.Execute(sampleFile, UpstartConfSettings)
-	if err != nil {
-		sampleFile.Close()
-		return err
-	}
-	sampleFile.Close()
-	permission := fmt.Sprintf("%s:%s", b.Uid(), b.Gid())
-	return utils.RunCommand("chroot", b.RootFS(), "chown", "-R", permission, samplePath)
-}
-
-func (b *Box) generateUniqueId() error {
-	b.UniqueId = strconv.FormatInt(time.Now().UnixNano(), 10)
-	return b.save()
-}
-
-// this is used in Create() to generate the user content for the box. User
-// content can come from a snapshot on s3, or from predefined template
-func (b *Box) generateUserContent() error {
-	if len(b.SnapshotUrl) > 0 {
-		// parse snapshot url which should be an s3 path
-		url, err := s3.ParseUrl(b.SnapshotUrl)
-		if err != nil {
-			return &BoxOpError{Op: "parse s3 url", Err: err}
-		}
-		client, err := b.boxer.S3Auth.NewClient(url.Region, url.Bucket)
-		if err != nil {
-			return &BoxOpError{Op: "create s3 client", Err: err}
-		}
-		stream, err := client.Download(url.File)
-		if err != nil {
-			return &BoxOpError{Op: "download s3 stream", Err: err}
-		}
-		if err := os.MkdirAll(b.ContainerUserHomePath(), 0755); err != nil {
-			return &BoxOpError{Op: "creating user home directory", Err: err}
-		}
-		if err := UntarStream(stream, b.ContainerUserHomePath()); err != nil {
-			return &BoxOpError{Op: "untar s3 stream", Err: err}
-		}
-	} else {
-		if err := b.extractTemplate(); err != nil {
-			return &BoxOpError{Op: "extract template", Err: err}
-		}
-		if err := b.setWorkspace(); err != nil {
-			return &BoxOpError{Op: "set workspace", Err: err}
-		}
-		if err := b.addReadme(); err != nil {
-			return &BoxOpError{Op: "add readme", Err: err}
-		}
-	}
-	return nil
+func homePath(root string) string {
+	return path.Join(root, "home", "action")
 }
 
 // wraps around boxer and resourcePool so we have a single place to trigger

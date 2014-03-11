@@ -1,4 +1,4 @@
-package goboxer
+package lxc
 
 import (
 	"fmt"
@@ -68,15 +68,15 @@ lxc.cgroup.devices.allow = c 10:232 rwm
 lxc.utsname = {{.ContainerName}}
 
 {{$LXCPATH := .LxcPath}}
-{{$ROOTFS := .RootFS}}
+{{$ROOTFS := .Rootfs}}
 lxc.rootfs = {{$ROOTFS}}
 lxc.mount.entry = proc proc proc nodev,noexec,nosuid 0 0
 lxc.mount.entry = sysfs sys sysfs defaults 0 0
 lxc.mount.entry = /sys/fs/fuse/connections sys/fs/fuse/connections none bind,optional 0 0
 lxc.mount.entry = /sys/kernel/debug sys/kernel/debug none bind 0 0
 lxc.mount.entry = /sys/kernel/security sys/kernel/security none bind 0 0
-
 `
+
 const NetworkConfigTemplate = `
 auto lo
 iface lo inet loopback
@@ -318,23 +318,23 @@ set -e
 `
 
 var (
-	NetworkConfigCompiled               *template.Template
-	LxcTemplateCompiled                 *template.Template
 	HostsTemplateCompiled               *template.Template
+	LxcTemplateCompiled                 *template.Template
+	NetworkConfigCompiled               *template.Template
+	NitrousboxrcSampleTemplateCompiled  *template.Template
 	PartsInitConfTemplateCompiled       *template.Template
 	RunNitrousboxrcConfTemplateCompiled *template.Template
-	NitrousboxrcSampleTemplateCompiled  *template.Template
 )
 
 var (
-	ReadmeTemplateCompiled *template.Template
-	TestTemplateCompiled   *template.Template
-	RailsTemplateCompiled  *template.Template
 	DjangoTemplateCompiled *template.Template
-	NodejsTemplateCompiled *template.Template
 	GoTemplateCompiled     *template.Template
+	NodejsTemplateCompiled *template.Template
 	PhpTemplateCompiled    *template.Template
+	RailsTemplateCompiled  *template.Template
+	ReadmeTemplateCompiled *template.Template
 	RuntimeTemplates       ReadmeTemplates
+	TestTemplateCompiled   *template.Template
 )
 
 type ReadmeTemplates map[string]*template.Template
@@ -349,11 +349,11 @@ func (r ReadmeTemplates) Get(name string) *template.Template {
 
 func init() {
 	HostsTemplateCompiled = template.Must(template.New("hosts").Parse(HostsTemplate))
-	NetworkConfigCompiled = template.Must(template.New("network").Parse(NetworkConfigTemplate))
 	LxcTemplateCompiled = template.Must(template.New("lxc").Parse(LxcTemplate))
+	NetworkConfigCompiled = template.Must(template.New("network").Parse(NetworkConfigTemplate))
+	NitrousboxrcSampleTemplateCompiled = template.Must(template.New("nitrousboxrc.sample").Parse(NitrousboxrcSampleTemplate))
 	PartsInitConfTemplateCompiled = template.Must(template.New("parts-init.conf").Parse(PartsInitConfTemplate))
 	RunNitrousboxrcConfTemplateCompiled = template.Must(template.New("run-nitrousboxrc.conf").Parse(RunNitrousboxrcConfTemplate))
-	NitrousboxrcSampleTemplateCompiled = template.Must(template.New("nitrousboxrc.sample").Parse(NitrousboxrcSampleTemplate))
 
 	ReadmeTemplateCompiled = template.Must(template.New("readme_template").Parse(ReadmeTemplate))
 	TestTemplateCompiled = template.Must(template.New("test_template").Parse(TestTemplate))

@@ -2,6 +2,7 @@ package goboxer
 
 import (
 	"encoding/json"
+	. "github.com/action-io/goboxer/checks"
 	"github.com/action-io/goboxer/utils"
 	. "github.com/motain/gocheck"
 )
@@ -9,13 +10,6 @@ import (
 type BoxSuite struct{}
 
 var _ = Suite(&BoxSuite{})
-
-func (s *BoxSuite) TestPrepare(c *C) {
-	b := &Box{}
-	b.Prepare()
-	c.Assert(b.Swappiness, Equals, 60) // FIXME How to stub constants in Golang?
-	c.Assert(b.CpuShares, Equals, 512)
-}
 
 func (s *BoxSuite) TestTotalMemory(c *C) {
 	b := &Box{Memory: "384M"}
@@ -72,39 +66,6 @@ func (s *BoxSuite) TestMountName(c *C) {
 	c.Assert(b.MountName(), Equals, "test-123-123456")
 }
 
-func (s *BoxSuite) TestLxcPath(c *C) {
-	b := &Box{Name: "test", Id: 123, UniqueId: "123456"}
-	b.boxer = &Boxer{Root: "/var/lib/lxc"}
-	c.Assert(b.LxcPath(), Equals, "/var/lib/lxc/test-123-123456")
-}
-
-func (s *BoxSuite) TestContainerFS(c *C) {
-	b := &Box{Name: "test", Id: 123, UniqueId: "123456", Disk: "/lxc/disk1",
-		MountMethod: "aufs"}
-	b.boxer = &Boxer{Root: "/var/lib/lxc"}
-	c.Assert(b.ContainerFS(), Equals, "/lxc/disk1/test-123-123456")
-}
-
-func (s *BoxSuite) TestRootFS(c *C) {
-	b := &Box{Name: "test", Id: 123, UniqueId: "123456", Disk: "/lxc/disk1",
-		MountMethod: "aufs"}
-	b.boxer = &Boxer{Root: "/var/lib/lxc"}
-	c.Assert(b.RootFS(), Equals, "/var/lib/lxc/test-123-123456/rootfs")
-}
-
-func (s *BoxSuite) TestContainerDeltaPath(c *C) {
-	b := &Box{Name: "test", Id: 123, UniqueId: "123456", Disk: "/lxc/disk1",
-		MountMethod: "aufs"}
-	b.boxer = &Boxer{Root: "/var/lib/lxc"}
-	c.Assert(b.ContainerDeltaPath(), Equals, "/lxc/disk1/test-123_delta")
-}
-
-func (s *BoxSuite) TestContainerUserHomePath(c *C) {
-	b := &Box{Name: "test", Id: 123, UniqueId: "123456", Disk: "/lxc/disk1", MountMethod: "aufs"}
-	b.boxer = &Boxer{Root: "/var/lib/lxc"}
-	c.Assert(b.ContainerUserHomePath(), Equals, "/lxc/disk1/test-123_delta/rootfs/home/action")
-}
-
 func (s *BoxSuite) TestCpuSetString(c *C) {
 	b := &Box{CpuSet: []int{0}}
 	c.Assert(b.CpuSetStr(), Equals, "0")
@@ -122,7 +83,9 @@ func (s *BoxSuite) TestCpuQuotaMicroseconds(c *C) {
 }
 
 func (s *BoxSuite) TestStringer(c *C) {
-	b := &Box{Id: 1, Name: "fogell", UniqueId: "1234", State: "stopped", Ip: "192.168.1.100", Port: 10000, Disk: "/lxc/disk1", MountMethod: "aufs", BoxerId: "testboxer", Premium: false}
+	b := &Box{Id: 1, Name: "fogell", UniqueId: "1234", State: "stopped",
+		Ip: "192.168.1.100", Port: 10000, Disk: "/lxc/disk1",
+		MountMethod: "aufs", BoxerId: "testboxer", Premium: false}
 	c.Assert(b.String(), Contains, "Id:1")
 	c.Assert(b.String(), Contains, "Name:fogell")
 	c.Assert(b.String(), Contains, "UniqueId:1234")
