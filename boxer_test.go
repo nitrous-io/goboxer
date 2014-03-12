@@ -221,6 +221,7 @@ func (s *BoxerSuite) SetUpTest(c *C) {
 		DefaultCPUQuota: 0.5,
 		PremiumCPUQuota: 1.0,
 	}
+	os.MkdirAll(ScratchDir, 0755)
 }
 
 func (s *BoxerSuite) TearDownTest(c *C) {
@@ -228,6 +229,7 @@ func (s *BoxerSuite) TearDownTest(c *C) {
 	defer conn.Close()
 	defer s.Redis.Close()
 	conn.Do("FLUSHDB")
+	os.RemoveAll(ScratchDir)
 }
 
 func (s *BoxerSuite) TestSetCpuSet(c *C) {
@@ -1975,5 +1977,51 @@ func (s *BoxerSuite) TestDeleteSnapshot(c *C) {
 		c.Assert(message.Success, Equals, false)
 		c.Assert(message.Type, Equals, "aio:deleted_snapshot")
 		c.Assert(message.SnapshotId, Equals, 124)
+	})
+}
+
+func (s *BoxerSuite) TestCloneUnsupportedRepositoryFromHandler(c *C) {
+	var badRepoPath = filepath.Join(ScratchDir, "fake-bad")
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+		message, _ := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:clone_repository", func(msg *Message) {
+				msg.RepositoryUrl = fmt.Sprintf("file://%s", badRepoPath)
+			}))
+
+		c.Assert(message.Success, Equals, false)
+		c.Assert(message.Type, Equals, "aio:cloned_repository")
+		c.Assert(message.Error, Matches, ".*Git or Mercurial.*")
+	})
+}
+
+func (s *BoxerSuite) TestCloneGitRepositoryFromHandler(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+
+		gitRepoPath := filepath.Join(ScratchDir, "fake-git")
+		err := MakeRepo(gitRepoPath, ScmGit)
+		c.Assert(err, IsNil, Commentf("Error on git fake: %s\n", err))
+
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:clone_repository", func(msg *Message) {
+				msg.RepositoryUrl = fmt.Sprintf("file://%s", gitRepoPath)
+			}))
+
+		c.Assert(message.Error, Equals, "")
+		c.Assert(message.Success, Equals, true)
+		c.Assert(message.Type, Equals, "aio:cloned_repository")
+		c.Assert(message.RepositoryUrl, Equals, fmt.Sprintf("file://%s", gitRepoPath))
+
+		repoRoot := filepath.Join(box.LxcPath(), "rootfs", "home", "action", "workspace", "fake-git")
+		spec := boxContentSpec{
+			Permissions: map[string][]int{
+				repoRoot: {15001, 15001},
+				filepath.Join(repoRoot, ".gitignore"): {15001, 15001},
+			},
+		}
+		spec.Check(c)
 	})
 }

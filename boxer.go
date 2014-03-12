@@ -20,16 +20,17 @@ var handlers map[string]MessageHandler
 
 func init() {
 	handlers = map[string]MessageHandler{
-		"aio:locate":          logger.LogHandler("aio:locate", LocateBoxHandler),
-		"aio:create":          logger.LogHandler("aio:create", CreateBoxHandler),
-		"aio:start":           logger.LogHandler("aio:start", StartBoxHandler),
-		"aio:stop":            logger.LogHandler("aio:stop", StopBoxHandler),
-		"aio:restart":         logger.LogHandler("aio:restart", RestartBoxHandler),
-		"aio:destroy":         logger.LogHandler("aio:destroy", DestroyBoxHandler),
-		"aio:configure":       logger.LogHandler("aio:configure", ConfigureBoxHandler),
-		"aio:info_request":    logger.LogHandler("aio:info_request", InfoRequestBoxHandler),
-		"aio:snapshot":        logger.LogHandler("aio:snapshot", SnapshotBoxHandler),
-		"aio:delete_snapshot": logger.LogHandler("aio:delete_snapshot", DeleteSnapshotBoxHandler),
+		"aio:locate":           logger.LogHandler("aio:locate", LocateBoxHandler),
+		"aio:create":           logger.LogHandler("aio:create", CreateBoxHandler),
+		"aio:start":            logger.LogHandler("aio:start", StartBoxHandler),
+		"aio:stop":             logger.LogHandler("aio:stop", StopBoxHandler),
+		"aio:restart":          logger.LogHandler("aio:restart", RestartBoxHandler),
+		"aio:destroy":          logger.LogHandler("aio:destroy", DestroyBoxHandler),
+		"aio:configure":        logger.LogHandler("aio:configure", ConfigureBoxHandler),
+		"aio:info_request":     logger.LogHandler("aio:info_request", InfoRequestBoxHandler),
+		"aio:snapshot":         logger.LogHandler("aio:snapshot", SnapshotBoxHandler),
+		"aio:delete_snapshot":  logger.LogHandler("aio:delete_snapshot", DeleteSnapshotBoxHandler),
+		"aio:clone_repository": logger.LogHandler("aio:clone_repository", CloneRepositoryHandler),
 	}
 }
 
@@ -605,6 +606,45 @@ func DeleteSnapshotBoxHandler(m Message, boxer *Boxer) (message Message) {
 	}
 	if err := client.Delete(url.File); err != nil {
 		logger.Printf("ERROR: Failed to delete snapshot %v, err: %v\n", m.SnapshotUrl, err)
+		return
+	}
+	message.Success = true
+	return
+}
+
+func CloneRepositoryHandler(m Message, boxer *Boxer) (message Message) {
+	defer logger.LogDuration(
+		fmt.Sprintf("CloneRepo %s", m.RepositoryUrl),
+	)(time.Now())
+
+	if m.RepositoryUrl == "" {
+		logger.Printf("ERROR: No repository url given")
+		return
+	}
+
+	box, err := boxer.findBox(m.Name)
+	if err != nil {
+		return boxer.NewInvalidParamMessage()
+	}
+
+	message = Message{
+		Type:          "aio:cloned_repository",
+		Id:            boxer.Id,
+		BoxId:         box.Id,
+		RepositoryUrl: m.RepositoryUrl,
+		Success:       false,
+	}
+
+	if err := box.CloneRepo(&Repo{Url: m.RepositoryUrl}); err != nil {
+		var errMessage string
+		switch err.(type) {
+		case UnsupportedSCMError, NoDestinationError:
+			errMessage = err.Error()
+		default:
+			// do not return raw errors from exec
+			errMessage = fmt.Sprintf("error cloning %s", m.RepositoryUrl)
+		}
+		message.Error = errMessage
 		return
 	}
 	message.Success = true

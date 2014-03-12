@@ -24,19 +24,36 @@ const (
 	ScmUnsupported
 )
 
+type UnsupportedSCMError struct {
+	Url string
+}
+
+func (e UnsupportedSCMError) Error() string {
+	return fmt.Sprintf("%s does not look like a Git or Mercurial repository", e.Url)
+}
+
+type NoDestinationError struct {
+	Url string
+}
+
+func (e NoDestinationError) Error() string {
+	return fmt.Sprintf("No applicable destination directory for %s", e.Url)
+}
+
 const CloneTimeout = 300 // seconds
 
-func (r *Repo) Clone(baseLocation string) error {
+// Clone takes a base directory and determines an appropriate destination child directory.  It returns the destination directory used and an error if present.
+func (r *Repo) Clone(baseLocation string) (string, error) {
 	if r.Scm == 0 {
 		r.identifyScm()
 	}
 	if r.Scm == ScmUnsupported {
-		return fmt.Errorf("SCM for %s cannot be determined", r.Url)
+		return "", UnsupportedSCMError{Url: r.Url}
 	}
 
 	destination, err := r.freshLocation(baseLocation)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	var cmd *exec.Cmd
@@ -52,8 +69,13 @@ func (r *Repo) Clone(baseLocation string) error {
 
 	// TODO differentiate between clone timeout due to connection timeout (no
 	// output) vs timeout due to download taking too long.  With typical
-	// net.ipv4.tcp_syn_retries values this can be 2-3 mins.
-	return utils.Exec(cmd, CloneTimeout*time.Second)
+	// net.ipv4.tcp_syn_retries values the timeout for former can be 2-3 mins.
+	err = utils.Exec(cmd, CloneTimeout*time.Second)
+	if err != nil {
+		return "", err
+	}
+
+	return destination, nil
 }
 
 // freshLocation appends numbers to the default directory name for a clone
@@ -76,7 +98,7 @@ func (r *Repo) freshLocation(baseLocation string) (string, error) {
 			return attempt, nil
 		}
 	}
-	return "", fmt.Errorf("No applicable destination directory")
+	return "", NoDestinationError{Url: r.Url}
 }
 
 // identifyScm populates the Scm field of given repo

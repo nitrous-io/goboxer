@@ -105,6 +105,16 @@ func (s *BoxSuite) TestContainerUserHomePath(c *C) {
 	c.Assert(b.ContainerUserHomePath(), Equals, "/lxc/disk1/test-123_delta/rootfs/home/action")
 }
 
+func (s *BoxSuite) TestChrootedPath(c *C) {
+	b := &Box{Name: "test", Id: 123, UniqueId: "123456", Disk: "/lxc/disk1", MountMethod: "aufs"}
+	b.boxer = &Boxer{Root: "/var/lib/lxc"}
+	c.Assert(b.ChrootedPath("/etc/hosts"), Equals, "/etc/hosts")
+	c.Assert(b.ChrootedPath(b.RootFS()), Equals, "/")
+
+	c.Assert(b.ContainerUserHomePath(), Equals, "/lxc/disk1/test-123_delta/rootfs/home/action")
+	c.Assert(b.ChrootedPath(b.ContainerUserHomePath()), Equals, "/home/action")
+}
+
 func (s *BoxSuite) TestCpuSetString(c *C) {
 	b := &Box{CpuSet: []int{0}}
 	c.Assert(b.CpuSetStr(), Equals, "0")

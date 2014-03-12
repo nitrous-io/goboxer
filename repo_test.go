@@ -78,8 +78,7 @@ func (s *RepoSuite) TestFreshLocation(c *C) {
 
 	os.Mkdir(path.Join(ScratchDir, "papers-we-love4"), 0755)
 	_, err := (&Repo{Url: url}).freshLocation(ScratchDir)
-	c.Check(err, NotNil)
-	c.Assert(err.Error(), Equals, "No applicable destination directory")
+	c.Assert(err, ErrorMatches, "No applicable destination.*")
 }
 
 func (s *RepoSuite) TestCloneGit(c *C) {
@@ -103,17 +102,15 @@ func (s *RepoSuite) TestCloneHg(c *C) {
 func (s *RepoSuite) TestCloneUnsupported(c *C) {
 	cloneDir := path.Join(ScratchDir, "clone-dest")
 	os.MkdirAll(cloneDir, 0755)
-	err := s.BadRepo.Clone(cloneDir)
-	c.Check(err, NotNil)
-	c.Assert(err.Error(), Equals,
-		fmt.Sprintf("SCM for %s cannot be determined", s.BadRepo.Url))
+	_, err := s.BadRepo.Clone(cloneDir)
+	c.Assert(err, ErrorMatches, fmt.Sprintf("%s does not look like.*", s.BadRepo.Url))
 }
 
 func (s *RepoSuite) TestCloneWithExecCommandError(c *C) {
 	cloneDir := path.Join(ScratchDir, "clone-dest")
 	os.MkdirAll(cloneDir, 0755)
 	s.GitRepo.Scm = ScmMercurial
-	err := s.GitRepo.Clone(cloneDir)
+	_, err := s.GitRepo.Clone(cloneDir)
 
 	// FIXME: need to change Clone() to return more descriptive errors
 	c.Assert(err, ErrorMatches, "exit status 255")

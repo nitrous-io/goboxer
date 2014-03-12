@@ -34,6 +34,10 @@ type Message struct {
 	VirtualMemory string   `json:"virtualMemory,omitempty"`
 	Premium       bool     `json:"premium,omitempty"`
 
+	// for CloneRepository message
+	RepositoryUrl string `json:"repositoryUrl,omitempty"`
+	Error         string `json:"error,omitempty"`
+
 	// for normal message
 	DataType string      `json:"dataType,omitempty"`
 	Data     interface{} `json:"data,omitempty"`
