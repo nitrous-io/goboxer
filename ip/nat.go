@@ -1,9 +1,12 @@
 package ip
 
 import (
-	"github.com/action-io/goboxer/utils"
+	"fmt"
 	"os/exec"
+	"strings"
 	"sync"
+
+	"github.com/action-io/goboxer/utils"
 )
 
 type locker struct {
@@ -32,8 +35,9 @@ func (n natRule) args(ruleType string) []string {
 }
 
 func (n natRule) create() error {
-	if n.exists() {
-		return nil
+	ruleExists, err := n.exists()
+	if err != nil || ruleExists {
+		return err
 	}
 	lock.Lock()
 	defer lock.Unlock()
@@ -41,18 +45,34 @@ func (n natRule) create() error {
 }
 
 func (n natRule) destroy() error {
-	if n.exists() {
-		lock.Lock()
-		defer lock.Unlock()
-		return utils.RunCommand("iptables", n.args("-D")...)
+	ruleExists, err := n.exists()
+	if err != nil || !ruleExists {
+		return err
 	}
-	return nil
-}
-
-func (n natRule) exists() bool {
 	lock.Lock()
 	defer lock.Unlock()
+	return utils.RunCommand("iptables", n.args("-D")...)
+}
+
+func (n natRule) exists() (bool, error) {
+	lock.Lock()
+	defer lock.Unlock()
+	// if iptables -C fails to find a matching rule,
+	// it exits with exit status 1
+	// So we need to differentiate that error from others
 	cmd := exec.Command("iptables", n.args("-C")...)
-	cmd.Run()
-	return cmd.ProcessState.Success()
+	output, err := cmd.CombinedOutput()
+
+	if cmd.ProcessState == nil {
+		return false, fmt.Errorf("Unexpected nil ProcessState, cmd: %v, err: %v", cmd, err)
+	}
+
+	switch {
+	case cmd.ProcessState.Success():
+		return true, nil
+	case strings.Contains(string(output), "does a matching rule exist"), strings.Contains(string(output), "No chain/target/match by that name"):
+		return false, nil
+	default:
+		return false, fmt.Errorf("Unexpected iptables error output: %s", output)
+	}
 }
