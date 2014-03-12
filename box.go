@@ -729,6 +729,14 @@ func (b *Box) RemoveEnv(data []string) (err error) {
 // this requires the box to be mounted because we are writing lxc config into
 // the mounted path, not the _delta path
 func (b *Box) handleSpecChange(spec *BoxSpec, forceWriteConfig bool) error {
+	defer func() {
+		// make sure that we attempt to save the box after spec change
+		// There *may* be failure here but the chance of that are very small so
+		// we just log and ignore the error here.
+		if saveErr := b.save(); saveErr != nil {
+			logger.Debugln("save: err: %v", saveErr)
+		}
+	}()
 	willWriteConfig := false
 	msc := &MemorySpecChange{
 		OldMemory:      b.Memory,
@@ -747,9 +755,6 @@ func (b *Box) handleSpecChange(spec *BoxSpec, forceWriteConfig bool) error {
 		willWriteConfig = true
 	}
 	if willWriteConfig || forceWriteConfig {
-		if err := b.boxer.ResourcePool.SaveBox(b); err != nil {
-			return &BoxOpError{Op: "save", Err: err}
-		}
 		mounted, err := b.lxcMounted()
 		if err != nil {
 			return &BoxOpError{Op: "write lxc config", Err: err}
