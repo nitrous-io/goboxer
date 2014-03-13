@@ -1404,6 +1404,10 @@ func (s *BoxerSuite) TestChangeBoxSpecsPass(c *C) {
 			Path: box.LxcPath() + "_delta",
 		})
 		c.Assert(newLimit.Limit > 2*900*1000, Equals, true)
+
+		// it persist the new quota
+		reloadedBox := s.findBox(box.ContainerName())
+		c.Assert(reloadedBox.DiskSpace, Equals, "2048M")
 	})
 }
 
@@ -1412,7 +1416,7 @@ func (s *BoxerSuite) TestChangeBoxSpecsPassOnRunningBox(c *C) {
 		stratValue testProvisionStrategy) {
 		var mockData map[string]interface{}
 		json.Unmarshal(
-			[]byte("{\"memory\":\"384M\"}"),
+			[]byte("{\"memory\":\"384M\",\"diskSpace\":\"2048M\"}"),
 			&mockData)
 		_, box := s.receiveMessages("mclovins-container-1",
 			s.makeCreateMessage(defaultMsg),
@@ -1436,6 +1440,10 @@ func (s *BoxerSuite) TestChangeBoxSpecsPassOnRunningBox(c *C) {
 		c.Assert(err, IsNil)
 		c.Assert(strings.TrimSpace(newTotalLimit), Equals,
 			strconv.Itoa(quota.ConvertValueUnitToByte(quota.ParseValueUnit(box.TotalMemory()))*1024))
+
+		// it persist the new quota
+		reloadedBox := s.findBox(box.ContainerName())
+		c.Assert(reloadedBox.DiskSpace, Equals, "2048M")
 	})
 }
 
@@ -1461,6 +1469,10 @@ func (s *BoxerSuite) TestChangeBoxSpecsPassOnStoppedBox(c *C) {
 				"lxc.cgroup.memory.limit_in_bytes = 384M",
 			},
 		})
+
+		// it persist the new quota
+		reloadedBox := s.findBox(box.ContainerName())
+		c.Assert(reloadedBox.DiskSpace, Equals, "2048M")
 	})
 }
 
@@ -1734,6 +1746,10 @@ func (s *BoxerSuite) TestChangeBoxSpecsFail(c *C) {
 		// it cant set the new quota
 		newLimit, _ := quotaProvisioner.ViewLimit(box.quotaArg())
 		c.Assert(newLimit.Limit, Equals, limit.Limit)
+
+		// it persist the old quota
+		reloadedBox := s.findBox(box.ContainerName())
+		c.Assert(reloadedBox.DiskSpace, Equals, "1G")
 	})
 }
 
