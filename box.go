@@ -334,12 +334,9 @@ func (b *Box) UpdateCustomDomain(customDomain string) error {
 }
 
 func (b *Box) CloneRepo(repo *Repo) error {
-	repoRoot, err := repo.Clone(path.Join(b.ContainerUserHomePath(), "workspace"))
-	if err != nil {
-		return err
-	}
-	return utils.RunCommand("chroot", b.RootFS(), "chown", "-R",
-		fmt.Sprintf("%s:%s", b.Uid(), b.Gid()), b.ChrootedPath(repoRoot))
+	repo.Box = b
+
+	return repo.Clone("/home/action/workspace")
 }
 
 func (b *Box) MountName() string {
@@ -368,24 +365,6 @@ func (b *Box) ContainerFS() string {
 
 func (b *Box) EnvPath() string {
 	return path.Join(b.RootFS(), "etc", "environment")
-}
-
-// ChrootedPath returns paths relative to chroot (everything up to 'rootfs' replaced by '/').  If rootfs dir is not present, it returns the original path.
-func (b *Box) ChrootedPath(fullPath string) string {
-	parts := strings.Split(fullPath, "/")
-	var chrootPathParts []string
-	for _, dir := range parts {
-		if dir == "rootfs" {
-			chrootPathParts = []string{}
-		} else {
-			chrootPathParts = append(chrootPathParts, dir)
-		}
-	}
-	chrootPath := strings.Join(chrootPathParts, "/")
-	if !strings.HasPrefix(chrootPath, "/") {
-		chrootPath = "/" + chrootPath
-	}
-	return chrootPath
 }
 
 // rootfs of the container. This is the root after unionized so its typically

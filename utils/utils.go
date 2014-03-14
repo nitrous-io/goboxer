@@ -171,7 +171,7 @@ func MultiRun(wd string, commands ...*exec.Cmd) ([]byte, error) {
 		cmd.Dir = wd
 		output, err = cmd.CombinedOutput()
 		if err != nil {
-			return output, err
+			return output, fmt.Errorf("Error running %v in %s: %s", cmd, cmd.Dir, err)
 		}
 	}
 	return output, err

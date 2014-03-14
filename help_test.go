@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"testing"
@@ -155,16 +156,19 @@ func AssertIptablesOutput(c *C, str string, assertion bool) {
 		assertion)
 }
 
-func MakeRepo(repoPath string, scm uint) error {
-	if err := os.MkdirAll(repoPath, 0755); err != nil {
+func MakeRepo(box *Box, repoPath string, scm uint) error {
+	fullPath := filepath.Join(box.RootFS(), repoPath)
+	if err := os.MkdirAll(fullPath, 0755); err != nil {
 		return err
 	}
 	makeRepo := func(scmCommand string) error {
-		_, err := utils.MultiRun(repoPath,
+		fmt.Println("Making repo in", fullPath)
+		_, err := utils.MultiRun(fullPath,
 			exec.Command(scmCommand, "init"),
 			exec.Command("touch", fmt.Sprintf(".%signore", scmCommand)),
 			exec.Command(scmCommand, "add", fmt.Sprintf(".%signore", scmCommand)),
-			exec.Command(scmCommand, "commit", "-m", "Initial Commit"))
+			exec.Command(scmCommand, "commit", "-m", "Initial Commit"),
+			exec.Command("chroot", box.RootFS(), "chown", "-R", fmt.Sprintf("%s:%s", box.Uid(), box.Gid()), repoPath))
 		return err
 	}
 	switch scm {

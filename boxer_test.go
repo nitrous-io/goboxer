@@ -2000,12 +2000,16 @@ func (s *BoxerSuite) TestCloneGitRepositoryFromHandler(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
 
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg))
+
+		c.Assert(message.Success, Equals, true)
+
 		gitRepoPath := filepath.Join(ScratchDir, "fake-git")
-		err := MakeRepo(gitRepoPath, ScmGit)
+		err := MakeRepo(box, gitRepoPath, ScmGit)
 		c.Assert(err, IsNil, Commentf("Error on git fake: %s\n", err))
 
-		message, box := s.receiveMessages("mclovins-container-1",
-			s.makeCreateMessage(defaultMsg),
+		message, box = s.receiveMessages("mclovins-container-1",
 			s.makeMessage("aio:clone_repository", func(msg *Message) {
 				msg.RepositoryUrl = fmt.Sprintf("file://%s", gitRepoPath)
 			}))
@@ -2023,5 +2027,99 @@ func (s *BoxerSuite) TestCloneGitRepositoryFromHandler(c *C) {
 			},
 		}
 		spec.Check(c)
+	})
+}
+
+func (s *BoxerSuite) TestCloneHgRepositoryFromHandler(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg))
+
+		c.Assert(message.Success, Equals, true)
+
+		hgRepoPath := filepath.Join(ScratchDir, "fake-hg")
+		err := MakeRepo(box, hgRepoPath, ScmMercurial)
+		c.Assert(err, IsNil, Commentf("Error on hg fake: %s\n", err))
+
+		message, box = s.receiveMessages("mclovins-container-1",
+			s.makeMessage("aio:clone_repository", func(msg *Message) {
+				msg.RepositoryUrl = fmt.Sprintf("file://%s", hgRepoPath)
+			}))
+
+		c.Assert(message.Error, Equals, "")
+		c.Assert(message.Success, Equals, true)
+		c.Assert(message.Type, Equals, "aio:cloned_repository")
+		c.Assert(message.RepositoryUrl, Equals, fmt.Sprintf("file://%s", hgRepoPath))
+
+		repoRoot := filepath.Join(box.LxcPath(), "rootfs", "home", "action", "workspace", "fake-hg")
+		spec := boxContentSpec{
+			Permissions: map[string][]int{
+				repoRoot: {15001, 15001},
+				filepath.Join(repoRoot, ".hgignore"): {15001, 15001},
+			},
+		}
+		spec.Check(c)
+	})
+}
+
+func (s *BoxerSuite) TestCloneGitRepositoryExceedsQuota(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg))
+
+		c.Assert(message.Success, Equals, true)
+
+		gitRepoPath := filepath.Join(ScratchDir, "fake-git")
+		err := MakeRepo(box, gitRepoPath, ScmGit)
+		c.Assert(err, IsNil, Commentf("Error on git fake: %s\n", err))
+
+		quotaInfo, err := box.quota().ViewLimit(box.quotaArg())
+		box.DiskSpace = strconv.Itoa(quotaInfo.Used+1) + "K"
+		err = box.SetQuota()
+		c.Check(err, IsNil)
+
+		message, box = s.receiveMessages("mclovins-container-1",
+			s.makeMessage("aio:clone_repository", func(msg *Message) {
+				msg.RepositoryUrl = fmt.Sprintf("file://%s", gitRepoPath)
+			}))
+
+		c.Assert(message.Success, Equals, false)
+		c.Assert(message.Error, Matches, ".*exceeds available.*")
+
+		c.Assert(exists(filepath.Join(box.ContainerUserHomePath(), "workspace", "fake-git")), Equals, false)
+	})
+}
+
+func (s *BoxerSuite) TestIdentifyRepositoryTimesOut(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg))
+
+		gitRepoPath := filepath.Join(ScratchDir, "fake-git")
+		err := MakeRepo(box, gitRepoPath, ScmGit)
+		c.Assert(err, IsNil, Commentf("Error on git fake: %s\n", err))
+
+		c.Assert(message.Success, Equals, true)
+
+		repo := &Repo{
+			Box:             box,
+			Url:             "file://" + gitRepoPath,
+			IdentifyTimeout: 1 * time.Millisecond,
+		}
+
+		now := time.Now()
+		repo.identifyScm()
+		c.Assert(repo.Scm, Equals, ScmUnsupported)
+		c.Assert(time.Now().Sub(now) <= 1*time.Second, Equals, true)
+
+		repo.IdentifyTimeout = 1 * time.Minute
+		repo.identifyScm()
+		c.Assert(repo.Scm, Equals, ScmGit)
 	})
 }

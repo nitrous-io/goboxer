@@ -636,15 +636,7 @@ func CloneRepositoryHandler(m Message, boxer *Boxer) (message Message) {
 	}
 
 	if err := box.CloneRepo(&Repo{Url: m.RepositoryUrl}); err != nil {
-		var errMessage string
-		switch err.(type) {
-		case UnsupportedSCMError, NoDestinationError:
-			errMessage = err.Error()
-		default:
-			// do not return raw errors from exec
-			errMessage = fmt.Sprintf("error cloning %s", m.RepositoryUrl)
-		}
-		message.Error = errMessage
+		message.Error = err.Error()
 		return
 	}
 	message.Success = true
