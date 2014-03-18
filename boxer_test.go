@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -1938,7 +1939,7 @@ func (s *BoxerSuite) TestRemoveAuth(c *C) {
 func (s *BoxerSuite) TestSnapshot(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
-		message, _ := s.receiveMessages("mclovins-container-1",
+		message, box := s.receiveMessages("mclovins-container-1",
 			s.makeCreateMessage(defaultMsg),
 			s.makeMessage("aio:snapshot", func(msg *Message) {
 				msg.SnapshotId = 123
@@ -1948,9 +1949,10 @@ func (s *BoxerSuite) TestSnapshot(c *C) {
 		c.Assert(message.Type, Equals, "aio:snapshotted")
 		c.Assert(message.SnapshotId, Equals, 123)
 		c.Assert(message.SnapshotUrl, Equals, "s3://staging-bucket/mclovins-container-1-snapshot-123.tar.gz")
-		// Test container delta folder should be < 1M in size, so size should be
-		// rounded up to 1M.
-		c.Assert(message.SnapshotSize, Equals, 1)
+
+		quotaInfo, err := box.quota().ViewLimit(box.quotaArg())
+		c.Check(err, IsNil)
+		c.Assert(message.SnapshotSize, Equals, int(math.Ceil(float64(quotaInfo.Used)/1024.0)))
 	})
 }
 
