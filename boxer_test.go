@@ -214,7 +214,6 @@ func (s *BoxerSuite) SetUpTest(c *C) {
 	s.ResourcePool = &ResourcePool{Pool: s.Redis}
 	s.Boxer = &Boxer{
 		Id:              "testboxer",
-		Root:            "/var/lib/lxc",
 		SelectedDisk:    "/lxc/disk1",
 		Disks:           []string{"/lxc/disk1"},
 		Runtimes:        map[string]string{"test": "test_container_template"},

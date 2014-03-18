@@ -42,7 +42,6 @@ type Boxer struct {
 	locker          BoxLocker
 	Id              string
 	Vagrant         bool
-	Root            string
 	SelectedDisk    string
 	Disks           []string
 	ResourcePool    *ResourcePool
