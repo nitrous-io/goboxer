@@ -6,8 +6,13 @@ import (
 )
 
 const LxcTemplate = `
-# uncomment the next line to run the container unconfined:
-#lxc.aa_profile = unconfined
+{{if .Sudo}}
+lxc.aa_profile = lxc-container-default-with-nesting
+{{else}}
+# uncomment the next line to run the container unconfined
+# lxc.aa_profile = unconfined
+{{end}}
+
 lxc.devttydir = lxc
 lxc.tty = 4
 lxc.pts = 1024
@@ -317,10 +322,21 @@ set -e
 # Add your commands here...
 `
 
+const SudoerTemplate = `
+# enable sudo right for action user without password
+action ALL=(ALL) NOPASSWD: ALL
+`
+
+const AliasSudoTemplate = `
+alias sudo="echo -e '-----\nWARNING: sudo access is not available; running without sudo.\n-----'; "
+`
+
 var (
 	NetworkConfigCompiled               *template.Template
 	LxcTemplateCompiled                 *template.Template
 	HostsTemplateCompiled               *template.Template
+	SudoerTemplateCompiled              *template.Template
+	AliasSudoTemplateCompiled           *template.Template
 	PartsInitConfTemplateCompiled       *template.Template
 	RunNitrousboxrcConfTemplateCompiled *template.Template
 	NitrousboxrcSampleTemplateCompiled  *template.Template
@@ -351,6 +367,8 @@ func init() {
 	HostsTemplateCompiled = template.Must(template.New("hosts").Parse(HostsTemplate))
 	NetworkConfigCompiled = template.Must(template.New("network").Parse(NetworkConfigTemplate))
 	LxcTemplateCompiled = template.Must(template.New("lxc").Parse(LxcTemplate))
+	SudoerTemplateCompiled = template.Must(template.New("sudoer").Parse(SudoerTemplate))
+	AliasSudoTemplateCompiled = template.Must(template.New("alias_sudo").Parse(AliasSudoTemplate))
 	PartsInitConfTemplateCompiled = template.Must(template.New("parts-init.conf").Parse(PartsInitConfTemplate))
 	RunNitrousboxrcConfTemplateCompiled = template.Must(template.New("run-nitrousboxrc.conf").Parse(RunNitrousboxrcConfTemplate))
 	NitrousboxrcSampleTemplateCompiled = template.Must(template.New("nitrousboxrc.sample").Parse(NitrousboxrcSampleTemplate))
