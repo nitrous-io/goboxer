@@ -16,6 +16,9 @@ import (
 	"github.com/action-io/goboxer/quota"
 	"github.com/action-io/goboxer/s3"
 	"github.com/action-io/goboxer/utils"
+
+	pr "github.com/action-io/goboxer/provisioner"
+	_ "github.com/action-io/goboxer/provisioner/lxc"
 )
 
 const UID_START = 15000
@@ -121,6 +124,14 @@ func (b *Box) Prepare() {
 	}
 }
 
+func (b *Box) provisioner() pr.Provisioner {
+	p, err := pr.GetProvisioner("lxc", b.Disk)
+	if err != nil {
+		panic("Failed to get a valid provisioner")
+	}
+	return p
+}
+
 // return the valid value that should be applied to `cpuset.cpus`
 func (b *Box) CpuSetStr() string {
 	cpus := []string{}
@@ -149,12 +160,11 @@ func (b *Box) Create() error {
 	defer logger.LogDuration(
 		fmt.Sprintf("%s:Create", b.ContainerName()),
 	)(time.Now())
-	if err := b.generateUniqueId(); err != nil {
-		return &BoxOpError{Op: "generate unique ID", Err: err}
+	uniqueId, err := b.provisioner().Create(b.ContainerName())
+	if err != nil {
+		return &BoxOpError{Op: "provisioner: Create", Err: err}
 	}
-	if err := b.Mount(); err != nil {
-		return &BoxOpError{Op: "mount box", Err: err}
-	}
+	b.UniqueId = uniqueId
 	if err := b.generateUserContent(); err != nil {
 		return &BoxOpError{Op: "generate user content", Err: err}
 	}
