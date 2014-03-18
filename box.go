@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"path"
 	"strconv"
 	"strings"
@@ -153,7 +152,7 @@ func (b *Box) Create() error {
 	if err := b.generateUniqueId(); err != nil {
 		return &BoxOpError{Op: "generate unique ID", Err: err}
 	}
-	if err := b.Mount(b.boxer.Root); err != nil {
+	if err := b.Mount(); err != nil {
 		return &BoxOpError{Op: "mount box", Err: err}
 	}
 	if err := b.generateUserContent(); err != nil {
@@ -197,7 +196,7 @@ func (b *Box) Start(spec *BoxSpec) error {
 	defer logger.LogDuration(
 		fmt.Sprintf("%s:Start %s", b.ContainerName(), b.MountName()),
 	)(time.Now())
-	if err := b.Mount(b.boxer.Root); err != nil {
+	if err := b.Mount(); err != nil {
 		return err
 	}
 	if err := b.WritePublicKeys(); err != nil {
@@ -219,7 +218,7 @@ func (b *Box) Start(spec *BoxSpec) error {
 	if err := b.addNitrousboxrcSample(); err != nil {
 		return &BoxOpError{Op: "nitrousboxrc sample", Err: err}
 	}
-	err := lxc.Start(b.ContainerName(), b.MountName())
+	err := lxc.Start(b.Disk, b.ContainerName(), b.MountName())
 	if err != nil {
 		return &BoxOpError{Op: "lxc-start " + b.MountName(), Err: err}
 	}
@@ -240,13 +239,13 @@ func (b *Box) Stop() error {
 		// ignore error from unset port forwarding here as its not harmful
 		logger.Printf("%v", &BoxOpError{Op: "unset port forwarding", Err: err})
 	}
-	if lxc.Poweroff(b.MountName()) != nil {
+	if lxc.Poweroff(b.Disk, b.MountName()) != nil {
 		utils.RunCommand("pkill", "-9", "-u", b.Uid())
-		if err := lxc.Stop(b.ContainerName(), b.MountName()); err != nil {
+		if err := lxc.Stop(b.Disk, b.ContainerName(), b.MountName()); err != nil {
 			return &BoxOpError{Op: "lxc-stop " + b.MountName(), Err: err}
 		}
 	}
-	return b.Unmount(b.boxer.Root)
+	return b.Unmount()
 }
 
 func (b *Box) Destroy() error {
@@ -300,7 +299,7 @@ func (b *Box) Snapshot(snapshotId int) (snapshot *Snapshot, err error) {
 }
 
 func (b *Box) CgroupSet(subsystem, value string) error {
-	return lxc.CgroupSet(b.MountName(), subsystem, value)
+	return lxc.CgroupSet(b.Disk, b.MountName(), subsystem, value)
 }
 
 func (b *Box) UpdateAuth(auth BoxAuth) error {
@@ -347,24 +346,20 @@ func (b *Box) PublicKeysPath() string {
 }
 
 func (b *Box) LxcPath() string {
-	return path.Join(b.boxer.Root, b.MountName())
-}
-
-func (b *Box) ContainerFS() string {
 	return path.Join(b.Disk, b.MountName())
 }
 
 // rootfs of the container. This is the root after unionized so its typically
 // will be in boxer.Root i.e /var/lib/lxc
 func (b *Box) RootFS() string {
-	return path.Join(b.boxer.Root, b.MountName(), "rootfs")
+	return path.Join(b.Disk, b.MountName(), "rootfs")
 }
 
 // path of the box's templates.  (i.e. ruby_template.tar.gz,
 // python_template.tar.gz etc)
 func (b *Box) TemplatePath() string {
 	templateName := b.Template + ".tar.gz"
-	return path.Join(b.boxer.Root, templateName)
+	return path.Join(b.Disk, templateName)
 }
 
 // we actually want the delta folders for non-lvm containers to be consistent
@@ -571,7 +566,7 @@ func (b *Box) UpdatePremiumStatus() error {
 	}
 }
 
-func (b *Box) Mount(root string) error {
+func (b *Box) Mount() error {
 	b.boxer.Lock(b.Id)
 	defer b.boxer.Unlock(b.Id)
 	defer logger.LogDuration(
@@ -585,21 +580,13 @@ func (b *Box) Mount(root string) error {
 		// overlayfs or aufs strategy
 		//
 		// we are going to create a delta folder which will hold user data,
-		// union with the base container template in the same disk, and mount
-		// it over to root ( /var/lib/lxc )
-		boxPath := b.ContainerFS()
+		// union with the base container template in the same disk
+		boxPath := b.LxcPath()
 		baseContainerPath := path.Join(b.Disk, "base_container_template")
 		if err := mount.Union(b.getMountMethod(), boxPath, boxDeltaPath, baseContainerPath); err != nil {
 			return &BoxOpError{Op: "overlayfs/aufs mount", Err: err}
 		}
-		// FIXME: MountBind to make it similar to boxer. Ideally we probably
-		// want to symlink as it doesnt make any difference and seems to be
-		// more stable. Less mountpoint is better
-		err := mount.MountBind(boxPath, b.LxcPath())
-		if err != nil {
-			return &BoxOpError{Op: "overlayfs/aufs mount-bind", Err: err}
-		}
-		return err
+		return nil
 	default:
 		return fmt.Errorf("box: %s is not a supported mount method", mountMethod)
 	}
@@ -607,7 +594,7 @@ func (b *Box) Mount(root string) error {
 
 // Unmount will always regenerate an unique id for the box, so it guarantees
 // that the next mount operation will success even if `Unmount` fails
-func (b *Box) Unmount(root string) error {
+func (b *Box) Unmount() error {
 	b.boxer.Lock(b.Id)
 	defer b.boxer.Unlock(b.Id)
 	defer logger.LogDuration(
@@ -618,14 +605,6 @@ func (b *Box) Unmount(root string) error {
 	mountMethod := b.getMountMethod()
 	if err := mount.Unmount(mountMethod, b.LxcPath()); err != nil {
 		logger.Println(&BoxOpError{Op: mountMethod + " unmount", Err: err})
-	}
-	switch mountMethod {
-	case "overlayfs", "aufs":
-		if err := mount.Unmount(mountMethod, b.ContainerFS()); err != nil {
-			logger.Println(&BoxOpError{Op: mountMethod + " unmount", Err: err})
-		}
-	default:
-		return fmt.Errorf("%s is not a supported unmount method", mountMethod)
 	}
 	return nil
 }
@@ -643,7 +622,7 @@ func (b *Box) DeleteContainerData() error {
 			return &BoxOpError{Op: "remove container delta", Err: err}
 		}
 	}
-	err := os.RemoveAll(b.ContainerFS())
+	err := os.RemoveAll(b.LxcPath())
 	if err != nil {
 		return &BoxOpError{Op: "remove container FS", Err: err}
 	}
@@ -654,13 +633,11 @@ func (b *Box) DeleteContainerData() error {
 // the unit if B, so if we want to convert to MB, it needs to be divided with
 // 1024 * 1024
 func (b *Box) MemoryUsageInBytes() (int, error) {
-	name := b.MountName()
-	output, err := exec.Command("lxc-cgroup", "-n", name,
-		"memory.usage_in_bytes").CombinedOutput()
+	output, err := lxc.CgroupGet(b.Disk, b.MountName(), "memory.usage_in_bytes")
 	if err != nil {
 		return 0, err
 	}
-	return strconv.Atoi(strings.TrimSpace(string(output)))
+	return strconv.Atoi(strings.TrimSpace(output))
 }
 
 func (b *Box) Info() (BoxInfo, error) {
@@ -675,7 +652,7 @@ func (b *Box) Info() (BoxInfo, error) {
 	} else {
 		info.MemoryUsage = MemoryUsageNotApplicable
 	}
-	state, err := lxc.Status(b.MountName())
+	state, err := lxc.Status(b.Disk, b.MountName())
 	if err == nil {
 		info.LxcStatus = state
 	} else {

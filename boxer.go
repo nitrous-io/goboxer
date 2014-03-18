@@ -529,6 +529,7 @@ func InfoRequestBoxHandler(m Message, boxer *Boxer) Message {
 	}
 	info, err := box.Info()
 	if err != nil {
+		logger.Debugln("ERROR: info", err)
 		message.Success = false
 		return message
 	}
