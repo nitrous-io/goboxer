@@ -25,20 +25,20 @@ func run(cmd string, args ...string) error {
 	return exec.Command(cmd, args...).Run()
 }
 
-func Stop(namespace, containerName string) error {
+func Stop(containerPath, namespace, containerName string) error {
 	logDir, err := createLogDir(namespace)
 	if err != nil {
 		return err
 	}
 	logFile := logDir + "/" + namespace + ".lxc-stop.log"
 	// if the container is stopped, then we dont have to stop it again
-	status, _ := Status(containerName)
+	status, _ := Status(containerPath, containerName)
 	if strings.ToLower(status) == "stopped" {
 		log.Printf("lxc: Stop() - container %v already stopped\n", containerName)
 		return nil
 	}
-	run("lxc-stop", "-n", containerName, "-o", logFile, "-l", "INFO")
-	return waitForStatus(containerName, STOPPED, TIMEOUT)
+	run("lxc-stop", "-P", containerPath, "-n", containerName, "-o", logFile, "-l", "INFO")
+	return waitForStatus(containerPath, containerName, STOPPED, TIMEOUT)
 }
 
 // this accepts a namespace and a containerName which will be used to log
@@ -46,30 +46,30 @@ func Stop(namespace, containerName string) error {
 // namespace is typically mclovins-container-1
 // containerName is typically mclovins-container-1-123456 with 123456 is the
 // uniqueId
-func Start(namespace, containerName string) error {
+func Start(containerPath, namespace, containerName string) error {
 	logDir, err := createLogDir(namespace)
 	if err != nil {
 		return err
 	}
 	logFile := logDir + "/" + namespace + ".lxc-start.log"
 	// if the container is running, then we dont have to start it again
-	status, _ := Status(containerName)
+	status, _ := Status(containerPath, containerName)
 	if strings.ToLower(status) == "running" {
 		log.Printf("lxc: Start() - container %v already started\n", containerName)
 		return nil
 	}
-	if err := run("lxc-start", "-d", "-n", containerName,
+	if err := run("lxc-start", "-P", containerPath, "-d", "-n", containerName,
 		"-o", logFile, "-l", "INFO"); err != nil {
 		return err
 	}
 	// wait time is much shorter so some lxc process can perform works
 	// before declaring the container status. Im looking at you lxc-start
-	return waitForStatus(containerName, RUNNING, TIMEOUT)
+	return waitForStatus(containerPath, containerName, RUNNING, TIMEOUT)
 }
 
 // send SIGPWR to the init process of the container to poweroff the container
-func Poweroff(name string) error {
-	pid, err := getContainerPid(name)
+func Poweroff(containerPath, name string) error {
+	pid, err := getContainerPid(containerPath, name)
 	// if we cant find pid, the container is probably not running
 	if err != nil || pid == -1 {
 		return nil
@@ -77,11 +77,11 @@ func Poweroff(name string) error {
 	if err = syscall.Kill(pid, syscall.SIGPWR); err != nil {
 		return err
 	}
-	return waitForStatus(name, STOPPED, TIMEOUT)
+	return waitForStatus(containerPath, name, STOPPED, TIMEOUT)
 }
 
-func Status(name string) (string, error) {
-	cmd := exec.Command("lxc-info", "-s", "-n", name)
+func Status(containerPath, name string) (string, error) {
+	cmd := exec.Command("lxc-info", "-P", containerPath, "-s", "-n", name)
 	output, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("lxc: failed to get %s status: %v", name, err)
@@ -93,26 +93,26 @@ func Status(name string) (string, error) {
 	return strings.TrimSpace(fields[1]), nil
 }
 
-func CgroupGet(name, subsystem string) (string, error) {
-	cmd := exec.Command("lxc-cgroup", "-n", name, subsystem)
+func CgroupGet(containerPath, name, subsystem string) (string, error) {
+	cmd := exec.Command("lxc-cgroup", "-P", containerPath, "-n", name, subsystem)
 	output, err := cmd.Output()
 	return string(output), err
 }
 
-func CgroupSet(name, subsystem, value string) error {
+func CgroupSet(containerPath, name, subsystem, value string) error {
 	log.Printf("lxc: CgroupSet(%s, %s, %s)", name, subsystem, value)
-	status, err := Status(name)
+	status, err := Status(containerPath, name)
 	if err != nil {
 		return err
 	}
 	if status != RUNNING {
 		return fmt.Errorf("Tried to CgroupSet on non-running container %s", name)
 	}
-	return run("lxc-cgroup", "-n", name, subsystem, value)
+	return run("lxc-cgroup", "-P", containerPath, "-n", name, subsystem, value)
 }
 
-func getContainerPid(name string) (int, error) {
-	cmd := exec.Command("lxc-info", "-n", name, "-p")
+func getContainerPid(containerPath, name string) (int, error) {
+	cmd := exec.Command("lxc-info", "-P", containerPath, "-n", name, "-p")
 	output, err := cmd.Output()
 	if err != nil {
 		return -1, fmt.Errorf("lxc: failed to get %s pid: %v", name, err)
@@ -126,8 +126,8 @@ func getContainerPid(name string) (int, error) {
 
 // wait until the container has the expected status or `TIMEOUT` which we
 // return an error and let the caller decide what to do with it.
-func waitForStatus(name, expectedStatus string, timeout time.Duration) error {
-	cmd := exec.Command("lxc-wait", "-n", name, "-s", expectedStatus)
+func waitForStatus(containerPath, name, expectedStatus string, timeout time.Duration) error {
+	cmd := exec.Command("lxc-wait", "-P", containerPath, "-n", name, "-s", expectedStatus)
 	return utils.Exec(cmd, timeout)
 }
 

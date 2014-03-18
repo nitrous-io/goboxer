@@ -94,7 +94,7 @@ func (s *BoxerSuite) insertResource(ip, gateway, networkInterface, port string) 
 func (s *BoxerSuite) assertBoxState(c *C, b *Box, state string) {
 	state = strings.ToLower(state)
 	c.Assert(b.State, Equals, state)
-	stdout, _ := exec.Command("lxc-info", "-n", b.MountName()).CombinedOutput()
+	stdout, _ := exec.Command("lxc-info", "-P", b.Disk, "-n", b.MountName()).CombinedOutput()
 	info := strings.ToLower(string(stdout))
 	c.Assert(strings.Contains(info, state), Equals, true, Commentf("Expected state %s; lxc-info says '%s'", state, strings.TrimSpace(info)))
 }
@@ -274,8 +274,7 @@ func (s *BoxerSuite) TestCreateBox(c *C) {
 		c.Assert(box.PublicKeys, DeepEquals, []string{"ssh-rsa QWER", "ssh-rsa ASDF"})
 
 		root := box.LxcPath()
-		c.Assert(root, Equals, "/var/lib/lxc/mclovins-container-1-"+
-			box.UniqueId)
+		c.Assert(root, Equals, "/lxc/disk2/mclovins-container-1-"+box.UniqueId)
 
 		// actually mount the container at /var/lib/lxc after create
 		isMounted, _ := mount.Mounted(root)
@@ -359,10 +358,7 @@ func (s *BoxerSuite) TestCreateWithSnapshot(c *C) {
 		c.Assert(box.PublicKeys, DeepEquals, []string{"ssh-rsa QWER", "ssh-rsa ASDF"})
 
 		root := box.LxcPath()
-		c.Assert(root, Equals, "/var/lib/lxc/mclovins-container-1-"+
-			box.UniqueId)
-
-		// actually mount the container at /var/lib/lxc after create
+		c.Assert(root, Equals, "/lxc/disk2/mclovins-container-1-"+box.UniqueId)
 		isMounted, _ := mount.Mounted(root)
 		c.Assert(isMounted, Equals, true)
 
@@ -895,7 +891,7 @@ func (s *BoxerSuite) TestDestroy(c *C) {
 		message, box := s.receiveMessages("mclovins-container-1",
 			s.makeCreateMessage(defaultMsg))
 		containerPlace := []string{box.LxcPath()}
-		containerPlace = append(containerPlace, box.ContainerFS())
+		containerPlace = append(containerPlace, box.LxcPath())
 		containerPlace = append(containerPlace, box.ContainerDeltaPath())
 
 		message, box = s.receiveMessages("mclovins-container-1",
@@ -1458,11 +1454,11 @@ func (s *BoxerSuite) TestChangeBoxSpecsPassOnRunningBox(c *C) {
 				"lxc.cgroup.memory.limit_in_bytes = 384M",
 			},
 		})
-		newMemLimit, err := lxc.CgroupGet(box.MountName(), "memory.limit_in_bytes")
+		newMemLimit, err := lxc.CgroupGet(box.Disk, box.MountName(), "memory.limit_in_bytes")
 		c.Assert(err, IsNil)
 		c.Assert(strings.TrimSpace(newMemLimit), Equals,
 			strconv.Itoa(quota.ConvertValueUnitToByte(quota.ValueUnit{384, "M"})*1024))
-		newTotalLimit, err := lxc.CgroupGet(box.MountName(), "memory.memsw.limit_in_bytes")
+		newTotalLimit, err := lxc.CgroupGet(box.Disk, box.MountName(), "memory.memsw.limit_in_bytes")
 		c.Assert(err, IsNil)
 		c.Assert(strings.TrimSpace(newTotalLimit), Equals,
 			strconv.Itoa(quota.ConvertValueUnitToByte(quota.ParseValueUnit(box.TotalMemory()))*1024))
