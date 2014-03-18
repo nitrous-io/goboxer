@@ -218,6 +218,8 @@ func (b *Box) Start(spec *BoxSpec) error {
 	if err := b.addNitrousboxrcSample(); err != nil {
 		return &BoxOpError{Op: "nitrousboxrc sample", Err: err}
 	}
+	// Start always use the new disk so we can gradually migrate off
+	// /var/lib/lxc
 	err := lxc.Start(b.Disk, b.ContainerName(), b.MountName())
 	if err != nil {
 		return &BoxOpError{Op: "lxc-start " + b.MountName(), Err: err}
@@ -239,9 +241,9 @@ func (b *Box) Stop() error {
 		// ignore error from unset port forwarding here as its not harmful
 		logger.Printf("%v", &BoxOpError{Op: "unset port forwarding", Err: err})
 	}
-	if lxc.Poweroff(b.Disk, b.MountName()) != nil {
+	if lxc.Poweroff(b.ContainerPath(), b.MountName()) != nil {
 		utils.RunCommand("pkill", "-9", "-u", b.Uid())
-		if err := lxc.Stop(b.Disk, b.ContainerName(), b.MountName()); err != nil {
+		if err := lxc.Stop(b.ContainerPath(), b.ContainerName(), b.MountName()); err != nil {
 			return &BoxOpError{Op: "lxc-stop " + b.MountName(), Err: err}
 		}
 	}
@@ -299,7 +301,7 @@ func (b *Box) Snapshot(snapshotId int) (snapshot *Snapshot, err error) {
 }
 
 func (b *Box) CgroupSet(subsystem, value string) error {
-	return lxc.CgroupSet(b.Disk, b.MountName(), subsystem, value)
+	return lxc.CgroupSet(b.ContainerPath(), b.MountName(), subsystem, value)
 }
 
 func (b *Box) UpdateAuth(auth BoxAuth) error {
@@ -346,13 +348,42 @@ func (b *Box) PublicKeysPath() string {
 }
 
 func (b *Box) LxcPath() string {
+	return path.Join(b.ContainerPath(), b.MountName())
+}
+
+// direct link to the union mountpoint on disks. This can be different from
+// LxcPath when LxcPath refers to the old mountpoint on /var/lib/lxc
+func (b *Box) UnionPath() string {
 	return path.Join(b.Disk, b.MountName())
 }
 
 // rootfs of the container. This is the root after unionized so its typically
 // will be in boxer.Root i.e /var/lib/lxc
 func (b *Box) RootFS() string {
-	return path.Join(b.Disk, b.MountName(), "rootfs")
+	return path.Join(b.LxcPath(), "rootfs")
+}
+
+// detects the correct container path of the box ( which can be either b.Disk
+// or /var/lib/lxc ). This is used for the migration process where container
+// can be in /var/lib/lxc when we deploy new version of boxer, hence will not
+// work with the new lxc path
+func (b *Box) ContainerPath() string {
+	// we check the old lxc path to see if this container is still using it
+	// if the mount point is not exist, then we can safely use the new disk
+	oldLxcPath := path.Join("/var/lib/lxc", b.MountName())
+	if _, err := os.Stat(oldLxcPath); os.IsNotExist(err) {
+		return b.Disk
+	}
+	// otherwise, check if it's mounted to make sure that its in used
+	// if there are errors, conservatively use the old path
+	// if this is mounted, a container is using it.
+	mounted, err := mount.Mounted(oldLxcPath)
+	if err != nil || mounted {
+		return "/var/lib/lxc"
+	}
+	// not mounted so we can safely use the new disk since container are not
+	// used
+	return b.Disk
 }
 
 // path of the box's templates.  (i.e. ruby_template.tar.gz,
@@ -603,7 +634,15 @@ func (b *Box) Unmount() error {
 	// always re-generate a new unique id when unmount the path
 	defer b.generateUniqueId()
 	mountMethod := b.getMountMethod()
+	// unmount the lxc path. This can be either:
+	// - /var/lib/lxc/container
+	// - /lxc/disk/container
 	if err := mount.Unmount(mountMethod, b.LxcPath()); err != nil {
+		logger.Println(&BoxOpError{Op: mountMethod + " unmount", Err: err})
+	}
+	// unmount the union path. This is /lxc/disk/container. This need to be
+	// done for containers that havent been migrated
+	if err := mount.Unmount(mountMethod, b.UnionPath()); err != nil {
 		logger.Println(&BoxOpError{Op: mountMethod + " unmount", Err: err})
 	}
 	return nil
@@ -633,7 +672,7 @@ func (b *Box) DeleteContainerData() error {
 // the unit if B, so if we want to convert to MB, it needs to be divided with
 // 1024 * 1024
 func (b *Box) MemoryUsageInBytes() (int, error) {
-	output, err := lxc.CgroupGet(b.Disk, b.MountName(), "memory.usage_in_bytes")
+	output, err := lxc.CgroupGet(b.ContainerPath(), b.MountName(), "memory.usage_in_bytes")
 	if err != nil {
 		return 0, err
 	}
@@ -652,7 +691,7 @@ func (b *Box) Info() (BoxInfo, error) {
 	} else {
 		info.MemoryUsage = MemoryUsageNotApplicable
 	}
-	state, err := lxc.Status(b.Disk, b.MountName())
+	state, err := lxc.Status(b.ContainerPath(), b.MountName())
 	if err == nil {
 		info.LxcStatus = state
 	} else {
