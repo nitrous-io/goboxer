@@ -174,6 +174,9 @@ func (b *Box) Create() error {
 	if err := b.setHosts(); err != nil {
 		return &BoxOpError{Op: "set /etc/hosts", Err: err}
 	}
+	if err := b.regenerateSSHHostKeys(); err != nil {
+		return &BoxOpError{Op: "regenerate SSH host keys", Err: err}
+	}
 	if err := b.setNetworkInterface(); err != nil {
 		return &BoxOpError{Op: "set network interface", Err: err}
 	}
@@ -949,6 +952,18 @@ func (b *Box) setHosts() error {
 	}
 	defer hosts.Close()
 	return HostsTemplateCompiled.Execute(hosts, b)
+}
+
+func (b *Box) regenerateSSHHostKeys() error {
+	keyTypes := []string{"rsa", "dsa", "ecdsa"}
+	for _, keyType := range keyTypes {
+		keyPath := path.Join(b.RootFS(), "etc", "ssh", fmt.Sprintf("ssh_host_%s_key", keyType))
+		sshKeygen := fmt.Sprintf("yes | ssh-keygen -N '' -f %s -t %s -q", keyPath, keyType)
+		if err := utils.RunCommand("/bin/sh", "-c", sshKeygen); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (b *Box) setNetworkInterface() error {
