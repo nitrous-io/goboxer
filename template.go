@@ -9,7 +9,8 @@ const LxcTemplate = `
 {{if .Sudo}}
 # To support container nesting on an Ubuntu host while retaining most of
 # apparmor's added security, use the following two lines instead.
-lxc.aa_profile = lxc-container-default-with-nesting
+# lxc.aa_profile = lxc-container-default-with-nesting
+lxc.aa_profile = unconfined
 lxc.hook.mount = /usr/share/lxc/hooks/mountcgroups
 {{else}}
 # uncomment the next line to run the container unconfined
@@ -47,6 +48,11 @@ lxc.cgroup.cpu.cfs_quota_us = {{.CpuQuotaMicroseconds}}
 {{if .CpuSet}}
 lxc.cgroup.cpuset.cpus = {{.CpuSetStr}}
 {{end}}
+
+{{if .Sudo}}
+# allow all devices in sudo mode
+lxc.cgroup.devices.allow = a
+{{else}}
 lxc.cgroup.devices.deny = a
 # Allow any mknod (but not using the node)
 lxc.cgroup.devices.allow = c *:* m
@@ -76,6 +82,7 @@ lxc.cgroup.devices.allow = c 1:7 rwm
 lxc.cgroup.devices.allow = c 10:228 rwm
 #kvm
 lxc.cgroup.devices.allow = c 10:232 rwm
+{{end}}
 
 lxc.utsname = {{.ContainerName}}
 
