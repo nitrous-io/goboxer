@@ -12,7 +12,6 @@ import (
 
 	"github.com/action-io/goboxer/ip"
 	"github.com/action-io/goboxer/lxc"
-	"github.com/action-io/goboxer/mount"
 	"github.com/action-io/goboxer/quota"
 	"github.com/action-io/goboxer/s3"
 	"github.com/action-io/goboxer/utils"
@@ -204,35 +203,33 @@ func (b *Box) Create() error {
 
 func (b *Box) Start(spec *BoxSpec) error {
 	defer logger.LogDuration(
-		fmt.Sprintf("%s:Start %s", b.ContainerName(), b.MountName()),
+		fmt.Sprintf("%s:Start %s", b.ContainerName(), b.UniqueId),
 	)(time.Now())
-	if err := b.Mount(); err != nil {
-		return err
+	beforeStart := func() error {
+		if err := b.WritePublicKeys(); err != nil {
+			return &BoxOpError{Op: "write public keys", Err: err}
+		}
+		if err := b.setPortForwarding(); err != nil {
+			return &BoxOpError{Op: "set port forwarding", Err: err}
+		}
+		// this change spec without restarting the box
+		if err := b.handleSpecChange(spec, true); err != nil {
+			return &BoxOpError{Op: "spec change", Err: err}
+		}
+		if err := b.addPartsInitUpstart(); err != nil {
+			return &BoxOpError{Op: "parts init upstart", Err: err}
+		}
+		if err := b.addNitrousboxrcUpstart(); err != nil {
+			return &BoxOpError{Op: "nitrousboxrc upstart", Err: err}
+		}
+		if err := b.addNitrousboxrcSample(); err != nil {
+			return &BoxOpError{Op: "nitrousboxrc sample", Err: err}
+		}
+		return nil
 	}
-	if err := b.WritePublicKeys(); err != nil {
-		return &BoxOpError{Op: "write public keys", Err: err}
-	}
-	if err := b.setPortForwarding(); err != nil {
-		return &BoxOpError{Op: "set port forwarding", Err: err}
-	}
-	// this change spec without restarting the box
-	if err := b.handleSpecChange(spec, true); err != nil {
-		return &BoxOpError{Op: "spec change", Err: err}
-	}
-	if err := b.addPartsInitUpstart(); err != nil {
-		return &BoxOpError{Op: "parts init upstart", Err: err}
-	}
-	if err := b.addNitrousboxrcUpstart(); err != nil {
-		return &BoxOpError{Op: "nitrousboxrc upstart", Err: err}
-	}
-	if err := b.addNitrousboxrcSample(); err != nil {
-		return &BoxOpError{Op: "nitrousboxrc sample", Err: err}
-	}
-	// Start always use the new disk so we can gradually migrate off
-	// /var/lib/lxc
-	err := lxc.Start(b.Disk, b.ContainerName(), b.MountName())
+	_, err := b.provisioner().Start(b.ContainerName(), b.UniqueId, beforeStart)
 	if err != nil {
-		return &BoxOpError{Op: "lxc-start " + b.MountName(), Err: err}
+		return &BoxOpError{Op: "lxc-start " + b.ContainerName(), Err: err}
 	}
 	return nil
 }
@@ -245,24 +242,23 @@ func (b *Box) Start(spec *BoxSpec) error {
 // shutting down, then stop the container again
 func (b *Box) Stop() error {
 	defer logger.LogDuration(
-		fmt.Sprintf("%s:Stop %s", b.ContainerName(), b.MountName()),
+		fmt.Sprintf("%s:Stop %s", b.ContainerName(), b.UniqueId),
 	)(time.Now())
 	if err := b.unsetPortForwarding(); err != nil {
 		// ignore error from unset port forwarding here as its not harmful
 		logger.Printf("%v", &BoxOpError{Op: "unset port forwarding", Err: err})
 	}
-	if lxc.Poweroff(b.ContainerPath(), b.MountName()) != nil {
-		utils.RunCommand("pkill", "-9", "-u", b.Uid())
-		if err := lxc.Stop(b.ContainerPath(), b.ContainerName(), b.MountName()); err != nil {
-			return &BoxOpError{Op: "lxc-stop " + b.MountName(), Err: err}
-		}
+	id, err := b.provisioner().Stop(b.ContainerName(), b.UniqueId, b.Uid())
+	b.UniqueId = id
+	if err != nil {
+		return &BoxOpError{Op: "lxc-stop " + b.ContainerName(), Err: err}
 	}
-	return b.Unmount()
+	return nil
 }
 
 func (b *Box) Destroy() error {
 	defer logger.LogDuration(
-		fmt.Sprintf("%s:Destroy %s", b.ContainerName(), b.MountName()),
+		fmt.Sprintf("%s:Destroy %s", b.ContainerName(), b.UniqueId),
 	)(time.Now())
 	if err := b.Stop(); err != nil {
 		return err
@@ -270,12 +266,12 @@ func (b *Box) Destroy() error {
 	if err := b.UnsetQuota(); err != nil {
 		return &BoxOpError{Op: "unset quota", Err: err}
 	}
-	return b.DeleteContainerData()
+	return b.provisioner().Destroy(b.ContainerName(), b.UniqueId)
 }
 
 func (b *Box) Snapshot(snapshotId int) (snapshot *Snapshot, err error) {
 	defer logger.LogDuration(
-		fmt.Sprintf("%s:Snapshot %s", b.ContainerName(), b.MountName()),
+		fmt.Sprintf("%s:Snapshot %s", b.ContainerName(), b.UniqueId),
 	)(time.Now())
 
 	quotaInfo, err := b.quota().ViewLimit(b.quotaArg())
@@ -358,19 +354,19 @@ func (b *Box) PublicKeysPath() string {
 }
 
 func (b *Box) LxcPath() string {
-	return path.Join(b.ContainerPath(), b.MountName())
+	return b.provisioner().GetLxcPath(b.ContainerName(), b.UniqueId)
 }
 
 // direct link to the union mountpoint on disks. This can be different from
 // LxcPath when LxcPath refers to the old mountpoint on /var/lib/lxc
 func (b *Box) UnionPath() string {
-	return path.Join(b.Disk, b.MountName())
+	return b.LxcPath()
 }
 
 // rootfs of the container. This is the root after unionized so its typically
 // will be in boxer.Root i.e /var/lib/lxc
 func (b *Box) RootFS() string {
-	return path.Join(b.LxcPath(), "rootfs")
+	return b.provisioner().GetRootfsPath(b.ContainerName(), b.UniqueId)
 }
 
 // detects the correct container path of the box ( which can be either b.Disk
@@ -378,22 +374,7 @@ func (b *Box) RootFS() string {
 // can be in /var/lib/lxc when we deploy new version of boxer, hence will not
 // work with the new lxc path
 func (b *Box) ContainerPath() string {
-	// we check the old lxc path to see if this container is still using it
-	// if the mount point is not exist, then we can safely use the new disk
-	oldLxcPath := path.Join("/var/lib/lxc", b.MountName())
-	if _, err := os.Stat(oldLxcPath); os.IsNotExist(err) {
-		return b.Disk
-	}
-	// otherwise, check if it's mounted to make sure that its in used
-	// if there are errors, conservatively use the old path
-	// if this is mounted, a container is using it.
-	mounted, err := mount.Mounted(oldLxcPath)
-	if err != nil || mounted {
-		return "/var/lib/lxc"
-	}
-	// not mounted so we can safely use the new disk since container are not
-	// used
-	return b.Disk
+	return b.provisioner().GetCurrentRoot(b.ContainerName(), b.UniqueId)
 }
 
 // path of the box's templates.  (i.e. ruby_template.tar.gz,
@@ -607,75 +588,8 @@ func (b *Box) UpdatePremiumStatus() error {
 	}
 }
 
-func (b *Box) Mount() error {
-	b.boxer.Lock(b.Id)
-	defer b.boxer.Unlock(b.Id)
-	defer logger.LogDuration(
-		fmt.Sprintf("%s:Mount", b.ContainerName()),
-	)(time.Now())
-
-	boxDeltaPath := b.ContainerDeltaPath()
-	mountMethod := b.getMountMethod()
-	switch mountMethod {
-	case "overlayfs", "aufs":
-		// overlayfs or aufs strategy
-		//
-		// we are going to create a delta folder which will hold user data,
-		// union with the base container template in the same disk
-		boxPath := b.LxcPath()
-		baseContainerPath := path.Join(b.Disk, "base_container_template")
-		if err := mount.Union(b.getMountMethod(), boxPath, boxDeltaPath, baseContainerPath); err != nil {
-			return &BoxOpError{Op: "overlayfs/aufs mount", Err: err}
-		}
-		return nil
-	default:
-		return fmt.Errorf("box: %s is not a supported mount method", mountMethod)
-	}
-}
-
-// Unmount will always regenerate an unique id for the box, so it guarantees
-// that the next mount operation will success even if `Unmount` fails
-func (b *Box) Unmount() error {
-	b.boxer.Lock(b.Id)
-	defer b.boxer.Unlock(b.Id)
-	defer logger.LogDuration(
-		fmt.Sprintf("%s:Unmount", b.ContainerName()),
-	)(time.Now())
-	// always re-generate a new unique id when unmount the path
-	defer b.generateUniqueId()
-	mountMethod := b.getMountMethod()
-	// unmount the lxc path. This can be either:
-	// - /var/lib/lxc/container
-	// - /lxc/disk/container
-	if err := mount.Unmount(mountMethod, b.LxcPath()); err != nil {
-		logger.Println(&BoxOpError{Op: mountMethod + " unmount", Err: err})
-	}
-	// unmount the union path. This is /lxc/disk/container. This need to be
-	// done for containers that havent been migrated
-	if err := mount.Unmount(mountMethod, b.UnionPath()); err != nil {
-		logger.Println(&BoxOpError{Op: mountMethod + " unmount", Err: err})
-	}
-	return nil
-}
-
 func (b *Box) lxcMounted() (bool, error) {
-	return mount.Mounted(b.LxcPath())
-}
-
-func (b *Box) DeleteContainerData() error {
-	// if golang failed to remove container, drops into cmdline as it seems to
-	// work all the times. We just prefer to do it in golang first.
-	if err := os.RemoveAll(b.ContainerDeltaPath()); err != nil {
-		err = utils.RunCommand("rm", "-r", "-f", b.ContainerDeltaPath())
-		if err != nil {
-			return &BoxOpError{Op: "remove container delta", Err: err}
-		}
-	}
-	err := os.RemoveAll(b.LxcPath())
-	if err != nil {
-		return &BoxOpError{Op: "remove container FS", Err: err}
-	}
-	return nil
+	return b.provisioner().IsMounted(b.ContainerName(), b.UniqueId)
 }
 
 // Return current memory usage of the box as memory cgroup reported it

@@ -14,7 +14,11 @@ type (
 		Start(name, id string, beforeStart func() error) (newId string, err error)
 		GetLxcConfigPath(name, id string) string
 		GetRootfsPath(name, id string) string
-		IsMounted(name, id string) bool
+		IsMounted(name, id string) (bool, error)
+
+		// methods o handle lxc-related operations outside of provisioner
+		GetLxcPath(name, id string) string
+		GetCurrentRoot(name, id string) string
 	}
 
 	OpError struct {
