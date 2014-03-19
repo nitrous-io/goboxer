@@ -62,9 +62,9 @@ func (p *Provisioner) Stop(name, boxId, userId string) (id string, err error) {
 		id = generateId()
 	}()
 	containerName := name + "-" + boxId
-	if lxcCmd.Poweroff(p.root, containerName) != nil {
+	if lxcCmd.Poweroff(p.GetCurrentRoot(name, boxId), containerName) != nil {
 		utils.RunCommand("pkill", "-9", "-u", userId)
-		if err = lxcCmd.Stop(p.root, name, containerName); err != nil {
+		if err = lxcCmd.Stop(p.GetCurrentRoot(name, boxId), name, containerName); err != nil {
 			err = &pr.OpError{Op: "lxc-stop " + boxId, Err: err}
 			return
 		}
@@ -88,17 +88,20 @@ func (p *Provisioner) Start(name, boxId string, beforeStart func() error) (strin
 	return boxId, nil
 }
 
+func (p *Provisioner) GetLxcPath(name, id string) string {
+	return path.Join(p.GetCurrentRoot(name, id), name+"-"+id)
+}
+
 func (p *Provisioner) GetLxcConfigPath(name, id string) string {
-	return path.Join(p.root, name+"-"+id, "config")
+	return path.Join(p.GetCurrentRoot(name, id), name+"-"+id, "config")
 }
 
 func (p *Provisioner) GetRootfsPath(name, id string) string {
-	return path.Join(p.root, name+"-"+id, "rootfs")
+	return path.Join(p.GetCurrentRoot(name, id), name+"-"+id, "rootfs")
 }
 
-func (p *Provisioner) IsMounted(name, id string) bool {
-	mounted, err := mount.Mounted(path.Join(p.root, name+"-"+id))
-	return err == nil && mounted
+func (p *Provisioner) IsMounted(name, id string) (bool, error) {
+	return mount.Mounted(path.Join(p.GetCurrentRoot(name, id), name+"-"+id))
 }
 
 func Init(root string) (pr.Provisioner, error) {
@@ -124,9 +127,35 @@ func (p *Provisioner) mount(name, id string) error {
 func (p *Provisioner) unmount(name, id string) error {
 	boxId := name + "-" + id
 	boxPath := path.Join(p.root, boxId)
+	oldLxcPath := path.Join(LXC_PATH, boxId)
 	// unmount /lxc/disk8/mclovins-container-1-1234
 	// but ignore errors here because they are not important for the next start
 	// since we always re-generate the mountpoints
+	mount.Unmount("aufs", oldLxcPath)
 	mount.Unmount("aufs", boxPath)
 	return nil
+}
+
+// detects the correct container path of the box ( which can be either b.Disk
+// or /var/lib/lxc ). This is used for the migration process where container
+// can be in /var/lib/lxc when we deploy new version of boxer, hence will not
+// work with the new lxc path
+func (p *Provisioner) GetCurrentRoot(name, id string) string {
+	mountName := name + "-" + id
+	// we check the old lxc path to see if this container is still using it
+	// if the mount point is not exist, then we can safely use the new disk
+	oldLxcPath := path.Join("/var/lib/lxc", mountName)
+	if _, err := os.Stat(oldLxcPath); os.IsNotExist(err) {
+		return p.root
+	}
+	// otherwise, check if it's mounted to make sure that its in used
+	// if there are errors, conservatively use the old path
+	// if this is mounted, a container is using it.
+	mounted, err := mount.Mounted(oldLxcPath)
+	if err != nil || mounted {
+		return "/var/lib/lxc"
+	}
+	// not mounted so we can safely use the new disk since container are not
+	// used
+	return p.root
 }
