@@ -7,7 +7,10 @@ import (
 
 const LxcTemplate = `
 {{if .Sudo}}
+# To support container nesting on an Ubuntu host while retaining most of
+# apparmor's added security, use the following two lines instead.
 lxc.aa_profile = lxc-container-default-with-nesting
+lxc.hook.mount = /usr/share/lxc/hooks/mountcgroups
 {{else}}
 # uncomment the next line to run the container unconfined
 # lxc.aa_profile = unconfined
@@ -19,11 +22,15 @@ lxc.pts = 1024
 lxc.arch = amd64
 lxc.pivotdir = lxc_putold
 
+{{if .Sudo}}
+lxc.cap.drop = sys_module mac_admin mac_override sys_time
+{{else}}
 lxc.cap.drop = audit_control audit_write
 lxc.cap.drop = mac_admin mac_override
 lxc.cap.drop = mknod setfcap setpcap
 lxc.cap.drop = sys_module sys_nice sys_pacct sys_rawio sys_resource
 lxc.cap.drop = sys_time sys_tty_config
+{{end}}
 
 lxc.network.type = veth
 lxc.network.flags = up
