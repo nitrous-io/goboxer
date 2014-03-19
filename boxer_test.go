@@ -1270,6 +1270,36 @@ func (s *BoxerSuite) TestUpdatePremium(c *C) {
 	})
 }
 
+func (s *BoxerSuite) TestUpdateSudo(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:configure", func(msg *Message) {
+				msg.DataType = "aio:configure:update_sudo"
+				msg.Data = map[string]interface{}{
+					"sudo": true,
+				}
+			}))
+
+		c.Assert(message.Type, Equals, "aio:configured")
+		c.Assert(message.DataType, Equals, "aio:configured:update_sudo")
+		c.Assert(message.Id, Equals, "testboxer")
+		c.Assert(message.BoxId, Equals, 1)
+		c.Assert(message.Success, Equals, true)
+		c.Assert(box.Sudo, Equals, true)
+
+		_, box = s.receiveMessages("mclovins-container-1",
+			s.makeMessage("aio:configure", func(msg *Message) {
+				msg.DataType = "aio:configure:update_sudo"
+				msg.Data = map[string]interface{}{
+					"sudo": false,
+				}
+			}))
+		c.Assert(box.Sudo, Equals, false)
+	})
+}
+
 func (s *BoxerSuite) TestAddPublicKey(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
