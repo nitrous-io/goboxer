@@ -874,6 +874,81 @@ rm /etc/sudoers # check privileges, stderr logging`
 	})
 }
 
+func (s *BoxerSuite) TestStartWithSudo(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+		_, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg))
+		box.Sudo = true
+		box.save()
+
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeMessage("aio:start", defaultMsg))
+		c.Assert(message.Type, Equals, "aio:started")
+		c.Assert(message.Success, Equals, true)
+
+		// make sure that we set required lxc config for unrestricted root
+		DoesContain(c, map[string][]string{
+			box.LxcPath() + "/config": {
+				"lxc.aa_profile = unconfined",
+				"lxc.hook.mount = /usr/share/lxc/hooks/mountcgroups",
+				"lxc.cap.drop = sys_module mac_admin mac_override sys_time",
+				"lxc.cgroup.devices.allow = a",
+			},
+		})
+		DoesNotContain(c, map[string][]string{
+			box.LxcPath() + "/config": {
+				"lxc.cgroup.devices.deny = a",
+				"lxc.cap.drop = sys_time sys_tty_config",
+			},
+		})
+		// make sure that alias_sudo is removed
+		DoesNotExist(c, []string{
+			box.RootFS() + "/etc/profile.d/alias_sudo.sh",
+		})
+	})
+}
+
+func (s *BoxerSuite) TestStartWithSudoRevoked(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+		_, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg))
+		box.Sudo = true
+		box.save()
+
+		_, box = s.receiveMessages("mclovins-container-1",
+			s.makeMessage("aio:start", defaultMsg))
+		box.Sudo = false
+		box.save()
+
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeMessage("aio:restart", defaultMsg))
+		c.Assert(message.Type, Equals, "aio:restarted")
+		c.Assert(message.Success, Equals, true)
+
+		// make sure that we removed required lxc config for unrestricted root
+		DoesNotContain(c, map[string][]string{
+			box.LxcPath() + "/config": {
+				"lxc.hook.mount = /usr/share/lxc/hooks/mountcgroups",
+				"lxc.cgroup.devices.allow = a",
+			},
+		})
+		DoesContain(c, map[string][]string{
+			box.LxcPath() + "/config": {
+				"lxc.cgroup.devices.deny = a",
+				"lxc.cap.drop = sys_time sys_tty_config",
+			},
+		})
+		// make sure that alias_sudo is set
+		DoesContain(c, map[string][]string{
+			box.RootFS() + "/etc/profile.d/alias_sudo.sh": {
+				"alias sudo",
+			},
+		})
+	})
+}
+
 func (s *BoxerSuite) TestDestroy(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
