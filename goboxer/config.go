@@ -21,8 +21,6 @@ type Config struct {
 	SelectedDisk    string            `json:"selectedDisk"`
 	Disks           []string          `json:"disks"`
 	Runtimes        map[string]string `json:"runtimes"`
-	PingHost        string            `json:"pingHost"`
-	PingPort        string            `json:"pingPort"`
 	MountMethod     string            `json:"mountMethod"`
 	QuotaMethod     string            `json:"quotaMethod"`
 	CartmanHost     string            `json:"cartmanHost"`
@@ -43,10 +41,6 @@ func (c Config) RedisMQAddr() string {
 
 func (c Config) RedisStoreAddr() string {
 	return c.RedisStoreHost + ":" + c.RedisStorePort
-}
-
-func (c Config) HasValidPingSettings() bool {
-	return len(c.PingHost) > 0 && len(c.PingPort) > 0
 }
 
 func (c Config) HasValidCartmanSettings() bool {
