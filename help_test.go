@@ -156,7 +156,7 @@ func AssertIptablesOutput(c *C, str string, assertion bool) {
 		assertion)
 }
 
-func MakeRepo(box *Box, repoPath string, scm uint) error {
+func MakeRepo(box *Box, repoPath string, scm string) error {
 	fullPath := filepath.Join(box.RootFS(), repoPath)
 	if err := os.MkdirAll(fullPath, 0755); err != nil {
 		return err

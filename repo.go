@@ -14,16 +14,16 @@ import (
 type Repo struct {
 	Box             *Box
 	Url             string
-	Scm             uint
+	Scm             string
 	CloneTimeout    time.Duration
 	IdentifyTimeout time.Duration
 }
 
 // possible SCM values, for now we only support Git and Mercurial
 const (
-	ScmGit uint = 1 + iota
-	ScmMercurial
-	ScmUnsupported
+	ScmUnsupported = "unsupported"
+	ScmGit         = "git"
+	ScmMercurial   = "mercurial"
 )
 
 const (
@@ -34,7 +34,7 @@ const (
 // all returned errors are passed on to Message and are user-facing
 // these are all formatted strings and intended to be passed into fmt.Errorf
 var (
-	DefaultCloneError      = fmt.Errorf("Error cloning repository")
+	DefaultCloneError      = fmt.Errorf("Clone command failed")
 	UnsupportedCloneError  = fmt.Errorf("URL does not look like a Git or Mercurial repository")
 	DiskSpaceExceededError = fmt.Errorf("Repository size exceeds available disk space")
 	NoDestinationError     = fmt.Errorf("Could not determine destination directory")
@@ -44,7 +44,7 @@ var (
 // Clone takes a baseLocation relative to the box root and uses that as the parent directory of the cloned repository
 func (r *Repo) Clone(baseLocation string) error {
 	var err error
-	if r.Scm == 0 {
+	if r.Scm == "" {
 		r.identifyScm()
 	}
 	var cmd *exec.Cmd
