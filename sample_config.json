@@ -14,7 +14,7 @@
   "mountMethod": "aufs",
   "quotaMethod": "usrquota",
   "cartmanHost": "127.0.0.1",
-  "cartmanPort": "65202",
+  "cartmanPort": "65203",
   "runtimes": {
     "rails": "ruby_template",
     "nodejs": "nodejs_template",
