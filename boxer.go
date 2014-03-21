@@ -619,7 +619,11 @@ func CloneRepositoryHandler(m Message, boxer *Boxer) (message Message) {
 
 	if m.RepositoryUrl == "" {
 		logger.Printf("ERROR: No repository url given")
-		return
+		return boxer.NewInvalidParamMessage()
+	}
+	if m.RepositoryScm == "" {
+		logger.Printf("ERROR: No repository scm given")
+		return boxer.NewInvalidParamMessage()
 	}
 
 	box, err := boxer.findBox(m.Name)
@@ -627,6 +631,7 @@ func CloneRepositoryHandler(m Message, boxer *Boxer) (message Message) {
 		return boxer.NewInvalidParamMessage()
 	}
 
+	repo := &Repo{Url: m.RepositoryUrl, Scm: m.RepositoryScm}
 	message = Message{
 		Type:          "aio:cloned_repository",
 		Id:            boxer.Id,
@@ -635,7 +640,7 @@ func CloneRepositoryHandler(m Message, boxer *Boxer) (message Message) {
 		Success:       false,
 	}
 
-	if err := box.CloneRepo(&Repo{Url: m.RepositoryUrl}); err != nil {
+	if err := box.CloneRepo(repo); err != nil {
 		message.Error = err.Error()
 		return
 	}

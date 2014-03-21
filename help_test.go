@@ -162,7 +162,6 @@ func MakeRepo(box *Box, repoPath string, scm string) error {
 		return err
 	}
 	makeRepo := func(scmCommand string) error {
-		fmt.Println("Making repo in", fullPath)
 		_, err := utils.MultiRun(fullPath,
 			exec.Command(scmCommand, "init"),
 			exec.Command("touch", fmt.Sprintf(".%signore", scmCommand)),

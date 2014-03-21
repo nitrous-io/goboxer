@@ -12,11 +12,10 @@ import (
 
 // a Repo is a link to a repository to be cloned into a box
 type Repo struct {
-	Box             *Box
-	Url             string
-	Scm             string
-	CloneTimeout    time.Duration
-	IdentifyTimeout time.Duration
+	Box          *Box
+	Url          string
+	Scm          string
+	CloneTimeout time.Duration
 }
 
 // possible SCM values, for now we only support Git and Mercurial
@@ -27,8 +26,7 @@ const (
 )
 
 const (
-	DefaultRepoCloneTimeout    = 5 * time.Minute
-	DefaultRepoIdentifyTimeout = 1 * time.Minute
+	DefaultRepoCloneTimeout = 5 * time.Minute
 )
 
 // all returned errors are passed on to Message and are user-facing
@@ -44,9 +42,6 @@ var (
 // Clone takes a baseLocation relative to the box root and uses that as the parent directory of the cloned repository
 func (r *Repo) Clone(baseLocation string) error {
 	var err error
-	if r.Scm == "" {
-		r.identifyScm()
-	}
 	var cmd *exec.Cmd
 
 	clonePath, err := r.freshLocation(baseLocation)
@@ -134,35 +129,6 @@ func (r *Repo) freshLocation(baseLocation string) (string, error) {
 		}
 	}
 	return "", NoDestinationError
-}
-
-// identifyScm populates the Scm field of given repo
-func (r *Repo) identifyScm() {
-	switch {
-	case r.isGit(): // given relative SCM popularity, we always try git first
-		r.Scm = ScmGit
-	case r.isMercurial():
-		r.Scm = ScmMercurial
-	default:
-		r.Scm = ScmUnsupported
-	}
-	return
-}
-
-func (r *Repo) isGit() bool {
-	timeout := r.IdentifyTimeout
-	if timeout == 0 {
-		timeout = DefaultRepoIdentifyTimeout
-	}
-	return r.Runner(r.boxUserCommand("git", "ls-remote", r.Url), timeout) == nil
-}
-
-func (r *Repo) isMercurial() bool {
-	timeout := r.IdentifyTimeout
-	if timeout == 0 {
-		timeout = DefaultRepoIdentifyTimeout
-	}
-	return r.Runner(r.boxUserCommand("hg", "identify", r.Url), timeout) == nil
 }
 
 // boxUserCommand is a wrapper for exec.Command that runs the command as the correct user and rootdir

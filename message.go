@@ -36,6 +36,7 @@ type Message struct {
 
 	// for CloneRepository message
 	RepositoryUrl string `json:"repositoryUrl,omitempty"`
+	RepositoryScm string `json:"repositoryScm,omitempty"`
 	Error         string `json:"error,omitempty"`
 
 	// for normal message

@@ -1982,7 +1982,7 @@ func (s *BoxerSuite) TestDeleteSnapshot(c *C) {
 	})
 }
 
-func (s *BoxerSuite) TestCloneUnsupportedRepositoryFromHandler(c *C) {
+func (s *BoxerSuite) TestCloneRepositoryWithWrongScm(c *C) {
 	var badRepoPath = filepath.Join(ScratchDir, "fake-bad")
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
@@ -1990,15 +1990,16 @@ func (s *BoxerSuite) TestCloneUnsupportedRepositoryFromHandler(c *C) {
 			s.makeCreateMessage(defaultMsg),
 			s.makeMessage("aio:clone_repository", func(msg *Message) {
 				msg.RepositoryUrl = fmt.Sprintf("file://%s", badRepoPath)
+				msg.RepositoryScm = ScmMercurial
 			}))
 
 		c.Assert(message.Success, Equals, false)
 		c.Assert(message.Type, Equals, "aio:cloned_repository")
-		c.Assert(message.Error, Matches, ".*Git or Mercurial.*")
+		c.Assert(message.Error, Matches, "Clone command failed")
 	})
 }
 
-func (s *BoxerSuite) TestCloneGitRepositoryFromHandler(c *C) {
+func (s *BoxerSuite) TestCloneGitRepository(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
 
@@ -2014,6 +2015,7 @@ func (s *BoxerSuite) TestCloneGitRepositoryFromHandler(c *C) {
 		message, box = s.receiveMessages("mclovins-container-1",
 			s.makeMessage("aio:clone_repository", func(msg *Message) {
 				msg.RepositoryUrl = fmt.Sprintf("file://%s", gitRepoPath)
+				msg.RepositoryScm = ScmGit
 			}))
 
 		c.Assert(message.Error, Equals, "")
@@ -2032,7 +2034,7 @@ func (s *BoxerSuite) TestCloneGitRepositoryFromHandler(c *C) {
 	})
 }
 
-func (s *BoxerSuite) TestCloneHgRepositoryFromHandler(c *C) {
+func (s *BoxerSuite) TestCloneHgRepository(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
 
@@ -2048,6 +2050,7 @@ func (s *BoxerSuite) TestCloneHgRepositoryFromHandler(c *C) {
 		message, box = s.receiveMessages("mclovins-container-1",
 			s.makeMessage("aio:clone_repository", func(msg *Message) {
 				msg.RepositoryUrl = fmt.Sprintf("file://%s", hgRepoPath)
+				msg.RepositoryScm = ScmMercurial
 			}))
 
 		c.Assert(message.Error, Equals, "")
@@ -2087,41 +2090,12 @@ func (s *BoxerSuite) TestCloneGitRepositoryExceedsQuota(c *C) {
 		message, box = s.receiveMessages("mclovins-container-1",
 			s.makeMessage("aio:clone_repository", func(msg *Message) {
 				msg.RepositoryUrl = fmt.Sprintf("file://%s", gitRepoPath)
+				msg.RepositoryScm = ScmGit
 			}))
 
 		c.Assert(message.Success, Equals, false)
 		c.Assert(message.Error, Matches, ".*exceeds available.*")
 
 		c.Assert(exists(filepath.Join(box.ContainerUserHomePath(), "workspace", "fake-git")), Equals, false)
-	})
-}
-
-func (s *BoxerSuite) TestIdentifyRepositoryTimesOut(c *C) {
-	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
-		stratValue testProvisionStrategy) {
-
-		message, box := s.receiveMessages("mclovins-container-1",
-			s.makeCreateMessage(defaultMsg))
-
-		gitRepoPath := filepath.Join(ScratchDir, "fake-git")
-		err := MakeRepo(box, gitRepoPath, ScmGit)
-		c.Assert(err, IsNil, Commentf("Error on git fake: %s\n", err))
-
-		c.Assert(message.Success, Equals, true)
-
-		repo := &Repo{
-			Box:             box,
-			Url:             "file://" + gitRepoPath,
-			IdentifyTimeout: 1 * time.Millisecond,
-		}
-
-		now := time.Now()
-		repo.identifyScm()
-		c.Assert(repo.Scm, Equals, ScmUnsupported)
-		c.Assert(time.Now().Sub(now) <= 1*time.Second, Equals, true)
-
-		repo.IdentifyTimeout = 1 * time.Minute
-		repo.identifyScm()
-		c.Assert(repo.Scm, Equals, ScmGit)
 	})
 }
