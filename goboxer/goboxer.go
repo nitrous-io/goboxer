@@ -86,17 +86,6 @@ func main() {
 		return
 	}
 
-	// span a go routine that listen and serve ping request
-	if config.HasValidPingSettings() {
-		pingConfig := goboxer.PingConfig{
-			Host:      config.PingHost,
-			Port:      config.PingPort,
-			MQAddr:    config.RedisMQAddr(),
-			StoreAddr: config.RedisStoreAddr(),
-		}
-		go goboxer.StartPingServer(pingConfig)
-	}
-
 	coachListener := &goboxer.CoachListener{
 		Boxer:        boxer,
 		Pool:         goboxer.NewRedisPool(config.RedisMQAddr()),
