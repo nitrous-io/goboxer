@@ -128,5 +128,8 @@ func (c *CoachListener) SendInvalidParam() {
 func (c *CoachListener) replyCoach(msg string) {
 	conn := c.Pool.Get()
 	defer conn.Close()
-	conn.Do("PUBLISH", c.CoachChannel, msg)
+	_, err := conn.Do("PUBLISH", c.CoachChannel, msg)
+	if err != nil {
+		logger.Printf("coach: Failed to publish %s to coach, err: %v", msg, err)
+	}
 }
