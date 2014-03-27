@@ -52,8 +52,13 @@ SCRIPT
 
 Vagrant.configure('2') do |config|
   config.vm.hostname = 'goboxer'
-  config.vm.box      = 'opscode_ubuntu-12.04_chef-11.2.0'
-  config.vm.box_url  = 'https://opscode-vm.s3.amazonaws.com/vagrant/opscode_ubuntu-12.04_chef-11.2.0.box'
+
+  if Vagrant::VERSION < '1.5.0'
+    config.vm.box      = 'opscode_ubuntu-12.04_chef-11.2.0'
+    config.vm.box_url  = 'https://opscode-vm.s3.amazonaws.com/vagrant/opscode_ubuntu-12.04_chef-11.2.0.box'
+  else
+    config.vm.box = 'hashicorp/precise64'
+  end
 
   config.vm.network :private_network, ip: IP
 
