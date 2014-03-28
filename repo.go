@@ -30,21 +30,20 @@ const (
 )
 
 // all returned errors are passed on to Message and are user-facing
-// these are all formatted strings and intended to be passed into fmt.Errorf
 var (
 	DefaultCloneError      = fmt.Errorf("Clone command failed")
 	UnsupportedCloneError  = fmt.Errorf("URL does not look like a Git or Mercurial repository")
 	DiskSpaceExceededError = fmt.Errorf("Repository size exceeds available disk space")
-	NoDestinationError     = fmt.Errorf("Could not determine destination directory")
 	CloneTimeoutError      = fmt.Errorf("Clone took too long")
+	NoDestinationErrorFmt  = "Destination directory %s already exists.  Please rename it and try again"
 )
 
-// Clone takes a baseLocation relative to the box root and uses that as the parent directory of the cloned repository
-func (r *Repo) Clone(baseLocation string) error {
+// Clone takes a parentPath relative to the box root and uses that as the parent directory of the cloned repository
+func (r *Repo) Clone(parentPath string) error {
 	var err error
 	var cmd *exec.Cmd
 
-	clonePath, err := r.freshLocation(baseLocation)
+	clonePath, err := r.clonePath(parentPath)
 	if err != nil {
 		return err
 	}
@@ -108,27 +107,16 @@ func (r *Repo) Runner(cmd *exec.Cmd, timeout time.Duration) error {
 	return nil // never reached, satisfy compiler
 }
 
-// freshLocation appends numbers to the default directory name for a clone
-// until it finds a non-existent directory.  It gives up after 5 attempts (if
-// '<name>4' does not exist.)
-func (r *Repo) freshLocation(baseLocation string) (string, error) {
-	validDir := func(dirPath string) bool {
-		if _, err := os.Stat(dirPath); err == nil {
-			return false
-		} else {
-			return os.IsNotExist(err)
-		}
-	}
+// clonePath takes a baseLocation relative to the box root and appends the repo basename to it.  Returns an error if this directory already exists
+func (r *Repo) clonePath(parentPath string) (string, error) {
 	parts := strings.Split(r.Url, "/")
 	name := strings.TrimSuffix(parts[len(parts)-1], ".git")
-	dir := path.Join(baseLocation, name)
-	for _, suffix := range []string{"", "1", "2", "3", "4"} {
-		attempt := dir + suffix
-		if validDir(attempt) {
-			return attempt, nil
-		}
+	clonePath := path.Join(parentPath, name)
+	if _, err := os.Stat(path.Join(r.Box.RootFS(), clonePath)); err == nil || !os.IsNotExist(err) {
+		return "", fmt.Errorf(NoDestinationErrorFmt, clonePath)
+	} else {
+		return clonePath, nil
 	}
-	return "", NoDestinationError
 }
 
 // boxUserCommand is a wrapper for exec.Command that runs the command as the correct user and rootdir

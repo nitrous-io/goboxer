@@ -2099,3 +2099,32 @@ func (s *BoxerSuite) TestCloneGitRepositoryExceedsQuota(c *C) {
 		c.Assert(exists(filepath.Join(box.ContainerUserHomePath(), "workspace", "fake-git")), Equals, false)
 	})
 }
+
+func (s *BoxerSuite) TestCloneGitRepositoryExistingDirectory(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg))
+
+		c.Assert(message.Success, Equals, true)
+
+		gitRepoPath := filepath.Join(ScratchDir, "fake-git")
+		err := MakeRepo(box, gitRepoPath, ScmGit)
+		c.Assert(err, IsNil, Commentf("Error on git fake: %s\n", err))
+
+		os.MkdirAll(filepath.Join(box.ContainerUserHomePath(), "workspace", "fake-git", "existing"), 0755)
+
+		message, box = s.receiveMessages("mclovins-container-1",
+			s.makeMessage("aio:clone_repository", func(msg *Message) {
+				msg.RepositoryUrl = fmt.Sprintf("file://%s", gitRepoPath)
+				msg.RepositoryScm = ScmGit
+			}))
+
+		c.Assert(message.Success, Equals, false)
+		c.Assert(message.Error, Matches, "Destination directory /home/action/workspace/fake-git already exists.*")
+
+		// existing directory should not be deleted
+		c.Assert(exists(filepath.Join(box.ContainerUserHomePath(), "workspace", "fake-git", "existing")), Equals, true)
+	})
+}
