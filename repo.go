@@ -8,6 +8,8 @@ import (
 	"path"
 	"strings"
 	"time"
+
+	"github.com/action-io/goboxer/utils"
 )
 
 // a Repo is a link to a repository to be cloned into a box
@@ -123,7 +125,9 @@ func (r *Repo) clonePath(parentPath string) (string, error) {
 func (r *Repo) boxUserCommand(cmd string, args ...string) *exec.Cmd {
 	userspecArg := fmt.Sprintf("--userspec=%s:%s", r.Box.Uid(), r.Box.Gid())
 	cmdArgs := []string{userspecArg, r.Box.RootFS()}
-	cmdArgs = append(cmdArgs, cmd)
-	cmdArgs = append(cmdArgs, args...)
+	cmdArgs = append(cmdArgs, utils.ShellEscape(cmd))
+	for _, arg := range args {
+		cmdArgs = append(cmdArgs, utils.ShellEscape(arg))
+	}
 	return exec.Command("chroot", cmdArgs...)
 }

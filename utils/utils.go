@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -175,4 +176,16 @@ func MultiRun(wd string, commands ...*exec.Cmd) ([]byte, error) {
 		}
 	}
 	return output, err
+}
+
+// ShellEscape returns given string s escaped for safe usage in a command line.
+// Approach is taken from
+// http://www.ruby-doc.org/stdlib-1.9.3/libdoc/shellwords/rdoc/Shellwords.html#method-c-shellescape
+func ShellEscape(s string) string {
+	if s == "" {
+		return "''"
+	}
+	re := regexp.MustCompile("([^A-Za-z0-9_\\-.,:\\/@\n])")
+	escaped := re.ReplaceAllString(s, "\\$1")
+	return strings.Replace(escaped, "\n", "'\n'", -1)
 }
