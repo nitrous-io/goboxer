@@ -52,8 +52,10 @@ func (r *Repo) Clone(parentPath string) error {
 
 	switch {
 	case r.Scm == ScmGit:
-		cmd = r.boxUserCommand("git", "clone", r.Url, clonePath)
+		cmd = r.boxUserCommand("git", "clone", "--depth", "1", r.Url, clonePath)
 	case r.Scm == ScmMercurial:
+		// TODO use shallow clones when Mercurial supports it
+		// http://mercurial.selenic.com/wiki/ShallowClone
 		cmd = r.boxUserCommand("hg", "clone", r.Url, clonePath)
 	case r.Scm == ScmUnsupported:
 		return UnsupportedCloneError
