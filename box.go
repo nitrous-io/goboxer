@@ -323,6 +323,12 @@ func (b *Box) UpdateCustomDomain(customDomain string) error {
 	return nil
 }
 
+func (b *Box) CloneRepo(repo *Repo) error {
+	repo.Box = b
+
+	return repo.Clone("/home/action/workspace")
+}
+
 func (b *Box) MountName() string {
 	base := b.ContainerName()
 	if len(b.UniqueId) > 0 {

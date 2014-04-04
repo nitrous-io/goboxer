@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -221,6 +222,7 @@ func (s *BoxerSuite) SetUpTest(c *C) {
 		DefaultCPUQuota: 0.5,
 		PremiumCPUQuota: 1.0,
 	}
+	os.MkdirAll(ScratchDir, 0755)
 }
 
 func (s *BoxerSuite) TearDownTest(c *C) {
@@ -228,6 +230,7 @@ func (s *BoxerSuite) TearDownTest(c *C) {
 	defer conn.Close()
 	defer s.Redis.Close()
 	conn.Do("FLUSHDB")
+	os.RemoveAll(ScratchDir)
 }
 
 func (s *BoxerSuite) TestSetCpuSet(c *C) {
@@ -1944,7 +1947,7 @@ func (s *BoxerSuite) TestRemoveAuth(c *C) {
 func (s *BoxerSuite) TestSnapshot(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
-		message, _ := s.receiveMessages("mclovins-container-1",
+		message, box := s.receiveMessages("mclovins-container-1",
 			s.makeCreateMessage(defaultMsg),
 			s.makeMessage("aio:snapshot", func(msg *Message) {
 				msg.SnapshotId = 123
@@ -1954,9 +1957,10 @@ func (s *BoxerSuite) TestSnapshot(c *C) {
 		c.Assert(message.Type, Equals, "aio:snapshotted")
 		c.Assert(message.SnapshotId, Equals, 123)
 		c.Assert(message.SnapshotUrl, Equals, "s3://staging-bucket/mclovins-container-1-snapshot-123.tar.gz")
-		// Test container delta folder should be < 1M in size, so size should be
-		// rounded up to 1M.
-		c.Assert(message.SnapshotSize, Equals, 1)
+
+		quotaInfo, err := box.quota().ViewLimit(box.quotaArg())
+		c.Check(err, IsNil)
+		c.Assert(message.SnapshotSize, Equals, int(math.Ceil(float64(quotaInfo.Used)/1024.0)))
 	})
 }
 
@@ -1983,5 +1987,152 @@ func (s *BoxerSuite) TestDeleteSnapshot(c *C) {
 		c.Assert(message.Success, Equals, false)
 		c.Assert(message.Type, Equals, "aio:deleted_snapshot")
 		c.Assert(message.SnapshotId, Equals, 124)
+	})
+}
+
+func (s *BoxerSuite) TestCloneRepositoryWithWrongScm(c *C) {
+	var badRepoPath = filepath.Join(ScratchDir, "fake-bad")
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+		message, _ := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:clone_repository", func(msg *Message) {
+				msg.RepositoryUrl = fmt.Sprintf("file://%s", badRepoPath)
+				msg.RepositoryScm = ScmMercurial
+			}))
+
+		c.Assert(message.Success, Equals, false)
+		c.Assert(message.Type, Equals, "aio:cloned_repository")
+		c.Assert(message.Error, Matches, "Clone command failed")
+	})
+}
+
+func (s *BoxerSuite) TestCloneGitRepository(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg))
+
+		c.Assert(message.Success, Equals, true)
+
+		gitRepoPath := filepath.Join(ScratchDir, "fake-git")
+		err := MakeRepo(box, gitRepoPath, ScmGit)
+		c.Assert(err, IsNil, Commentf("Error on git fake: %s\n", err))
+
+		message, box = s.receiveMessages("mclovins-container-1",
+			s.makeMessage("aio:clone_repository", func(msg *Message) {
+				msg.RepositoryUrl = fmt.Sprintf("file://%s", gitRepoPath)
+				msg.RepositoryScm = ScmGit
+			}))
+
+		c.Assert(message.Error, Equals, "")
+		c.Assert(message.Success, Equals, true)
+		c.Assert(message.Type, Equals, "aio:cloned_repository")
+		c.Assert(message.RepositoryUrl, Equals, fmt.Sprintf("file://%s", gitRepoPath))
+
+		repoRoot := filepath.Join(box.LxcPath(), "rootfs", "home", "action", "workspace", "fake-git")
+		spec := boxContentSpec{
+			Permissions: map[string][]int{
+				repoRoot: {15001, 15001},
+				filepath.Join(repoRoot, ".gitignore"): {15001, 15001},
+			},
+		}
+		spec.Check(c)
+	})
+}
+
+func (s *BoxerSuite) TestCloneHgRepository(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg))
+
+		c.Assert(message.Success, Equals, true)
+
+		hgRepoPath := filepath.Join(ScratchDir, "fake-hg")
+		err := MakeRepo(box, hgRepoPath, ScmMercurial)
+		c.Assert(err, IsNil, Commentf("Error on hg fake: %s\n", err))
+
+		message, box = s.receiveMessages("mclovins-container-1",
+			s.makeMessage("aio:clone_repository", func(msg *Message) {
+				msg.RepositoryUrl = fmt.Sprintf("file://%s", hgRepoPath)
+				msg.RepositoryScm = ScmMercurial
+			}))
+
+		c.Assert(message.Error, Equals, "")
+		c.Assert(message.Success, Equals, true)
+		c.Assert(message.Type, Equals, "aio:cloned_repository")
+		c.Assert(message.RepositoryUrl, Equals, fmt.Sprintf("file://%s", hgRepoPath))
+
+		repoRoot := filepath.Join(box.LxcPath(), "rootfs", "home", "action", "workspace", "fake-hg")
+		spec := boxContentSpec{
+			Permissions: map[string][]int{
+				repoRoot: {15001, 15001},
+				filepath.Join(repoRoot, ".hgignore"): {15001, 15001},
+			},
+		}
+		spec.Check(c)
+	})
+}
+
+func (s *BoxerSuite) TestCloneGitRepositoryExceedsQuota(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg))
+
+		c.Assert(message.Success, Equals, true)
+
+		gitRepoPath := filepath.Join(ScratchDir, "fake-git")
+		err := MakeRepo(box, gitRepoPath, ScmGit)
+		c.Assert(err, IsNil, Commentf("Error on git fake: %s\n", err))
+
+		quotaInfo, err := box.quota().ViewLimit(box.quotaArg())
+		box.DiskSpace = strconv.Itoa(quotaInfo.Used+1) + "K"
+		err = box.SetQuota()
+		c.Check(err, IsNil)
+
+		message, box = s.receiveMessages("mclovins-container-1",
+			s.makeMessage("aio:clone_repository", func(msg *Message) {
+				msg.RepositoryUrl = fmt.Sprintf("file://%s", gitRepoPath)
+				msg.RepositoryScm = ScmGit
+			}))
+
+		c.Assert(message.Success, Equals, false)
+		c.Assert(message.Error, Matches, ".*exceeds available.*")
+
+		c.Assert(exists(filepath.Join(box.ContainerUserHomePath(), "workspace", "fake-git")), Equals, false)
+	})
+}
+
+func (s *BoxerSuite) TestCloneGitRepositoryExistingDirectory(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg))
+
+		c.Assert(message.Success, Equals, true)
+
+		gitRepoPath := filepath.Join(ScratchDir, "fake-git")
+		err := MakeRepo(box, gitRepoPath, ScmGit)
+		c.Assert(err, IsNil, Commentf("Error on git fake: %s\n", err))
+
+		os.MkdirAll(filepath.Join(box.ContainerUserHomePath(), "workspace", "fake-git", "existing"), 0755)
+
+		message, box = s.receiveMessages("mclovins-container-1",
+			s.makeMessage("aio:clone_repository", func(msg *Message) {
+				msg.RepositoryUrl = fmt.Sprintf("file://%s", gitRepoPath)
+				msg.RepositoryScm = ScmGit
+			}))
+
+		c.Assert(message.Success, Equals, false)
+		c.Assert(message.Error, Matches, "Destination directory /home/action/workspace/fake-git already exists.*")
+
+		// existing directory should not be deleted
+		c.Assert(exists(filepath.Join(box.ContainerUserHomePath(), "workspace", "fake-git", "existing")), Equals, true)
 	})
 }

@@ -46,3 +46,18 @@ func (s *UtilSuite) TestPipeCommands(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(string(output), Equals, "15\n")
 }
+
+func (s *UtilSuite) TestShellEscape(c *C) {
+	tests := []struct {
+		input   string
+		escaped string
+	}{
+		{"", "''"},
+		{"https://github.com/rails/rails`touch foo`", "https://github.com/rails/rails\\`touch\\ foo\\`"},
+		{"https://github.com/nitrous-io/autoparts || rm -rf", "https://github.com/nitrous-io/autoparts\\ \\|\\|\\ rm\\ -rf"},
+		{"https://github.com/nitrous-io/auto\nparts", "https://github.com/nitrous-io/auto'\n'parts"},
+	}
+	for _, t := range tests {
+		c.Assert(ShellEscape(t.input), Equals, t.escaped)
+	}
+}
