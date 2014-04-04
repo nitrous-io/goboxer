@@ -249,16 +249,6 @@ func (b *Box) Stop() error {
 	return b.Unmount(b.boxer.Root)
 }
 
-func (b *Box) Restart(spec *BoxSpec) error {
-	defer logger.LogDuration(
-		fmt.Sprintf("%s:Restart %s", b.ContainerName(), b.MountName()),
-	)(time.Now())
-	if err := b.Stop(); err != nil {
-		return err
-	}
-	return b.Start(spec)
-}
-
 func (b *Box) Destroy() error {
 	defer logger.LogDuration(
 		fmt.Sprintf("%s:Destroy %s", b.ContainerName(), b.MountName()),
