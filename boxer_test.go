@@ -1057,9 +1057,17 @@ func (s *BoxerSuite) TestRestartNewlyPremiumBox(c *C) {
 		})
 		s.assertInvalidateCartman(c, box)
 
+		// When a newly premium box restarts, virtualMemory will be changed
+		mockData := make(map[string]interface{})
+		json.Unmarshal(
+			[]byte("{\"memory\":\"256M\",\"virtualMemory\":\"512M\"}"),
+			&mockData)
+
 		// Now restart the box to verify that the cfs_quota_us changes.
 		message, box = s.receiveMessages("mclovins-container-1",
-			s.makeMessage("aio:restart", defaultMsg))
+			s.makeMessage("aio:restart", func(msg *Message) {
+				msg.Data = mockData
+			}))
 
 		c.Assert(message.Type, Equals, "aio:restarted")
 		c.Assert(message.Id, Equals, "testboxer")

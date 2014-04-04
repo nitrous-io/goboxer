@@ -316,20 +316,34 @@ func RestartBoxHandler(m Message, boxer *Boxer) Message {
 		Id:         boxer.Id,
 		BoxId:      box.Id,
 		ReturnVars: m.ReturnVars,
-		Success:    true,
+		Success:    false,
 		Data:       box.CurrentSpec().ToData(),
 	}
 
-	if err := box.Restart(spec); err != nil {
-		logger.Printf("ERROR: Fail to restart box %v, err: %v\n", box, err)
-		msg.Success = false
+	failToRestartLogf := "ERROR: Fail to restart box %v, err: %v\n"
+	failToUpdateStateLogf := "ERROR: Fail to update box state %v, err: %v\n"
+
+	defer logger.LogDuration(
+		fmt.Sprintf("%s:Restart %s", box.ContainerName(), box.MountName()),
+	)(time.Now())
+
+	if err := box.Stop(); err != nil {
+		logger.Printf(failToRestartLogf, box, err)
+		return msg
+	}
+	if err := boxer.ResourcePool.UpdateState(box, "stopped"); err != nil {
+		logger.Printf(failToUpdateStateLogf, box, err)
+	}
+
+	if err := box.Start(spec); err != nil {
+		logger.Printf(failToRestartLogf, box, err)
 		return msg
 	}
 	if err := boxer.ResourcePool.UpdateState(box, "running"); err != nil {
-		logger.Printf("ERROR: Fail to update box state %v, err: %v\n", box, err)
-		msg.Success = false
+		logger.Printf(failToUpdateStateLogf, box, err)
 		return msg
 	}
+	msg.Success = true
 	return msg
 }
 
