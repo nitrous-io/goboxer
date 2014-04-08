@@ -19,7 +19,7 @@ func (s *CoachListenerSuite) TestDispatchIgnoreBoxer(c *C) {
 		Type:  "aio:invalid_message",
 	}
 	json, _ := utils.ToJSON(message)
-	_, err := listener.Dispatch([]byte(json))
+	err := listener.Dispatch(make(chan Message), []byte(json))
 	c.Assert(err, NotNil)
 	c.Assert(err.Error(), Equals, "NotHandle")
 }
