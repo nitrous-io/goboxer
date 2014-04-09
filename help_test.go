@@ -194,3 +194,19 @@ func MakeTargz(archivePath string) error {
 		exec.Command("tar", "zcf", archivePath, "myrepo-master"))
 	return err
 }
+
+// verify the container config with expected values
+func verifyLxcConfig(c *C, containerPath, container string, configs map[string]string) {
+	args := []string{}
+	if len(containerPath) > 0 {
+		args = append(args, "--lxcpath", containerPath)
+	}
+	for key, value := range configs {
+		cmdArgs := append(args, "-n", container, key)
+		cmd := exec.Command("lxc-cgroup", cmdArgs...)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			c.Assert(value, Equals, string(output))
+		}
+	}
+}
