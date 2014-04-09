@@ -73,14 +73,15 @@ func (s *BoxSuite) TestMountName(c *C) {
 }
 
 func (s *BoxSuite) TestLxcPath(c *C) {
-	b := &Box{Name: "test", Id: 123, UniqueId: "123456", Disk: "/lxc/disk2"}
+	b := &Box{Name: "test", Id: 123, UniqueId: "123456", Disk: "/lxc/disk2",
+		Provisioner: "lxc"}
 	b.boxer = &Boxer{}
 	c.Assert(b.LxcPath(), Equals, "/lxc/disk2/test-123-123456")
 }
 
 func (s *BoxSuite) TestRootFS(c *C) {
 	b := &Box{Name: "test", Id: 123, UniqueId: "123456", Disk: "/lxc/disk1",
-		MountMethod: "aufs"}
+		MountMethod: "aufs", Provisioner: "lxc"}
 	b.boxer = &Boxer{}
 	c.Assert(b.RootFS(), Equals, "/lxc/disk1/test-123-123456/rootfs")
 }
