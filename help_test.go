@@ -182,3 +182,22 @@ func MakeRepo(box *Box, repoPath string, scm string) error {
 	}
 	panic("Switch should return")
 }
+
+func MakeTargz(box *Box, archivePath string) error {
+	fullPath := filepath.Join(box.RootFS(), archivePath)
+	archiveParent := filepath.Join(ScratchDir, "maketargz")
+	os.MkdirAll(archiveParent, 0755)
+	defer os.RemoveAll(archiveParent)
+	os.MkdirAll(filepath.Dir(fullPath), 0755)
+	_, err := utils.MultiRun(archiveParent,
+		exec.Command("mkdir", "myrepo-master"),
+		exec.Command("touch", "myrepo-master/README.md"),
+		exec.Command("tar", "zcf", fullPath, "myrepo-master"))
+	if err != nil {
+		return err
+	}
+	_, err = utils.MultiRun(filepath.Join(box.RootFS(), "tmp"),
+		exec.Command("chroot", box.RootFS(), "chown", "-R", fmt.Sprintf("%s:%s", box.Uid(), box.Gid()), archivePath),
+	)
+	return err
+}

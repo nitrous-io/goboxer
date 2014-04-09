@@ -2003,7 +2003,7 @@ func (s *BoxerSuite) TestCloneRepositoryWithWrongScm(c *C) {
 
 		c.Assert(message.Success, Equals, false)
 		c.Assert(message.Type, Equals, "aio:cloned_repository")
-		c.Assert(message.Error, Matches, "Clone command failed")
+		c.Assert(message.Error, Matches, "Repository download failed")
 	})
 }
 
@@ -2134,5 +2134,32 @@ func (s *BoxerSuite) TestCloneGitRepositoryExistingDirectory(c *C) {
 
 		// existing directory should not be deleted
 		c.Assert(exists(filepath.Join(box.ContainerUserHomePath(), "workspace", "fake-git", "existing")), Equals, true)
+	})
+}
+
+func (s *BoxerSuite) TestRepoDownloadGitArchive(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg))
+
+		// repo.download() expects the reponame to be 3rd-last element of path
+		archivePath := filepath.Join(ScratchDir, "autoparts", "archive", "master.tar.gz")
+		err := MakeTargz(box, archivePath)
+		defer os.RemoveAll(archivePath)
+		c.Assert(err, IsNil, Commentf("Error on fake tar.gz: %s\n", err))
+
+		message, box = s.receiveMessages("mclovins-container-1",
+			s.makeMessage("aio:clone_repository", func(msg *Message) {
+				msg.RepositoryUrl = fmt.Sprintf("file://%s", archivePath)
+				msg.RepositoryScm = ScmTargz
+			}))
+
+		c.Assert(message.Error, Equals, "")
+		c.Assert(message.Success, Equals, true)
+		c.Assert(exists(filepath.Join(box.RootFS(), "tmp", "autoparts.tar.gz")), Equals, false)
+
+		c.Assert(exists(filepath.Join(box.ContainerUserHomePath(), "workspace", "autoparts", "README.md")), Equals, true)
 	})
 }

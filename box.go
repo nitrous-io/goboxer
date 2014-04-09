@@ -323,10 +323,11 @@ func (b *Box) UpdateCustomDomain(customDomain string) error {
 	return nil
 }
 
-func (b *Box) CloneRepo(repo *Repo) error {
+// RetrieveRepo clones or downloads an archive into the box's action user workspace directory
+func (b *Box) RetrieveRepo(repo *Repo) error {
 	repo.Box = b
 
-	return repo.Clone("/home/action/workspace")
+	return repo.Retrieve("/home/action/workspace")
 }
 
 func (b *Box) MountName() string {
