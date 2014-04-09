@@ -38,6 +38,7 @@ type BoxerSuite struct {
 }
 
 type testProvisionStrategy struct {
+	Provisioner  string
 	MountMethod  string
 	QuotaMethod  string
 	SelectedDisk string
@@ -47,7 +48,15 @@ type testProvisionStrategy struct {
 // for each strategies, we are going to run all operations to make sure that
 // everything works
 var strategies = map[string]testProvisionStrategy{
-	"ext4": testProvisionStrategy{
+	//"ext4": testProvisionStrategy{
+	//    Provisioner:  "lxc",
+	//    MountMethod:  "aufs",
+	//    QuotaMethod:  "usrquota",
+	//    SelectedDisk: "/lxc/disk2",
+	//    SelectedVG:   "",
+	//},
+	"docker": testProvisionStrategy{
+		Provisioner:  "docker",
 		MountMethod:  "aufs",
 		QuotaMethod:  "usrquota",
 		SelectedDisk: "/lxc/disk2",
@@ -114,6 +123,7 @@ func (s *BoxerSuite) mergeProvisionStrategy(p testProvisionStrategy) {
 	s.Boxer.SelectedDisk = p.SelectedDisk
 	s.Boxer.QuotaMethod = p.QuotaMethod
 	s.Boxer.SelectedVG = p.SelectedVG
+	s.Boxer.Provisioner = p.Provisioner
 	s.Boxer.S3Auth = s3.AuthTest{}
 	s.Boxer.S3Region = "ap-southeast-1"
 	s.Boxer.S3Bucket = "staging-bucket"
@@ -272,61 +282,75 @@ func (s *BoxerSuite) TestCreateBox(c *C) {
 
 		c.Assert(box.PublicKeys, DeepEquals, []string{"ssh-rsa QWER", "ssh-rsa ASDF"})
 
-		root := box.LxcPath()
-		c.Assert(root, Equals, "/lxc/disk2/mclovins-container-1-"+box.UniqueId)
+		switch stratValue.Provisioner {
+		case "lxc":
+			lxcPath := box.LxcPath()
+			c.Assert(lxcPath, Equals, "/lxc/disk2/mclovins-container-1-"+box.UniqueId)
 
-		// actually mount the container at /var/lib/lxc after create
-		isMounted, _ := mount.Mounted(root)
-		c.Assert(isMounted, Equals, true)
+			// actually mount the container at /var/lib/lxc after create
+			isMounted, _ := mount.Mounted(lxcPath)
+			c.Assert(isMounted, Equals, true)
 
-		// check to see if ssh keys are different from
-		// base_container_template. If they are, fail test.
-		sshKeyTypes := []string{"rsa", "dsa", "ecdsa"}
-		baseContainerPath := filepath.Join(box.Disk, "base_container_template")
-		for _, keyType := range sshKeyTypes {
-			baseKey, _ := ioutil.ReadFile(filepath.Join(baseContainerPath,
-				"rootfs", "etc", "ssh", fmt.Sprintf("ssh_host_%s_key", keyType)))
-			containerKey, _ := ioutil.ReadFile(filepath.Join(root, "rootfs",
-				"etc", "ssh", fmt.Sprintf("ssh_host_%s_key", keyType)))
-			c.Assert(string(baseKey), Not(Equals), string(containerKey))
+			// check to see if ssh keys are different from
+			// base_container_template. If they are, fail test.
+			sshKeyTypes := []string{"rsa", "dsa", "ecdsa"}
+			baseContainerPath := filepath.Join(box.Disk, "base_container_template")
+			for _, keyType := range sshKeyTypes {
+				baseKey, _ := ioutil.ReadFile(filepath.Join(baseContainerPath,
+					"rootfs", "etc", "ssh", fmt.Sprintf("ssh_host_%s_key", keyType)))
+				containerKey, _ := ioutil.ReadFile(filepath.Join(lxcPath, "rootfs",
+					"etc", "ssh", fmt.Sprintf("ssh_host_%s_key", keyType)))
+				c.Assert(string(baseKey), Not(Equals), string(containerKey))
+			}
+		case "docker":
+		}
+
+		root := box.RootFS()
+		switch stratValue.Provisioner {
+		case "lxc":
+			spec := boxContentSpec{
+				Contains: map[string][]string{
+					root + "/etc/network/interfaces": {
+						"address 192.168.254.2",
+						"gateway 192.168.254.1",
+					},
+					root + "/config": {
+						"lxc.cgroup.memory.limit_in_bytes = 256M",
+						"lxc.cgroup.memory.memsw.limit_in_bytes = 384M",
+						"lxc.network.hwaddr = 02:00",
+						"lxc.cgroup.cpu.shares = 2048",
+					},
+				},
+			}
+			spec.Check(c)
+		case "docker":
 		}
 
 		spec := boxContentSpec{
 			Exists: []string{
 				root,
-				root + "/rootfs",
-				root + "/rootfs/home/action/workspace",
-				root + "/rootfs/home/action/README.md",
-				root + "/rootfs/home/action/.ssh",
-				root + "/rootfs/home/action/.ssh/id_rsa",
-				root + "/rootfs/home/action/.ssh/id_rsa.pub",
+				root + "/home/action/workspace",
+				root + "/home/action/README.md",
+				root + "/home/action/.ssh",
+				root + "/home/action/.ssh/id_rsa",
+				root + "/home/action/.ssh/id_rsa.pub",
 			},
 			NotExists: []string{
 				root + "/rootfs/etc/action/premium",
 			},
 			Contains: map[string][]string{
-				root + "/rootfs/etc/passwd":          {"action:x:15001:15001"},
-				root + "/rootfs/etc/action/box_id":   {"1"},
-				root + "/rootfs/etc/action/box_user": {"action"},
-				root + "/rootfs/etc/hostname":        {"mclovins-container-1"},
-				root + "/rootfs/etc/hosts":           {"mclovins-container-1"},
-				root + "/rootfs/etc/network/interfaces": {
-					"address 192.168.254.2",
-					"gateway 192.168.254.1",
-				},
-				root + "/config": {
-					"lxc.cgroup.memory.limit_in_bytes = 256M",
-					"lxc.cgroup.memory.memsw.limit_in_bytes = 384M",
-					"lxc.network.hwaddr = 02:00",
-					"lxc.cgroup.cpu.shares = 2048",
-				},
+				root + "/etc/passwd":          {"action:x:15001:15001"},
+				root + "/etc/action/box_id":   {"1"},
+				root + "/etc/action/box_user": {"action"},
+				root + "/etc/hostname":        {"mclovins-container-1"},
+				root + "/etc/hosts":           {"mclovins-container-1"},
 			},
 			Permissions: map[string][]int{
-				root + "/rootfs/home/action":                 {15001, 15001},
-				root + "/rootfs/home/action/workspace":       {15001, 15001},
-				root + "/rootfs/home/action/.ssh":            {15001, 15001},
-				root + "/rootfs/home/action/.ssh/id_rsa":     {15001, 15001},
-				root + "/rootfs/home/action/.ssh/id_rsa.pub": {15001, 15001},
+				root + "/home/action":                 {15001, 15001},
+				root + "/home/action/workspace":       {15001, 15001},
+				root + "/home/action/.ssh":            {15001, 15001},
+				root + "/home/action/.ssh/id_rsa":     {15001, 15001},
+				root + "/home/action/.ssh/id_rsa.pub": {15001, 15001},
 			},
 		}
 		spec.Check(c)

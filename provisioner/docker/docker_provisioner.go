@@ -4,7 +4,9 @@ package docker
 import (
 	"os/exec"
 	"path"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/action-io/goboxer/mount"
 	pr "github.com/action-io/goboxer/provisioner"
@@ -24,13 +26,34 @@ type Provisioner struct {
 	root string
 }
 
-// run the image as a new container with provided name
+func generateId() string {
+	return strconv.FormatInt(time.Now().UnixNano(), 10)
+}
+
+// - try to start the id first in case it's a running container
+// This is useful when we want runContainer to be idempotent when passing the
+// same id multiple times.
+// - run the image as a new container with provided name
 // returns the container id
-func runContainer(imageId, name string) (string, error) {
-	args := []string{
-		"run", "-d", "-name", name, imageId,
+func runContainer(id, name string) (string, error) {
+	output, err := exec.Command("docker", "start", id).CombinedOutput()
+	if err != nil {
+		// this is probably an image, just create a new container
+		if strings.Contains(string(output), "No such container") {
+			goto new_container
+		}
+		// if the container is already running, just return the id
+		if strings.Contains(string(output), "is already running") {
+			return id, nil
+		}
+		return "", err
 	}
-	output, err := exec.Command("docker", args...).Output()
+	goto new_container
+new_container:
+	args := []string{
+		"run", "-d", "-name", name + "-" + generateId(), id,
+	}
+	output, err = exec.Command("docker", args...).Output()
 	if err != nil {
 		return "", err
 	}
@@ -44,7 +67,7 @@ func commitContainer(id string) (string, error) {
 	}
 	output, err := exec.Command("docker", args...).Output()
 	if err != nil {
-		return "", err
+		return "", &pr.OpError{Op: "commit container", Err: err}
 	}
 	return strings.TrimSpace(string(output)), nil
 }
@@ -53,24 +76,26 @@ func commitContainer(id string) (string, error) {
 // - commit it as a new image
 func stopContainer(id string) (string, error) {
 	args := []string{
-		"stop", id, "-t", STOP_TIMEOUT_STR,
+		"stop", "-t", STOP_TIMEOUT_STR, id,
 	}
-	if err := exec.Command("docker", args...).Run(); err != nil {
-		return id, err
+	output, err := exec.Command("docker", args...).CombinedOutput()
+	if err != nil {
+		// probably this is an image, we will just let it through
+		if strings.Contains(string(output), "No such container") {
+			return id, nil
+		}
+		return "", &pr.OpError{Op: "stop container", Err: err}
 	}
-	return commitContainer(id)
+	return id, nil
 }
 
-// we ignore the committed image here
-// TODO: maybe we should remove the committed image as well.
 func destroyContainer(id string) error {
-	if _, err := stopContainer(id); err != nil {
+	id, err := stopContainer(id)
+	if err != nil {
 		return err
 	}
-	args := []string{
-		"rm", id, "-f",
-	}
-	return exec.Command("docker", args...).Run()
+	exec.Command("docker", "rm", id).Run()
+	return nil
 }
 
 // - create a container
@@ -79,9 +104,9 @@ func destroyContainer(id string) error {
 func (p *Provisioner) Create(name string) (string, error) {
 	id, err := runContainer(BASE_IMAGE, name)
 	if err != nil {
-		return id, err
+		return id, &pr.OpError{Op: "run container", Err: err}
 	}
-	return stopContainer(id)
+	return id, nil
 }
 
 // remove the running container
@@ -135,7 +160,7 @@ func (p *Provisioner) IsMounted(name, id string) (bool, error) {
 // can be in /var/lib/lxc when we deploy new version of boxer, hence will not
 // work with the new lxc path
 func (p *Provisioner) GetCurrentRoot(name, id string) string {
-	return path.Join(DOCKER_PATH, "containers", id, "root")
+	return path.Join(DOCKER_PATH, "aufs", "mnt", id)
 }
 
 func Init(root string) (pr.Provisioner, error) {

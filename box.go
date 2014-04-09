@@ -17,6 +17,7 @@ import (
 	"github.com/action-io/goboxer/utils"
 
 	pr "github.com/action-io/goboxer/provisioner"
+	_ "github.com/action-io/goboxer/provisioner/docker"
 	_ "github.com/action-io/goboxer/provisioner/lxc"
 )
 
