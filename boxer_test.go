@@ -200,7 +200,7 @@ func (s *BoxerSuite) testEachStrategy(c *C, test testFunction) {
 				boxes, _ := s.ResourcePool.FindAllBoxes()
 				for _, box := range boxes {
 					box.boxer = s.Boxer
-					// box.Destroy()
+					box.Destroy()
 				}
 			}()
 			s.insertResource("192.168.254.2", "192.168.254.1", "br-lxc-254", "10002")
