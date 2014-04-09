@@ -57,6 +57,7 @@ type Boxer struct {
 	S3Auth          s3.AuthInterface
 	S3Region        string
 	S3Bucket        string
+	Provisioner     string
 }
 
 func (boxer *Boxer) Configure() {
@@ -194,6 +195,7 @@ func CreateBoxHandler(m Message, boxer *Boxer) (msg Message) {
 		MountMethod:      boxer.MountMethod,
 		QuotaMethod:      boxer.QuotaMethod,
 		SelectedVG:       boxer.SelectedVG,
+		Provisioner:      boxer.Provisioner,
 		CpuShares:        m.CpuShares,
 		VirtualMemory:    m.VirtualMemory,
 		Premium:          m.Premium,
