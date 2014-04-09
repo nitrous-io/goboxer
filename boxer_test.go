@@ -48,20 +48,20 @@ type testProvisionStrategy struct {
 // for each strategies, we are going to run all operations to make sure that
 // everything works
 var strategies = map[string]testProvisionStrategy{
-	//"ext4": testProvisionStrategy{
-	//    Provisioner:  "lxc",
-	//    MountMethod:  "aufs",
-	//    QuotaMethod:  "usrquota",
-	//    SelectedDisk: "/lxc/disk2",
-	//    SelectedVG:   "",
-	//},
-	"docker": testProvisionStrategy{
-		Provisioner:  "docker",
+	"ext4": testProvisionStrategy{
+		Provisioner:  "lxc",
 		MountMethod:  "aufs",
 		QuotaMethod:  "usrquota",
 		SelectedDisk: "/lxc/disk2",
 		SelectedVG:   "",
 	},
+	//"docker": testProvisionStrategy{
+	//    Provisioner:  "docker",
+	//    MountMethod:  "aufs",
+	//    QuotaMethod:  "usrquota",
+	//    SelectedDisk: "/lxc/disk2",
+	//    SelectedVG:   "",
+	//},
 }
 
 type boxContentSpec struct {
@@ -277,7 +277,8 @@ func (s *BoxerSuite) TestCreateBox(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
 		message, box := s.receiveMessages("mclovins-container-1",
-			s.makeCreateMessage(func(msg *Message) { msg.CpuShares = 2048 }))
+			s.makeCreateMessage(func(msg *Message) { msg.CpuShares = 2048 }),
+		)
 
 		c.Assert(message.Type, Equals, "aio:created")
 		c.Assert(message.Id, Equals, "testboxer")
@@ -286,6 +287,9 @@ func (s *BoxerSuite) TestCreateBox(c *C) {
 		c.Assert(message.Success, Equals, true)
 
 		c.Assert(box.PublicKeys, DeepEquals, []string{"ssh-rsa QWER", "ssh-rsa ASDF"})
+
+		_, box = s.receiveMessages("mclovins-container-1",
+			s.makeMessage("aio:start", defaultMsg))
 
 		switch stratValue.Provisioner {
 		case "lxc":
@@ -319,15 +323,14 @@ func (s *BoxerSuite) TestCreateBox(c *C) {
 						"address 192.168.254.2",
 						"gateway 192.168.254.1",
 					},
-					root + "/config": {
-						"lxc.cgroup.memory.limit_in_bytes = 256M",
-						"lxc.cgroup.memory.memsw.limit_in_bytes = 384M",
-						"lxc.network.hwaddr = 02:00",
-						"lxc.cgroup.cpu.shares = 2048",
-					},
 				},
 			}
 			spec.Check(c)
+			verifyLxcConfig(c, box.ContainerPath(), box.MountName(), map[string]string{
+				"memory.limit_in_bytes":       strconv.Itoa(256 * 1024 * 1024),
+				"memory.memsw.limit_in_bytes": strconv.Itoa(384 * 1024 * 1024),
+				"cpu.shares":                  "2048",
+			})
 		case "docker":
 		}
 
