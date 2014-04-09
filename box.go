@@ -172,9 +172,6 @@ func (b *Box) Create() error {
 	if err := b.generateUserContent(); err != nil {
 		return &BoxOpError{Op: "generate user content", Err: err}
 	}
-	if err := b.writeConfig(); err != nil {
-		return &BoxOpError{Op: "write lxc config", Err: err}
-	}
 	if err := b.setEtcAction(); err != nil {
 		return &BoxOpError{Op: "create /etc/action", Err: err}
 	}
@@ -190,9 +187,6 @@ func (b *Box) Create() error {
 	if err := b.regenerateSSHHostKeys(); err != nil {
 		return &BoxOpError{Op: "regenerate SSH host keys", Err: err}
 	}
-	if err := b.setNetworkInterface(); err != nil {
-		return &BoxOpError{Op: "set network interface", Err: err}
-	}
 	if err := b.setDefaultKeyPair(); err != nil {
 		return &BoxOpError{Op: "set default key pair", Err: err}
 	}
@@ -201,6 +195,15 @@ func (b *Box) Create() error {
 	}
 	if err := b.SetQuota(); err != nil {
 		return err
+	}
+	switch b.Provisioner {
+	case "lxc":
+		if err := b.writeConfig(); err != nil {
+			return &BoxOpError{Op: "write lxc config", Err: err}
+		}
+		if err := b.setNetworkInterface(); err != nil {
+			return &BoxOpError{Op: "set network interface", Err: err}
+		}
 	}
 	b.State = "stopped"
 	return nil
@@ -234,7 +237,7 @@ func (b *Box) Start(spec *BoxSpec) error {
 	}
 	_, err := b.provisioner().Start(b.ContainerName(), b.UniqueId, beforeStart)
 	if err != nil {
-		return &BoxOpError{Op: "lxc-start " + b.ContainerName(), Err: err}
+		return &BoxOpError{Op: "start " + b.ContainerName(), Err: err}
 	}
 	return nil
 }

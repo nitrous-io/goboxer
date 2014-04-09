@@ -40,7 +40,14 @@ func runContainer(id, name string) (string, error) {
 	if err != nil {
 		// this is probably an image, just create a new container
 		if strings.Contains(string(output), "No such container") {
-			goto new_container
+			args := []string{
+				"run", "-d", "-name", name + "-" + generateId(), id,
+			}
+			output, err = exec.Command("docker", args...).Output()
+			if err != nil {
+				return "", err
+			}
+			return strings.TrimSpace(string(output)), nil
 		}
 		// if the container is already running, just return the id
 		if strings.Contains(string(output), "is already running") {
@@ -48,16 +55,7 @@ func runContainer(id, name string) (string, error) {
 		}
 		return "", err
 	}
-	goto new_container
-new_container:
-	args := []string{
-		"run", "-d", "-name", name + "-" + generateId(), id,
-	}
-	output, err = exec.Command("docker", args...).Output()
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(string(output)), nil
+	return id, nil
 }
 
 // commit and return the image id
@@ -122,19 +120,23 @@ func (p *Provisioner) Stop(name, boxId, userId string) (id string, err error) {
 }
 
 func (p *Provisioner) Start(name, boxId string, beforeStart func() error) (string, error) {
-	boxId, err := runContainer(name, boxId)
+	boxId, err := runContainer(boxId, name)
 	if err != nil {
-		return boxId, err
-	}
-	boxId, err = stopContainer(boxId)
-	if err != nil {
+		err = &pr.OpError{Op: "start: runContainer " + name, Err: err}
 		return boxId, err
 	}
 	if err := beforeStart(); err != nil {
-		err = &pr.OpError{Op: "beforeStart callback " + name, Err: err}
+		err = &pr.OpError{Op: "start: beforeStart " + name, Err: err}
 		return boxId, err
 	}
-	return runContainer(name, boxId)
+	// after setup everything, restart the container
+	// FIXME: this is so inefficient that i want to cry
+	boxId, err = stopContainer(boxId)
+	if err != nil {
+		err = &pr.OpError{Op: "start: stopContainer" + name, Err: err}
+		return boxId, err
+	}
+	return runContainer(boxId, name)
 }
 
 // FIXME: should not be supported

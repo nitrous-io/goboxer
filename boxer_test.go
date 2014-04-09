@@ -103,9 +103,13 @@ func (s *BoxerSuite) insertResource(ip, gateway, networkInterface, port string) 
 func (s *BoxerSuite) assertBoxState(c *C, b *Box, state string) {
 	state = strings.ToLower(state)
 	c.Assert(b.State, Equals, state)
-	stdout, _ := exec.Command("lxc-info", "-P", b.Disk, "-n", b.MountName()).CombinedOutput()
-	info := strings.ToLower(string(stdout))
-	c.Assert(strings.Contains(info, state), Equals, true, Commentf("Expected state %s; lxc-info says '%s'", state, strings.TrimSpace(info)))
+	switch b.Provisioner {
+	case "lxc":
+		stdout, _ := exec.Command("lxc-info", "-P", b.Disk, "-n", b.MountName()).CombinedOutput()
+		info := strings.ToLower(string(stdout))
+		c.Assert(strings.Contains(info, state), Equals, true, Commentf("Expected state %s; lxc-info says '%s'", state, strings.TrimSpace(info)))
+	case "docker":
+	}
 }
 
 func (s *BoxerSuite) assertInvalidateCartman(c *C, b *Box) {
@@ -195,7 +199,7 @@ func (s *BoxerSuite) testEachStrategy(c *C, test testFunction) {
 				boxes, _ := s.ResourcePool.FindAllBoxes()
 				for _, box := range boxes {
 					box.boxer = s.Boxer
-					box.Destroy()
+					// box.Destroy()
 				}
 			}()
 			s.insertResource("192.168.254.2", "192.168.254.1", "br-lxc-254", "10002")
@@ -511,9 +515,14 @@ func (s *BoxerSuite) TestStart(c *C) {
 		c.Assert(message.Success, Equals, true)
 
 		s.assertBoxState(c, box, "running")
+		switch box.Provisioner {
+		case "lxc":
+			DoesExist(c, []string{
+				"/var/log/containers/mclovins-container-1/" + box.ContainerName() + ".lxc-start.log",
+			})
+		}
 		DoesExist(c, []string{
-			box.LxcPath() + "/rootfs",
-			"/var/log/containers/mclovins-container-1/" + box.ContainerName() + ".lxc-start.log",
+			box.RootFS(),
 		})
 	})
 }
@@ -528,7 +537,7 @@ func (s *BoxerSuite) TestStartSetsPublicKeys(c *C) {
 		c.Assert(message.Type, Equals, "aio:started")
 		c.Assert(message.Success, Equals, true)
 		DoesContain(c, map[string][]string{
-			box.LxcPath() + "/rootfs/etc/ssh/univ_public_keys": {
+			box.RootFS() + "/etc/ssh/univ_public_keys": {
 				"ssh-rsa QWER",
 				"ssh-rsa ASDF",
 			},
@@ -548,7 +557,7 @@ func (s *BoxerSuite) TestStartAcceptsPublicKeys(c *C) {
 		c.Assert(message.Type, Equals, "aio:started")
 		c.Assert(message.Success, Equals, true)
 		DoesContain(c, map[string][]string{
-			box.LxcPath() + "/rootfs/etc/ssh/univ_public_keys": {
+			box.RootFS() + "/etc/ssh/univ_public_keys": {
 				"ssh-rsa second",
 				"ssh-rsa third",
 			},
@@ -567,7 +576,7 @@ func (s *BoxerSuite) TestStartSetsPublicKeysOnStoppedBox(c *C) {
 		c.Assert(message.Type, Equals, "aio:started")
 		c.Assert(message.Success, Equals, true)
 		DoesContain(c, map[string][]string{
-			box.LxcPath() + "/rootfs/etc/ssh/univ_public_keys": {"ssh-rsa 1"},
+			box.RootFS() + "/etc/ssh/univ_public_keys": {"ssh-rsa 1"},
 		})
 		c.Assert(box.PublicKeys, DeepEquals, []string{"ssh-rsa 1"})
 
@@ -580,10 +589,10 @@ func (s *BoxerSuite) TestStartSetsPublicKeysOnStoppedBox(c *C) {
 		c.Assert(message.Type, Equals, "aio:started")
 		c.Assert(message.Success, Equals, true)
 		DoesNotContain(c, map[string][]string{
-			box.LxcPath() + "/rootfs/etc/ssh/univ_public_keys": {"ssh-rsa 1"},
+			box.RootFS() + "/etc/ssh/univ_public_keys": {"ssh-rsa 1"},
 		})
 		DoesContain(c, map[string][]string{
-			box.LxcPath() + "/rootfs/etc/ssh/univ_public_keys": {
+			box.RootFS() + "/etc/ssh/univ_public_keys": {
 				"ssh-rsa 2",
 				"ssh-rsa 3",
 			},
@@ -606,7 +615,7 @@ func (s *BoxerSuite) TestStartPersistsPublicKeysFromFile(c *C) {
 		c.Assert(message.Type, Equals, "aio:started")
 		c.Assert(message.Success, Equals, true)
 		DoesExist(c, []string{
-			box.LxcPath() + "/rootfs/etc/ssh/univ_public_keys",
+			box.RootFS() + "/etc/ssh/univ_public_keys",
 		})
 		c.Assert(box.PublicKeys, DeepEquals, []string{})
 
@@ -616,7 +625,7 @@ func (s *BoxerSuite) TestStartPersistsPublicKeysFromFile(c *C) {
 		box.WritePublicKeys()
 		box.PublicKeys = []string(nil) // Reset to no keys in Redis.
 		DoesContain(c, map[string][]string{
-			box.LxcPath() + "/rootfs/etc/ssh/univ_public_keys": {
+			box.RootFS() + "/etc/ssh/univ_public_keys": {
 				"ssh-rsa QWER",
 				"ssh-rsa ASDF",
 			},
@@ -632,7 +641,7 @@ func (s *BoxerSuite) TestStartPersistsPublicKeysFromFile(c *C) {
 		c.Assert(message.Type, Equals, "aio:started")
 		c.Assert(message.Success, Equals, true)
 		DoesContain(c, map[string][]string{
-			box.LxcPath() + "/rootfs/etc/ssh/univ_public_keys": {
+			box.RootFS() + "/etc/ssh/univ_public_keys": {
 				"ssh-rsa QWER",
 				"ssh-rsa ASDF",
 			},
@@ -677,18 +686,21 @@ func (s *BoxerSuite) TestStartWithNewSpecs(c *C) {
 		c.Assert(message.BoxId, Equals, 1)
 		c.Assert(message.Success, Equals, true)
 
-		root := box.LxcPath()
-		spec := boxContentSpec{
-			Exists: []string{root + "/rootfs"},
-			Contains: map[string][]string{
-				root + "/config": []string{
-					"lxc.cgroup.memory.limit_in_bytes = 640M",
-					"lxc.cgroup.memory.memsw.limit_in_bytes = 1920M",
-					"lxc.cgroup.cpu.shares = 1536",
+		switch box.Provisioner {
+		case "lxc":
+			root := box.LxcPath()
+			spec := boxContentSpec{
+				Exists: []string{root + "/rootfs"},
+				Contains: map[string][]string{
+					root + "/config": []string{
+						"lxc.cgroup.memory.limit_in_bytes = 640M",
+						"lxc.cgroup.memory.memsw.limit_in_bytes = 1920M",
+						"lxc.cgroup.cpu.shares = 1536",
+					},
 				},
-			},
+			}
+			spec.Check(c)
 		}
-		spec.Check(c)
 
 		// virtualMemory is persisted with redis
 		c.Assert(box.VirtualMemory, Equals, "1280M")
@@ -717,9 +729,13 @@ func (s *BoxerSuite) TestStartSetsCpuSet(c *C) {
 		c.Assert(message.Id, Equals, "testboxer")
 		c.Assert(message.BoxId, Equals, 1)
 		c.Assert(message.Success, Equals, true)
-		DoesContain(c, map[string][]string{
-			box.LxcPath() + "/config": {"lxc.cgroup.cpuset.cpus = 0"},
-		})
+
+		switch box.Provisioner {
+		case "lxc":
+			DoesContain(c, map[string][]string{
+				box.LxcPath() + "/config": {"lxc.cgroup.cpuset.cpus = 0"},
+			})
+		}
 	})
 }
 
@@ -738,13 +754,16 @@ func (s *BoxerSuite) TestStartWithDefaultCPUQuotaNotConfigured(c *C) {
 		c.Assert(message.BoxId, Equals, 1)
 		c.Assert(message.Success, Equals, true)
 
-		// Make sure CPU quota configs aren't set.
-		DoesNotContain(c, map[string][]string{
-			box.LxcPath() + "/config": {
-				"cfs_period_us",
-				"cfs_quota_us",
-			},
-		})
+		switch box.Provisioner {
+		case "lxc":
+			// Make sure CPU quota configs aren't set.
+			DoesNotContain(c, map[string][]string{
+				box.LxcPath() + "/config": {
+					"cfs_period_us",
+					"cfs_quota_us",
+				},
+			})
+		}
 	})
 }
 
@@ -769,13 +788,16 @@ func (s *BoxerSuite) TestStartWithPremiumCPUQuotaNotConfigured(c *C) {
 		c.Assert(message.BoxId, Equals, 1)
 		c.Assert(message.Success, Equals, true)
 
-		// Make sure CPU quota configs aren't set.
-		DoesNotContain(c, map[string][]string{
-			box.LxcPath() + "/config": {
-				"cfs_period_us",
-				"cfs_quota_us",
-			},
-		})
+		switch box.Provisioner {
+		case "lxc":
+			// Make sure CPU quota configs aren't set.
+			DoesNotContain(c, map[string][]string{
+				box.LxcPath() + "/config": {
+					"cfs_period_us",
+					"cfs_quota_us",
+				},
+			})
+		}
 	})
 }
 
@@ -793,11 +815,11 @@ func (s *BoxerSuite) TestStartWritesNitrousboxrcFiles(c *C) {
 		c.Assert(message.Success, Equals, true)
 
 		DoesContain(c, map[string][]string{
-			box.LxcPath() + "/rootfs/etc/init/run-nitrousboxrc.conf": {
+			box.RootFS() + "/etc/init/run-nitrousboxrc.conf": {
 				"setuid action",
 				"setgid action",
 			},
-			box.LxcPath() + "/rootfs/home/action/.nitrousboxrc.sample": {
+			box.RootFS() + "/home/action/.nitrousboxrc.sample": {
 				"cp ~/.nitrousboxrc.sample ~/.nitrousboxrc",
 				"chmod +x ~/.nitrousboxrc",
 			},
@@ -826,19 +848,19 @@ func (s *BoxerSuite) TestStartRunsPartsInit(c *C) {
 echo $@ > /home/action/parts-inited
 touch /etc/pam.d/shouldnotexist
 `
-		partsFile, err := os.Create(filepath.Join(box.LxcPath(), "rootfs", "usr", "bin", "parts"))
+		partsFile, err := os.Create(filepath.Join(box.RootFS(), "usr", "bin", "parts"))
 		c.Assert(err, IsNil)
 		partsFile.WriteString(partsData)
 		partsFile.Chmod(os.FileMode(0755))
 		partsFile.Sync()
 		partsFile.Close()
-		err = os.RemoveAll(box.LxcPath() + "/rootfs/home/action/parts-inited")
+		err = os.RemoveAll(box.RootFS() + "/home/action/parts-inited")
 		c.Assert(err, IsNil)
 
 		_, box = s.receiveMessages("mclovins-container-1",
 			s.makeMessage("aio:restart", defaultMsg))
 
-		initedPath := box.LxcPath() + "/rootfs/home/action/parts-inited"
+		initedPath := box.RootFS() + "/home/action/parts-inited"
 		RetryEvery(1*time.Second, 10*time.Second, func() bool {
 			return exists(initedPath)
 		})
@@ -849,7 +871,7 @@ touch /etc/pam.d/shouldnotexist
 		})
 		// check that parts init is running without privileges
 		DoesNotExist(c, []string{
-			box.LxcPath() + "/rootfs/etc/pam.d/shouldnotexist",
+			box.RootFS() + "/etc/pam.d/shouldnotexist",
 		})
 	})
 }
@@ -873,19 +895,19 @@ func (s *BoxerSuite) TestStartRunsNitrousboxrc(c *C) {
 echo check logging
 touch filetouch # check pwd
 rm /etc/sudoers # check privileges, stderr logging`
-		rcFile, err := os.Create(filepath.Join(box.LxcPath(), "rootfs", "home", "action", ".nitrousboxrc"))
+		rcFile, err := os.Create(filepath.Join(box.RootFS(), "home", "action", ".nitrousboxrc"))
 		c.Assert(err, IsNil)
 		rcFile.WriteString(rcData)
 		rcFile.Chmod(os.FileMode(0755))
 		rcFile.Sync()
 		rcFile.Close()
-		err = os.RemoveAll(box.LxcPath() + "/rootfs/home/action/nitrousboxrc.log")
+		err = os.RemoveAll(box.RootFS() + "/home/action/nitrousboxrc.log")
 		c.Assert(err, IsNil)
 
 		_, box = s.receiveMessages("mclovins-container-1",
 			s.makeMessage("aio:restart", defaultMsg))
 
-		logPath := box.LxcPath() + "/rootfs/home/action/.nitrousboxrc.log"
+		logPath := box.RootFS() + "/home/action/.nitrousboxrc.log"
 		RetryEvery(1*time.Second, 10*time.Second, func() bool {
 			return exists(logPath)
 		})
@@ -902,8 +924,8 @@ rm /etc/sudoers # check privileges, stderr logging`
 		startCount := strings.Count(fileContent, "Starting")
 		c.Assert(startCount, Equals, 1, Commentf("Expected .nitrousboxrc to run once, ran %d times", startCount))
 		DoesExist(c, []string{
-			box.LxcPath() + "/rootfs/home/action/filetouch",
-			box.LxcPath() + "/rootfs/etc/sudoers",
+			box.RootFS() + "/home/action/filetouch",
+			box.RootFS() + "/etc/sudoers",
 		})
 	})
 }
