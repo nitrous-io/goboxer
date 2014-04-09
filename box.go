@@ -235,7 +235,14 @@ func (b *Box) Start(spec *BoxSpec) error {
 		}
 		return nil
 	}
-	_, err := b.provisioner().Start(b.ContainerName(), b.UniqueId, beforeStart)
+	_, err := b.provisioner().Start(b.ContainerName(), b.UniqueId,
+		&pr.Resource{
+			Memory:      b.Memory,
+			TotalMemory: b.TotalMemory(),
+			CpuShares:   b.CpuShares,
+			CpuQuota:    b.CpuQuota,
+			CpuSet:      b.CpuSet,
+		}, beforeStart)
 	if err != nil {
 		return &BoxOpError{Op: "start " + b.ContainerName(), Err: err}
 	}

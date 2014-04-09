@@ -73,7 +73,7 @@ func (p *Provisioner) Stop(name, boxId, userId string) (id string, err error) {
 	return
 }
 
-func (p *Provisioner) Start(name, boxId string, beforeStart func() error) (string, error) {
+func (p *Provisioner) Start(name, boxId string, resource *pr.Resource, beforeStart func() error) (string, error) {
 	if err := p.mount(name, boxId); err != nil {
 		return boxId, err
 	}
