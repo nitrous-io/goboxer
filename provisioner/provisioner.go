@@ -11,7 +11,7 @@ type (
 		Create(name string) (id string, err error)
 		Destroy(name, id string) error
 		Stop(name, id, uid string) (newId string, err error)
-		Start(name, id string, beforeStart func() error) (newId string, err error)
+		Start(name, id string, resource *Resource, beforeStart func() error) (newId string, err error)
 		GetLxcConfigPath(name, id string) string
 		GetRootfsPath(name, id string) string
 		IsMounted(name, id string) (bool, error)

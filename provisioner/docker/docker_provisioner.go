@@ -119,7 +119,7 @@ func (p *Provisioner) Stop(name, boxId, userId string) (id string, err error) {
 	return stopContainer(boxId)
 }
 
-func (p *Provisioner) Start(name, boxId string, beforeStart func() error) (string, error) {
+func (p *Provisioner) Start(name, boxId string, resource *pr.Resource, beforeStart func() error) (string, error) {
 	boxId, err := runContainer(boxId, name)
 	if err != nil {
 		err = &pr.OpError{Op: "start: runContainer " + name, Err: err}
