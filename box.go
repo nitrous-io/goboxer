@@ -88,6 +88,7 @@ type Box struct {
 	SnapshotUrl      string   `json:"-"`
 	PublicKeys       []string `json:"publicKeys"`
 	CustomDomain     string   `json:"customDomain"`
+	Provisioner      string   `json:"provisioner"`
 	CpuSet           []int
 	CpuQuota         float64
 	// hold a reference to boxer so that we can access mutex capabilities
@@ -121,10 +122,13 @@ func (b *Box) Prepare() {
 	if b.CpuShares == 0 {
 		b.CpuShares = DEFAULT_CPU_SHARES
 	}
+	if len(b.Provisioner) == 0 {
+		b.Provisioner = "lxc"
+	}
 }
 
 func (b *Box) provisioner() pr.Provisioner {
-	p, err := pr.GetProvisioner("lxc", b.Disk)
+	p, err := pr.GetProvisioner(b.Provisioner, b.Disk)
 	if err != nil {
 		panic("Failed to get a valid provisioner")
 	}
