@@ -493,9 +493,13 @@ func (s *BoxerSuite) TestStop(c *C) {
 		c.Assert(message.Success, Equals, true)
 
 		c.Assert(box.State, Equals, "stopped")
-		DoesNotExist(c, []string{
-			box.LxcPath(),
-		})
+
+		switch box.Provisioner {
+		case "lxc":
+			DoesNotExist(c, []string{
+				box.LxcPath(),
+			})
+		}
 
 		AssertIptablesOutput(c, "192.168.254.2:22", false)
 	})
@@ -1195,10 +1199,15 @@ func (s *BoxerSuite) TestStopStartNewlyPremiumBox(c *C) {
 		c.Assert(message.Id, Equals, "testboxer")
 		c.Assert(message.BoxId, Equals, 1)
 		c.Assert(message.Success, Equals, true)
+		switch box.Provisioner {
+		case "lxc":
+			DoesContain(c, map[string][]string{
+				box.LxcPath() + "/config": {"lxc.cgroup.cpu.cfs_period_us = 1000000"},
+				box.LxcPath() + "/config": {"lxc.cgroup.cpu.cfs_quota_us = 500000"},
+			})
+		}
 		DoesContain(c, map[string][]string{
-			box.LxcPath() + "/rootfs/etc/action/premium": {"1"},
-			box.LxcPath() + "/config":                    {"lxc.cgroup.cpu.cfs_period_us = 1000000"},
-			box.LxcPath() + "/config":                    {"lxc.cgroup.cpu.cfs_quota_us = 500000"},
+			box.RootFS() + "/etc/action/premium": {"1"},
 		})
 		s.assertInvalidateCartman(c, box)
 
@@ -1212,10 +1221,15 @@ func (s *BoxerSuite) TestStopStartNewlyPremiumBox(c *C) {
 		c.Assert(message.BoxId, Equals, 1)
 		c.Assert(message.Success, Equals, true)
 
+		switch box.Provisioner {
+		case "lxc":
+			DoesContain(c, map[string][]string{
+				box.LxcPath() + "/config": {"lxc.cgroup.cpu.cfs_period_us = 1000000"},
+				box.LxcPath() + "/config": {"lxc.cgroup.cpu.cfs_quota_us = 1000000"},
+			})
+		}
 		DoesContain(c, map[string][]string{
-			box.LxcPath() + "/rootfs/etc/action/premium": {"1"},
-			box.LxcPath() + "/config":                    {"lxc.cgroup.cpu.cfs_period_us = 1000000"},
-			box.LxcPath() + "/config":                    {"lxc.cgroup.cpu.cfs_quota_us = 1000000"},
+			box.RootFS() + "/etc/action/premium": {"1"},
 		})
 
 		s.assertBoxState(c, box, "running")
