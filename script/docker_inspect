@@ -26,5 +26,10 @@ fi
 # start apparmor
 /etc/init.d/apparmor start
 
+# start docker
+if which docker >/dev/null; then
+  docker -d -e lxc >& /var/log/docker.log &
+fi
+
 # run test
 exec /bin/bash
