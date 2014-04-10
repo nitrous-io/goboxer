@@ -322,7 +322,7 @@ func (b *Box) Snapshot(snapshotId int) (snapshot *Snapshot, err error) {
 }
 
 func (b *Box) CgroupSet(subsystem, value string) error {
-	return lxc.CgroupSet(b.ContainerPath(), b.MountName(), subsystem, value)
+	return lxc.CgroupSet(b.ContainerPath(), b.lxcName(), subsystem, value)
 }
 
 func (b *Box) UpdateAuth(auth BoxAuth) error {
@@ -350,6 +350,15 @@ func (b *Box) RetrieveRepo(repo *Repo) error {
 	repo.Box = b
 
 	return repo.Retrieve("/home/action/workspace")
+}
+
+// if the provisioner is docker, we just want the unique id as that is what
+// docker identify with lxc
+func (b *Box) lxcName() string {
+	if b.Provisioner == "docker" {
+		return b.UniqueId
+	}
+	return b.MountName()
 }
 
 func (b *Box) MountName() string {
@@ -388,7 +397,12 @@ func (b *Box) RootFS() string {
 // or /var/lib/lxc ). This is used for the migration process where container
 // can be in /var/lib/lxc when we deploy new version of boxer, hence will not
 // work with the new lxc path
+//
+// if the container is a docker container, we dont need container path
 func (b *Box) ContainerPath() string {
+	if b.Provisioner == "docker" {
+		return ""
+	}
 	return b.provisioner().GetCurrentRoot(b.ContainerName(), b.UniqueId)
 }
 
@@ -611,7 +625,7 @@ func (b *Box) lxcMounted() (bool, error) {
 // the unit if B, so if we want to convert to MB, it needs to be divided with
 // 1024 * 1024
 func (b *Box) MemoryUsageInBytes() (int, error) {
-	output, err := lxc.CgroupGet(b.ContainerPath(), b.MountName(), "memory.usage_in_bytes")
+	output, err := lxc.CgroupGet(b.ContainerPath(), b.lxcName(), "memory.usage_in_bytes")
 	if err != nil {
 		return 0, err
 	}
@@ -630,7 +644,7 @@ func (b *Box) Info() (BoxInfo, error) {
 	} else {
 		info.MemoryUsage = MemoryUsageNotApplicable
 	}
-	state, err := lxc.Status(b.ContainerPath(), b.MountName())
+	state, err := lxc.Status(b.ContainerPath(), b.lxcName())
 	if err == nil {
 		info.LxcStatus = state
 	} else {
