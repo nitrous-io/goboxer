@@ -397,7 +397,7 @@ func (s *BoxerSuite) TestCreateWithSnapshot(c *C) {
 						"address 192.168.254.2",
 						"gateway 192.168.254.1",
 					},
-					root + "/config": {
+					box.LxcPath() + "/config": {
 						"lxc.cgroup.memory.limit_in_bytes = 256M",
 						"lxc.cgroup.memory.memsw.limit_in_bytes = 384M",
 						"lxc.network.hwaddr = 02:00",
@@ -429,7 +429,6 @@ func (s *BoxerSuite) TestCreateWithSnapshot(c *C) {
 			},
 			Permissions: map[string][]int{
 				root + "/home/action":                 {15001, 15001},
-				root + "/home/action/workspace":       {15001, 15001},
 				root + "/home/action/.ssh":            {15001, 15001},
 				root + "/home/action/.ssh/id_rsa":     {15001, 15001},
 				root + "/home/action/.ssh/id_rsa.pub": {15001, 15001},
