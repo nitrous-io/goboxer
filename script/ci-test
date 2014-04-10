@@ -11,13 +11,12 @@ now=$(date -u +"%s")
 name="goboxer-test-${now}"
 
 sudo docker run \
-  -privileged \
+  --privileged \
+  --name=$name \
+  --dns 8.8.8.8 \
   -rm \
-  -dns 8.8.8.8 \
   -v $(pwd):/opt/go/src/github.com/action-io/goboxer \
   -w /opt/go/src/github.com/action-io/goboxer \
-  -lxc-conf="aa_profile=unconfined" \
-  -name=$name \
   -e PATH=/usr/local/go/bin:$PATH \
   -e GOPATH=/opt/go \
   -e GOBIN=/opt/go/bin \

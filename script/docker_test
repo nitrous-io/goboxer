@@ -19,7 +19,9 @@ mount -t ext4 -o defaults,usrquota,noatime /dev/loop2 /lxc/disk2
 (/sbin/iptables -t nat --list | /bin/grep 192-168-254-0) || /sbin/iptables -t nat -A POSTROUTING -s 192.168.254.0/24 ! -d 192.168.254.0/24 -j MASQUERADE
 
 # prepare container to be able to start lxc
-./script/wrapdocker
+if [ ! -f /dind ]; then
+  ./script/wrapdocker
+fi
 
 # start redis-server
 /etc/init.d/redis-server start
