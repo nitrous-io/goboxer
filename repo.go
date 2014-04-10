@@ -15,10 +15,12 @@ import (
 
 // a Repo is a link to a repository to be cloned into a box
 type Repo struct {
-	Box             *Box
-	Name            string
-	Url             string
-	Scm             string
+	Box  *Box
+	Name string
+	Url  string
+	Scm  string
+
+	// cannot be less than a second -- only supported in curl 7.32.0 and boxes currently have 7.22.0
 	RetrieveTimeout time.Duration
 }
 
@@ -112,46 +114,37 @@ func (r *Repo) clone(clonePath string) error {
 }
 
 // download is the entry point for downloading an archive, used for ScmTargz
-func (r *Repo) download(downloadPath string) error {
+func (r *Repo) download(downloadPath string) (err error) {
 	archivePath := path.Join("/tmp", r.Name+".tar.gz")
 
-	err := r.downloadArchive(archivePath)
-	if err != nil {
-		return err
-	}
 	defer os.RemoveAll(path.Join(r.Box.RootFS(), archivePath))
+	defer func() {
+		if err != nil {
+			os.RemoveAll(path.Join(r.Box.RootFS(), downloadPath))
+		}
+	}()
+
+	if err = r.downloadArchive(archivePath); err != nil {
+		return
+	}
 
 	cmd := r.boxUserCommand("mkdir", "-p", downloadPath)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		logger.Println("ERROR: repo download mkdir %v, output: %s\n", err, output)
-		return DefaultRetrieveError
+	if err = runAndCatchKnownErrors(cmd, "repo download mkdir"); err != nil {
+		return
 	}
-	// TODO catch disk space exceeded
-	cmd = r.boxUserCommand("tar", "-xzSpf", archivePath,
-		"--strip", "1", // GNU tar specific option, strip leading path of reponame-branchname/ (Github convention)
-		"-C", downloadPath)
 
 	// assume time taken for tar is neglible compared to that of download, so
 	// time taken extracting is not considered in RetrieveTimeout
-	output, err = cmd.CombinedOutput()
-	if err != nil {
-		logger.Println("ERROR: repo download tar %v, output: %s\n", err, output)
-		return DefaultRetrieveError
-	}
-	return nil
+	cmd = r.boxUserCommand("tar", "-xzSpf", archivePath,
+		"--strip", "1", // GNU tar specific option, strip leading path of reponame-branchname/ (Github convention)
+		"-C", downloadPath)
+	return runAndCatchKnownErrors(cmd, "repo download tar")
 }
 
 func (r *Repo) downloadArchive(archivePath string) error {
-	// TODO catch disk space exceeded
 	cmd := r.boxUserCommand("/bin/sh", "-c",
 		fmt.Sprintf("curl --silent --location %s --connect-timeout 10 --max-time %.0f > %s", r.Url, r.RetrieveTimeout.Seconds(), archivePath))
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		logger.Printf("ERROR: repo download curl %v, output: %s\n", err, output)
-		return DefaultRetrieveError
-	}
-	return nil
+	return runAndCatchKnownErrors(cmd, "repo download curl")
 }
 
 // Runner is a superset of utils.Exec.  The main difference is that it checks the stderr of the result for clone-related errors.
@@ -227,4 +220,23 @@ func (r *Repo) boxUserCommand(cmd string, args ...string) *exec.Cmd {
 		cmdArgs = append(cmdArgs, arg)
 	}
 	return exec.Command("chroot", cmdArgs...)
+}
+
+// runAndCatchKnownErrors takes a command and a log description for logging error (if present) and command output.  If the command results in a known error, it will return a specific error, otherwise it returns a generic one
+func runAndCatchKnownErrors(cmd *exec.Cmd, logSlug string) error {
+	outputBytes, err := cmd.CombinedOutput()
+	output := string(outputBytes)
+	switch {
+	case err == nil:
+		return nil
+	case strings.Contains(output, "Disk quota exceeded"):
+		return DiskSpaceExceededError
+	case err.Error() == "exit status 28":
+		// http://curl.haxx.se/libcurl/c/libcurl-errors.html
+		// CURLE_OPERATION_TIMEDOUT (28)
+		return RetrieveTimeoutError
+	default:
+		logger.Printf("ERROR: %s: %v, output: %s\n", logSlug, err, output)
+		return DefaultRetrieveError
+	}
 }
