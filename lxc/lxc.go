@@ -94,21 +94,13 @@ func Status(containerPath, name string) (string, error) {
 }
 
 func CgroupGet(containerPath, name, subsystem string) (string, error) {
-	cmd := exec.Command("lxc-cgroup", "--lxcpath", containerPath, "-n", name, subsystem)
-	output, err := cmd.Output()
-	return string(output), err
+	cgroup := &Cgroup{Path: containerPath, Name: name}
+	return cgroup.Get(subsystem)
 }
 
 func CgroupSet(containerPath, name, subsystem, value string) error {
-	log.Printf("lxc: CgroupSet(%s, %s, %s)", name, subsystem, value)
-	status, err := Status(containerPath, name)
-	if err != nil {
-		return err
-	}
-	if status != RUNNING {
-		return fmt.Errorf("Tried to CgroupSet on non-running container %s", name)
-	}
-	return run("lxc-cgroup", "--lxcpath", containerPath, "-n", name, subsystem, value)
+	cgroup := &Cgroup{Path: containerPath, Name: name}
+	return cgroup.Set(subsystem, value)
 }
 
 func getContainerPid(containerPath, name string) (int, error) {
