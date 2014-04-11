@@ -412,7 +412,7 @@ func (b *Box) TotalMemory() string {
 	if len(b.VirtualMemory) > 0 {
 		vm = quota.ParseValueUnit(b.VirtualMemory)
 	} else {
-		vm = m
+		vm = quota.ValueUnit{Value: m.Value / 2, Unit: m.Unit}
 	}
 	return quota.SumValueUnitMb(m, vm).ToString()
 }
