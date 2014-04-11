@@ -2003,7 +2003,7 @@ func (s *BoxerSuite) TestCloneRepositoryWithWrongScm(c *C) {
 
 		c.Assert(message.Success, Equals, false)
 		c.Assert(message.Type, Equals, "aio:cloned_repository")
-		c.Assert(message.Error, Matches, "Clone command failed")
+		c.Assert(message.Error, Matches, "Repository download failed")
 	})
 }
 
@@ -2134,5 +2134,96 @@ func (s *BoxerSuite) TestCloneGitRepositoryExistingDirectory(c *C) {
 
 		// existing directory should not be deleted
 		c.Assert(exists(filepath.Join(box.ContainerUserHomePath(), "workspace", "fake-git", "existing")), Equals, true)
+	})
+}
+
+func (s *BoxerSuite) TestRepoDownloadArchive(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg))
+		c.Assert(message.Success, Equals, true)
+
+		// repo.download() expects the reponame to be 3rd-last element of path
+		archivePath := filepath.Join(ScratchDir, "autoparts", "archive", "master.tar.gz")
+		err := MakeTargz(box, archivePath)
+		defer os.RemoveAll(archivePath)
+		c.Assert(err, IsNil, Commentf("Error on fake tar.gz: %s\n", err))
+
+		message, box = s.receiveMessages("mclovins-container-1",
+			s.makeMessage("aio:clone_repository", func(msg *Message) {
+				msg.RepositoryUrl = fmt.Sprintf("file://%s", archivePath)
+				msg.RepositoryScm = ScmTargz
+			}))
+
+		c.Assert(message.Error, Equals, "")
+		c.Assert(message.Success, Equals, true)
+		c.Assert(exists(filepath.Join(box.RootFS(), "tmp", "autoparts.tar.gz")), Equals, false)
+
+		c.Assert(exists(filepath.Join(box.ContainerUserHomePath(), "workspace", "autoparts", "README.md")), Equals, true)
+	})
+}
+
+func (s *BoxerSuite) TestRepoDownloadArchiveExceedsQuota(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg))
+		c.Assert(message.Success, Equals, true)
+
+		quotaInfo, err := box.quota().ViewLimit(box.quotaArg())
+		box.DiskSpace = strconv.Itoa(quotaInfo.Used+1) + "K"
+		err = box.SetQuota()
+		c.Check(err, IsNil)
+
+		// repo.download() expects the reponame to be 3rd-last element of path
+		archivePath := filepath.Join(ScratchDir, "autoparts", "archive", "master.tar.gz")
+		err = MakeTargz(box, archivePath)
+		defer os.RemoveAll(archivePath)
+		c.Assert(err, IsNil, Commentf("Error on fake tar.gz: %s\n", err))
+
+		message, box = s.receiveMessages("mclovins-container-1",
+			s.makeMessage("aio:clone_repository", func(msg *Message) {
+				msg.RepositoryUrl = fmt.Sprintf("file://%s", archivePath)
+				msg.RepositoryScm = ScmTargz
+			}))
+
+		c.Assert(message.Success, Equals, false)
+		c.Assert(message.Error, Matches, ".*exceeds available.*")
+
+		c.Assert(exists(filepath.Join(box.ContainerUserHomePath(), "workspace", "autoparts")), Equals, false)
+	})
+}
+
+func (s *BoxerSuite) TestRepoDownloadArchiveTimeout(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg))
+		c.Assert(message.Success, Equals, true)
+
+		// repo.download() expects the reponame to be 3rd-last element of path
+		archivePath := filepath.Join(ScratchDir, "autoparts", "archive", "master.tar.gz")
+		err := MakeTargz(box, archivePath)
+		defer os.RemoveAll(archivePath)
+		c.Assert(err, IsNil, Commentf("Error on fake tar.gz: %s\n", err))
+
+		// Note: not a full integration test unlike the rest so that we can
+		// pass a custom RetrieveTimeout
+		repo := &Repo{
+			Box:             box,
+			Url:             "http://10.9.8.7/nitrous-io/linux/archive/stable.tar.gz",
+			Scm:             ScmTargz,
+			RetrieveTimeout: 1 * time.Second,
+		}
+		ValidateRepo(repo)
+
+		err = repo.Retrieve(filepath.Join("tmp", "stable.tar.gz"))
+
+		c.Assert(err, NotNil)
+		c.Assert(err, Equals, RetrieveTimeoutError)
 	})
 }
