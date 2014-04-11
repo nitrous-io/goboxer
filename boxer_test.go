@@ -94,9 +94,8 @@ func (s *BoxerSuite) insertResource(ip, gateway, networkInterface, port string) 
 func (s *BoxerSuite) assertBoxState(c *C, b *Box, state string) {
 	state = strings.ToLower(state)
 	c.Assert(b.State, Equals, state)
-	stdout, _ := exec.Command("lxc-info", "-P", b.Disk, "-n", b.MountName()).CombinedOutput()
-	info := strings.ToLower(string(stdout))
-	c.Assert(strings.Contains(info, state), Equals, true, Commentf("Expected state %s; lxc-info says '%s'", state, strings.TrimSpace(info)))
+	lxcState, _ := lxc.Status(b.ContainerPath(), b.MountName())
+	c.Assert(lxcState, Equals, strings.ToUpper(b.State))
 }
 
 func (s *BoxerSuite) assertInvalidateCartman(c *C, b *Box) {
