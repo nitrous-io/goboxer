@@ -55,13 +55,13 @@ var strategies = map[string]testProvisionStrategy{
 		SelectedDisk: "/lxc/disk2",
 		SelectedVG:   "",
 	},
-	//"docker": testProvisionStrategy{
-	//    Provisioner:  "docker",
-	//    MountMethod:  "aufs",
-	//    QuotaMethod:  "usrquota",
-	//    SelectedDisk: "/lxc/disk2",
-	//    SelectedVG:   "",
-	//},
+	"docker": testProvisionStrategy{
+		Provisioner:  "docker",
+		MountMethod:  "aufs",
+		QuotaMethod:  "usrquota",
+		SelectedDisk: "/lxc/disk2",
+		SelectedVG:   "",
+	},
 }
 
 type boxContentSpec struct {

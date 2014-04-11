@@ -2,6 +2,7 @@
 package docker
 
 import (
+	"fmt"
 	"os/exec"
 	"path"
 	"strconv"
@@ -30,19 +31,30 @@ func generateId() string {
 	return strconv.FormatInt(time.Now().UnixNano(), 10)
 }
 
+// Arguments
+// - id: base image or container id
+// - name: name of the container
+// - lxcArgs: additional arguments for the lxc container
+//
 // - try to start the id first in case it's a running container
 // This is useful when we want runContainer to be idempotent when passing the
 // same id multiple times.
 // - run the image as a new container with provided name
+//
 // returns the container id
-func runContainer(id, name string) (string, error) {
+func runContainer(id, name string, lxcArgs []string) (string, error) {
 	output, err := exec.Command("docker", "start", id).CombinedOutput()
 	if err != nil {
 		// this is probably an image, just create a new container
 		if strings.Contains(string(output), "No such container") {
 			args := []string{
-				"run", "-d", "-name", name + "-" + generateId(), id,
+				"run", "-d", "-name", name + "-" + generateId(),
 			}
+			// if we want to customize lxc-conf, now is the time
+			for _, conf := range lxcArgs {
+				args = append(args, fmt.Sprintf("--lxc-conf=\"%s\"", conf))
+			}
+			args = append(args, id)
 			output, err = exec.Command("docker", args...).Output()
 			if err != nil {
 				return "", err
@@ -100,7 +112,7 @@ func destroyContainer(id string) error {
 // - commit it as an image
 // - stop the container
 func (p *Provisioner) Create(name string) (string, error) {
-	id, err := runContainer(BASE_IMAGE, name)
+	id, err := runContainer(BASE_IMAGE, name, []string{})
 	if err != nil {
 		return id, &pr.OpError{Op: "run container", Err: err}
 	}
@@ -120,7 +132,7 @@ func (p *Provisioner) Stop(name, boxId, userId string) (id string, err error) {
 }
 
 func (p *Provisioner) Start(name, boxId string, resource *pr.Resource, beforeStart func() error) (string, error) {
-	boxId, err := runContainer(boxId, name)
+	boxId, err := runContainer(boxId, name, resource.ToLxcArgs())
 	if err != nil {
 		err = &pr.OpError{Op: "start: runContainer " + name, Err: err}
 		return boxId, err
@@ -136,7 +148,7 @@ func (p *Provisioner) Start(name, boxId string, resource *pr.Resource, beforeSta
 		err = &pr.OpError{Op: "start: stopContainer" + name, Err: err}
 		return boxId, err
 	}
-	return runContainer(boxId, name)
+	return runContainer(boxId, name, resource.ToLxcArgs())
 }
 
 // FIXME: should not be supported
