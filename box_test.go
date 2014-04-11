@@ -19,7 +19,7 @@ func (s *BoxSuite) TestPrepare(c *C) {
 
 func (s *BoxSuite) TestTotalMemory(c *C) {
 	b := &Box{Memory: "384M"}
-	c.Assert(b.TotalMemory(), Equals, "768M")
+	c.Assert(b.TotalMemory(), Equals, "576M")
 }
 
 func (s *BoxSuite) TestMarshal(c *C) {

@@ -318,7 +318,7 @@ func (s *BoxerSuite) TestCreateBox(c *C) {
 				},
 				root + "/config": {
 					"lxc.cgroup.memory.limit_in_bytes = 256M",
-					"lxc.cgroup.memory.memsw.limit_in_bytes = 512M",
+					"lxc.cgroup.memory.memsw.limit_in_bytes = 384M",
 					"lxc.network.hwaddr = 02:00",
 					"lxc.cgroup.cpu.shares = 2048",
 				},
@@ -391,7 +391,7 @@ func (s *BoxerSuite) TestCreateWithSnapshot(c *C) {
 				},
 				root + "/config": {
 					"lxc.cgroup.memory.limit_in_bytes = 256M",
-					"lxc.cgroup.memory.memsw.limit_in_bytes = 512M",
+					"lxc.cgroup.memory.memsw.limit_in_bytes = 384M",
 					"lxc.network.hwaddr = 02:00",
 					"lxc.cgroup.cpu.shares = 2048",
 				},
@@ -1040,7 +1040,10 @@ func (s *BoxerSuite) TestRestartNewlyPremiumBox(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
 		message, box := s.receiveMessages("mclovins-container-1",
-			s.makeCreateMessage(defaultMsg),
+			s.makeCreateMessage(
+				func(msg *Message) {
+					msg.VirtualMemory = "128M"
+				}),
 			s.makeMessage("aio:start", defaultMsg),
 			s.makeMessage("aio:configure", func(msg *Message) {
 				msg.DataType = "aio:configure:update_premium"
@@ -1416,7 +1419,7 @@ func (s *BoxerSuite) TestChangeBoxSpecsPass(c *C) {
 		DoesContain(c, map[string][]string{
 			box.LxcPath() + "/config": {
 				"lxc.cgroup.memory.limit_in_bytes = 512M",
-				"lxc.cgroup.memory.memsw.limit_in_bytes = 1024M",
+				"lxc.cgroup.memory.memsw.limit_in_bytes = 768M",
 				"lxc.cgroup.cpu.shares = 2048",
 			},
 		})
@@ -1762,7 +1765,7 @@ func (s *BoxerSuite) TestChangeBoxSpecsFail(c *C) {
 		DoesContain(c, map[string][]string{
 			box.LxcPath() + "/config": {
 				"lxc.cgroup.memory.limit_in_bytes = 512M",
-				"lxc.cgroup.memory.memsw.limit_in_bytes = 1024M",
+				"lxc.cgroup.memory.memsw.limit_in_bytes = 768M",
 			},
 		})
 
