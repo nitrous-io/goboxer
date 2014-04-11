@@ -26,4 +26,7 @@ release: test
 ci-test:
 	@sudo ./script/ci-test
 
+shell:
+	@sudo ./script/ci-inspect
+
 .PHONY: test bin ci-image
