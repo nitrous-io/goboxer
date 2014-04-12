@@ -64,6 +64,11 @@ func ValidateRepo(repo *Repo) error {
 
 // Retrieve takes a parentPath relative to the box root and uses that as the parent directory when cloning or downloading a repository
 func (r *Repo) Retrieve(parentPath string) error {
+	if r.Box.State != "running" {
+		logger.Printf("ERROR: attempt to retrieve %v when box %v is not running\n", r, r.Box)
+		return DefaultRetrieveError
+	}
+
 	if r.RetrieveTimeout == 0 {
 		r.RetrieveTimeout = DefaultRepoRetrieveTimeout
 	}

@@ -1999,6 +1999,7 @@ func (s *BoxerSuite) TestCloneRepositoryWithWrongScm(c *C) {
 		stratValue testProvisionStrategy) {
 		message, _ := s.receiveMessages("mclovins-container-1",
 			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:start", defaultMsg),
 			s.makeMessage("aio:clone_repository", func(msg *Message) {
 				msg.RepositoryUrl = fmt.Sprintf("file://%s", badRepoPath)
 				msg.RepositoryScm = ScmMercurial
@@ -2015,7 +2016,8 @@ func (s *BoxerSuite) TestCloneGitRepository(c *C) {
 		stratValue testProvisionStrategy) {
 
 		message, box := s.receiveMessages("mclovins-container-1",
-			s.makeCreateMessage(defaultMsg))
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:start", defaultMsg))
 
 		c.Assert(message.Success, Equals, true)
 
@@ -2050,7 +2052,8 @@ func (s *BoxerSuite) TestCloneHgRepository(c *C) {
 		stratValue testProvisionStrategy) {
 
 		message, box := s.receiveMessages("mclovins-container-1",
-			s.makeCreateMessage(defaultMsg))
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:start", defaultMsg))
 
 		c.Assert(message.Success, Equals, true)
 
@@ -2085,7 +2088,8 @@ func (s *BoxerSuite) TestCloneGitRepositoryExceedsQuota(c *C) {
 		stratValue testProvisionStrategy) {
 
 		message, box := s.receiveMessages("mclovins-container-1",
-			s.makeCreateMessage(defaultMsg))
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:start", defaultMsg))
 
 		c.Assert(message.Success, Equals, true)
 
@@ -2116,7 +2120,8 @@ func (s *BoxerSuite) TestCloneGitRepositoryExistingDirectory(c *C) {
 		stratValue testProvisionStrategy) {
 
 		message, box := s.receiveMessages("mclovins-container-1",
-			s.makeCreateMessage(defaultMsg))
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:start", defaultMsg))
 
 		c.Assert(message.Success, Equals, true)
 
@@ -2145,7 +2150,8 @@ func (s *BoxerSuite) TestRepoDownloadArchive(c *C) {
 		stratValue testProvisionStrategy) {
 
 		message, box := s.receiveMessages("mclovins-container-1",
-			s.makeCreateMessage(defaultMsg))
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:start", defaultMsg))
 		c.Assert(message.Success, Equals, true)
 
 		// repo.download() expects the reponame to be 3rd-last element of path
@@ -2173,7 +2179,8 @@ func (s *BoxerSuite) TestRepoDownloadArchiveExceedsQuota(c *C) {
 		stratValue testProvisionStrategy) {
 
 		message, box := s.receiveMessages("mclovins-container-1",
-			s.makeCreateMessage(defaultMsg))
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:start", defaultMsg))
 		c.Assert(message.Success, Equals, true)
 
 		quotaInfo, err := box.quota().ViewLimit(box.quotaArg())
@@ -2205,7 +2212,8 @@ func (s *BoxerSuite) TestRepoDownloadArchiveTimeout(c *C) {
 		stratValue testProvisionStrategy) {
 
 		message, box := s.receiveMessages("mclovins-container-1",
-			s.makeCreateMessage(defaultMsg))
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:start", defaultMsg))
 		c.Assert(message.Success, Equals, true)
 
 		// repo.download() expects the reponame to be 3rd-last element of path
