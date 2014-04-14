@@ -112,7 +112,7 @@ func (r *Repo) clone(clonePath string) error {
 	err := r.Runner(cmd, r.RetrieveTimeout)
 
 	if err != nil {
-		os.RemoveAll(path.Join(r.Box.RootFS(), clonePath))
+		os.RemoveAll(path.Join(r.Box.Rootfs(), clonePath))
 		return err
 	}
 	return nil
@@ -122,10 +122,10 @@ func (r *Repo) clone(clonePath string) error {
 func (r *Repo) download(downloadPath string) (err error) {
 	archivePath := path.Join("/tmp", r.Name+".tar.gz")
 
-	defer os.RemoveAll(path.Join(r.Box.RootFS(), archivePath))
+	defer os.RemoveAll(path.Join(r.Box.Rootfs(), archivePath))
 	defer func() {
 		if err != nil {
-			os.RemoveAll(path.Join(r.Box.RootFS(), downloadPath))
+			os.RemoveAll(path.Join(r.Box.Rootfs(), downloadPath))
 		}
 	}()
 
@@ -187,7 +187,7 @@ func (r *Repo) Runner(cmd *exec.Cmd, timeout time.Duration) error {
 // retrievePath takes a baseLocation relative to the box root and appends the repo basename to it.  Returns an error if this directory already exists
 func (r *Repo) retrievePath(parentPath string) (string, error) {
 	retrievePath := path.Join(parentPath, r.Name)
-	if _, err := os.Stat(path.Join(r.Box.RootFS(), retrievePath)); err == nil || !os.IsNotExist(err) {
+	if _, err := os.Stat(path.Join(r.Box.Rootfs(), retrievePath)); err == nil || !os.IsNotExist(err) {
 		return "", fmt.Errorf(NoDestinationErrorFmt, retrievePath)
 	} else {
 		return retrievePath, nil
@@ -219,7 +219,7 @@ func (r *Repo) name() (string, error) {
 // boxUserCommand is a wrapper for exec.Command that runs the command as the correct user and rootdir
 func (r *Repo) boxUserCommand(cmd string, args ...string) *exec.Cmd {
 	userspecArg := fmt.Sprintf("--userspec=%s:%s", r.Box.Uid(), r.Box.Gid())
-	cmdArgs := []string{userspecArg, r.Box.RootFS()}
+	cmdArgs := []string{userspecArg, r.Box.Rootfs()}
 	cmdArgs = append(cmdArgs, cmd)
 	for _, arg := range args {
 		cmdArgs = append(cmdArgs, arg)

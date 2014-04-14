@@ -2037,7 +2037,7 @@ func (s *BoxerSuite) TestCloneGitRepository(c *C) {
 		c.Assert(message.Type, Equals, "aio:cloned_repository")
 		c.Assert(message.RepositoryUrl, Equals, fmt.Sprintf("file://%s", gitRepoPath))
 
-		repoRoot := filepath.Join(box.LxcPath(), "rootfs", "home", "action", "workspace", "fake-git")
+		repoRoot := filepath.Join(box.Rootfs(), "home", "action", "workspace", "fake-git")
 		spec := boxContentSpec{
 			Permissions: map[string][]int{
 				repoRoot: {15001, 15001},
@@ -2073,7 +2073,7 @@ func (s *BoxerSuite) TestCloneHgRepository(c *C) {
 		c.Assert(message.Type, Equals, "aio:cloned_repository")
 		c.Assert(message.RepositoryUrl, Equals, fmt.Sprintf("file://%s", hgRepoPath))
 
-		repoRoot := filepath.Join(box.LxcPath(), "rootfs", "home", "action", "workspace", "fake-hg")
+		repoRoot := filepath.Join(box.Rootfs(), "home", "action", "workspace", "fake-hg")
 		spec := boxContentSpec{
 			Permissions: map[string][]int{
 				repoRoot: {15001, 15001},
@@ -2112,7 +2112,7 @@ func (s *BoxerSuite) TestCloneGitRepositoryExceedsQuota(c *C) {
 		c.Assert(message.Success, Equals, false)
 		c.Assert(message.Error, Matches, ".*exceeds available.*")
 
-		c.Assert(exists(filepath.Join(box.ContainerUserHomePath(), "workspace", "fake-git")), Equals, false)
+		c.Assert(exists(filepath.Join(box.Rootfs(), "home", "action", "workspace", "fake-git")), Equals, false)
 	})
 }
 
@@ -2130,7 +2130,7 @@ func (s *BoxerSuite) TestCloneGitRepositoryExistingDirectory(c *C) {
 		err := MakeRepo(box, gitRepoPath, ScmGit)
 		c.Assert(err, IsNil, Commentf("Error on git fake: %s\n", err))
 
-		os.MkdirAll(filepath.Join(box.ContainerUserHomePath(), "workspace", "fake-git", "existing"), 0755)
+		os.MkdirAll(filepath.Join(box.Rootfs(), "home", "action", "workspace", "fake-git", "existing"), 0755)
 
 		message, box = s.receiveMessages("mclovins-container-1",
 			s.makeMessage("aio:clone_repository", func(msg *Message) {
@@ -2142,7 +2142,7 @@ func (s *BoxerSuite) TestCloneGitRepositoryExistingDirectory(c *C) {
 		c.Assert(message.Error, Matches, "Destination directory /home/action/workspace/fake-git already exists.*")
 
 		// existing directory should not be deleted
-		c.Assert(exists(filepath.Join(box.ContainerUserHomePath(), "workspace", "fake-git", "existing")), Equals, true)
+		c.Assert(exists(filepath.Join(box.Rootfs(), "home", "action", "workspace", "fake-git", "existing")), Equals, true)
 	})
 }
 
@@ -2169,9 +2169,9 @@ func (s *BoxerSuite) TestRepoDownloadArchive(c *C) {
 
 		c.Assert(message.Error, Equals, "")
 		c.Assert(message.Success, Equals, true)
-		c.Assert(exists(filepath.Join(box.RootFS(), "tmp", "autoparts.tar.gz")), Equals, false)
+		c.Assert(exists(filepath.Join(box.Rootfs(), "tmp", "autoparts.tar.gz")), Equals, false)
 
-		c.Assert(exists(filepath.Join(box.ContainerUserHomePath(), "workspace", "autoparts", "README.md")), Equals, true)
+		c.Assert(exists(filepath.Join(box.Rootfs(), "home", "action", "workspace", "autoparts", "README.md")), Equals, true)
 	})
 }
 
@@ -2204,7 +2204,7 @@ func (s *BoxerSuite) TestRepoDownloadArchiveExceedsQuota(c *C) {
 		c.Assert(message.Success, Equals, false)
 		c.Assert(message.Error, Matches, ".*exceeds available.*")
 
-		c.Assert(exists(filepath.Join(box.ContainerUserHomePath(), "workspace", "autoparts")), Equals, false)
+		c.Assert(exists(filepath.Join(box.Rootfs(), "home", "action", "workspace", "autoparts")), Equals, false)
 	})
 }
 

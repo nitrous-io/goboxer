@@ -130,7 +130,7 @@ func AssertIptablesOutput(c *C, str string, assertion bool) {
 }
 
 func MakeRepo(box *Box, repoPath string, scm string) error {
-	fullPath := filepath.Join(box.RootFS(), repoPath)
+	fullPath := filepath.Join(box.Rootfs(), repoPath)
 	if err := os.MkdirAll(fullPath, 0755); err != nil {
 		return err
 	}
@@ -140,7 +140,7 @@ func MakeRepo(box *Box, repoPath string, scm string) error {
 			exec.Command("touch", fmt.Sprintf(".%signore", scmCommand)),
 			exec.Command(scmCommand, "add", fmt.Sprintf(".%signore", scmCommand)),
 			exec.Command(scmCommand, "commit", "-m", "Initial Commit"),
-			exec.Command("chroot", box.RootFS(), "chown", "-R", fmt.Sprintf("%s:%s", box.Uid(), box.Gid()), repoPath))
+			exec.Command("chroot", box.Rootfs(), "chown", "-R", fmt.Sprintf("%s:%s", box.Uid(), box.Gid()), repoPath))
 		return err
 	}
 	switch scm {
@@ -157,7 +157,7 @@ func MakeRepo(box *Box, repoPath string, scm string) error {
 }
 
 func MakeTargz(box *Box, archivePath string) error {
-	fullPath := filepath.Join(box.RootFS(), archivePath)
+	fullPath := filepath.Join(box.Rootfs(), archivePath)
 	archiveParent := filepath.Join(ScratchDir, "maketargz")
 	os.MkdirAll(archiveParent, 0755)
 	defer os.RemoveAll(archiveParent)
@@ -169,8 +169,8 @@ func MakeTargz(box *Box, archivePath string) error {
 	if err != nil {
 		return err
 	}
-	_, err = utils.MultiRun(filepath.Join(box.RootFS(), "tmp"),
-		exec.Command("chroot", box.RootFS(), "chown", "-R", fmt.Sprintf("%s:%s", box.Uid(), box.Gid()), archivePath),
+	_, err = utils.MultiRun(filepath.Join(box.Rootfs(), "tmp"),
+		exec.Command("chroot", box.Rootfs(), "chown", "-R", fmt.Sprintf("%s:%s", box.Uid(), box.Gid()), archivePath),
 	)
 	return err
 }
