@@ -269,7 +269,6 @@ func StartBoxHandler(m Message, boxer *Boxer) Message {
 func StopBoxHandler(m Message, boxer *Boxer) Message {
 	box, err := boxer.findBox(m.Name)
 	if err != nil {
-		logger.Printf("ERROR: Fail to find box %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
 	}
 	msg := Message{
@@ -307,7 +306,6 @@ func StopBoxHandler(m Message, boxer *Boxer) Message {
 func RestartBoxHandler(m Message, boxer *Boxer) Message {
 	box, err := boxer.findBox(m.Name)
 	if err != nil {
-		logger.Printf("ERROR: Fail to find box %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
 	}
 	spec := box.CurrentSpec()
@@ -351,7 +349,6 @@ func RestartBoxHandler(m Message, boxer *Boxer) Message {
 func DestroyBoxHandler(m Message, boxer *Boxer) Message {
 	box, err := boxer.findBox(m.Name)
 	if err != nil {
-		logger.Printf("ERROR: Fail to find box %v, err: %v\n", box, err)
 		return boxer.NewInvalidParamMessage()
 	}
 	msg := Message{
@@ -693,6 +690,7 @@ func (boxer *Boxer) Init() error {
 func (boxer *Boxer) findBox(name string) (*Box, error) {
 	box, err := boxer.ResourcePool.FindBox(name)
 	if err != nil {
+		logger.Printf("ERROR: Failed to find box %s, err: %v\n", name, err)
 		return nil, err
 	}
 	box.boxer = boxer
