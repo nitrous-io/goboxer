@@ -260,7 +260,8 @@ console log
 chdir /home/{{.ActionUser}}
 
 script
-  parts init -
+  parts update || true
+  AUTOPARTS_NO_AUTOUPDATE=1 parts init -
   parts init --start
 end script
 `
