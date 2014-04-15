@@ -250,6 +250,7 @@ start on (net-device-up
           and runlevel [2345])
 
 env HOME="/home/{{.ActionUser}}"
+env PATH="/home/{{.ActionUser}}/.parts/autoparts/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 setuid {{.ActionUser}}
 setgid {{.ActionUser}}
@@ -258,7 +259,10 @@ console log
 
 chdir /home/{{.ActionUser}}
 
-exec parts init - >> /home/{{.ActionUser}}/{{.PartsInitLog}}
+script
+  parts init -
+  parts init --start
+end script
 `
 
 // TODO: this Upstart conf does not enforce timeouts on .nitrousboxrc execution
