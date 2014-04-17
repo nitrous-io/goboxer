@@ -148,7 +148,7 @@ func (r *Repo) download(downloadPath string) (err error) {
 
 func (r *Repo) downloadArchive(archivePath string) error {
 	cmd := r.boxUserCommand("/bin/sh", "-c",
-		fmt.Sprintf("curl --silent --location %s --connect-timeout 10 --max-time %.0f > %s", r.Url, r.RetrieveTimeout.Seconds(), archivePath))
+		fmt.Sprintf("curl --silent --location %s --connect-timeout 10 --max-time %.0f -o %s", r.Url, r.RetrieveTimeout.Seconds(), archivePath))
 	return runAndCatchKnownErrors(cmd, "repo download curl")
 }
 
@@ -231,13 +231,16 @@ func (r *Repo) boxUserCommand(cmd string, args ...string) *exec.Cmd {
 func runAndCatchKnownErrors(cmd *exec.Cmd, logSlug string) error {
 	outputBytes, err := cmd.CombinedOutput()
 	output := string(outputBytes)
+	// See http://curl.haxx.se/libcurl/c/libcurl-errors.html for CURLE errors
 	switch {
 	case err == nil:
 		return nil
 	case strings.Contains(output, "Disk quota exceeded"):
 		return DiskSpaceExceededError
+	case err.Error() == "exit status 23":
+		// CURLE_WRITE_ERROR (23)
+		return DiskSpaceExceededError
 	case err.Error() == "exit status 28":
-		// http://curl.haxx.se/libcurl/c/libcurl-errors.html
 		// CURLE_OPERATION_TIMEDOUT (28)
 		return RetrieveTimeoutError
 	default:
