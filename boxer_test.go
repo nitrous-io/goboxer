@@ -332,6 +332,11 @@ func (s *BoxerSuite) TestCreateBox(c *C) {
 				"cpu.shares":                  "2048",
 			})
 		case "docker":
+			verifyLxcConfig(c, "", box.UniqueId, map[string]string{
+				"memory.limit_in_bytes":       strconv.Itoa(256 * 1024 * 1024),
+				"memory.memsw.limit_in_bytes": strconv.Itoa(384 * 1024 * 1024),
+				"cpu.shares":                  "2048",
+			})
 		}
 
 		spec := boxContentSpec{
