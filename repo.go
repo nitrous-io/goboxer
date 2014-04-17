@@ -43,6 +43,7 @@ var (
 	DiskSpaceExceededError = fmt.Errorf("Repository size exceeds available disk space")
 	RetrieveTimeoutError   = fmt.Errorf("Clone took too long")
 	NoDestinationErrorFmt  = "Destination directory %s already exists.  Please rename it and try again"
+	DebugFileNotFoundError = fmt.Errorf("Repository download unsuccessful")
 )
 
 // ValidateRepo returns an error if any Repo fields are invalid, otherwise sets the Name field and returns nil
@@ -143,7 +144,15 @@ func (r *Repo) download(downloadPath string) (err error) {
 	cmd = r.boxUserCommand("tar", "-xzSpf", archivePath,
 		"--strip", "1", // GNU tar specific option, strip leading path of reponame-branchname/ (Github convention)
 		"-C", downloadPath)
-	return runAndCatchKnownErrors(cmd, "repo download tar")
+	if err = runAndCatchKnownErrors(cmd, "repo download tar"); err != nil {
+		if err == DebugFileNotFoundError {
+			cmd := r.boxUserCommand("ls", "-latr", "/tmp")
+			outputBytes, _ := cmd.CombinedOutput()
+			output := string(outputBytes)
+			logger.Printf("ERROR: tar could not find %s, output of ls is %s\n", archivePath, output)
+		}
+	}
+	return
 }
 
 func (r *Repo) downloadArchive(archivePath string) error {
@@ -240,6 +249,8 @@ func runAndCatchKnownErrors(cmd *exec.Cmd, logSlug string) error {
 	case err.Error() == "exit status 23":
 		// CURLE_WRITE_ERROR (23)
 		return DiskSpaceExceededError
+	case strings.Contains(output, "Cannot open: No such file or directory"):
+		return DebugFileNotFoundError
 	case err.Error() == "exit status 28":
 		// CURLE_OPERATION_TIMEDOUT (28)
 		return RetrieveTimeoutError
