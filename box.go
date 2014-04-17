@@ -422,7 +422,7 @@ func (b *Box) ContainerDeltaPath() string {
 
 // ContainerUserHomePath returns the full path to the user's home directory.
 func (b *Box) ContainerUserHomePath() string {
-	return path.Join(b.ContainerDeltaPath(), "rootfs", "home", "action")
+	return path.Join(b.RootFS(), "home", "action")
 }
 
 func (b *Box) Uid() string {
