@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/action-io/goboxer/lxc"
 	"github.com/action-io/goboxer/mount"
 	pr "github.com/action-io/goboxer/provisioner"
 )
@@ -52,7 +53,7 @@ func runContainer(id, name string, lxcArgs []string) (string, error) {
 			}
 			// if we want to customize lxc-conf, now is the time
 			for _, conf := range lxcArgs {
-				args = append(args, fmt.Sprintf("--lxc-conf=\"%s\"", conf))
+				args = append(args, fmt.Sprintf("--lxc-conf=\"lxc.cgroup.%s\"", conf))
 			}
 			args = append(args, id)
 			output, err = exec.Command("docker", args...).Output()
@@ -66,6 +67,18 @@ func runContainer(id, name string, lxcArgs []string) (string, error) {
 			return id, nil
 		}
 		return "", err
+	} else {
+		// start success, time to set some cgroup
+		for _, conf := range lxcArgs {
+			keyValue := strings.Split(conf, "=")
+			subsystem := strings.TrimSpace(keyValue[0])
+			value := strings.TrimSpace(keyValue[1])
+			err := lxc.CgroupSet("", id, subsystem, value)
+			if err != nil {
+				fmt.Printf("docker: start failed to set cgroup %s:%s, err: %v\n",
+					subsystem, value, err)
+			}
+		}
 	}
 	return id, nil
 }
@@ -132,7 +145,7 @@ func (p *Provisioner) Stop(name, boxId, userId string) (id string, err error) {
 }
 
 func (p *Provisioner) Start(name, boxId string, resource *pr.Resource, beforeStart func() error) (string, error) {
-	boxId, err := runContainer(boxId, name, resource.ToLxcArgs())
+	boxId, err := runContainer(boxId, name, resource.ToCgroupArgs())
 	if err != nil {
 		err = &pr.OpError{Op: "start: runContainer " + name, Err: err}
 		return boxId, err
@@ -148,7 +161,7 @@ func (p *Provisioner) Start(name, boxId string, resource *pr.Resource, beforeSta
 		err = &pr.OpError{Op: "start: stopContainer" + name, Err: err}
 		return boxId, err
 	}
-	return runContainer(boxId, name, resource.ToLxcArgs())
+	return runContainer(boxId, name, resource.ToCgroupArgs())
 }
 
 // FIXME: should not be supported

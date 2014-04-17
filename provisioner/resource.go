@@ -39,28 +39,28 @@ func (r *Resource) CpuQuotaMicroseconds() int {
 	return int(r.CpuQuota * DEFAULT_CPU_PERIOD)
 }
 
-func (r *Resource) ToLxcArgs() []string {
+func (r *Resource) ToCgroupArgs() []string {
 	args := []string{}
 	if len(r.Memory) > 0 {
 		args = append(args, fmt.Sprintf(
-			"lxc.cgroup.memory.limit_in_bytes = %s", r.Memory))
+			"memory.limit_in_bytes=%s", r.Memory))
 	}
 	if len(r.TotalMemory) > 0 {
 		args = append(args, fmt.Sprintf(
-			"lxc.cgroup.memory.memsw.limit_in_bytes = %s", r.TotalMemory))
+			"memory.memsw.limit_in_bytes=%s", r.TotalMemory))
 	}
 	if r.CpuShares > 0 {
-		args = append(args, fmt.Sprint(
-			"lxc.cgroup.cpu.shares = %d", r.CpuShares))
+		args = append(args, fmt.Sprintf(
+			"cpu.shares=%d", r.CpuShares))
 	}
 	if r.CpuQuota > 0 {
 		args = append(args,
-			fmt.Sprint("lxc.cgroup.cpu.cfs_period_us = %d", r.CpuPeriodMicroseconds()),
-			fmt.Sprint("lxc.cgroup.cpu.cfs_quota_us = %d", r.CpuQuotaMicroseconds()))
+			fmt.Sprintf("cpu.cfs_period_us=%d", r.CpuPeriodMicroseconds()),
+			fmt.Sprintf("cpu.cfs_quota_us=%d", r.CpuQuotaMicroseconds()))
 	}
 	if len(r.CpuSet) > 0 {
 		args = append(args,
-			fmt.Sprint("lxc.cgroup.cpu.cpus = %d", r.CpuSetStr()))
+			fmt.Sprintf("cpuset.cpus=%s", r.CpuSetStr()))
 	}
 	return args
 }
