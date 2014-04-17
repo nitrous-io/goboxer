@@ -543,6 +543,28 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 		}
 		message.Success = true
 		return message
+	case "aio:configure:update_sudo":
+		message.DataType = "aio:configured:update_sudo"
+		data, ok := (m.Data).(map[string]interface{})
+		if !ok {
+			logger.Printf("ERROR: convert data %v, err: %v\n", data, err)
+			return boxer.NewInvalidParamMessage()
+		}
+		sudo, ok := data["sudo"].(bool)
+		if !ok {
+			logger.Printf("ERROR: convert sudo %v, err: %v\n", data, err)
+			return boxer.NewInvalidParamMessage()
+		}
+		// just update the sudo status in database right now, sudo will be
+		// enforced in the next start/restart
+		box.Sudo = sudo
+		if err := boxer.ResourcePool.SaveBox(box); err != nil {
+			logger.Printf("ERROR: save %v, err: %v\n", box, err)
+			message.Success = false
+			return message
+		}
+		message.Success = true
+		return message
 	}
 	return boxer.NewInvalidParamMessage()
 }

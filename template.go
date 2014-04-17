@@ -6,19 +6,32 @@ import (
 )
 
 const LxcTemplate = `
-# uncomment the next line to run the container unconfined:
-#lxc.aa_profile = unconfined
+{{if .Sudo}}
+# To support container nesting on an Ubuntu host while retaining most of
+# apparmor's added security, use the following two lines instead.
+# lxc.aa_profile = lxc-container-default-with-nesting
+lxc.aa_profile = unconfined
+lxc.hook.mount = /usr/share/lxc/hooks/mountcgroups
+{{else}}
+# uncomment the next line to run the container unconfined
+# lxc.aa_profile = unconfined
+{{end}}
+
 lxc.devttydir = lxc
 lxc.tty = 4
 lxc.pts = 1024
 lxc.arch = amd64
 lxc.pivotdir = lxc_putold
 
+{{if .Sudo}}
+lxc.cap.drop = sys_module mac_admin mac_override sys_time
+{{else}}
 lxc.cap.drop = audit_control audit_write
 lxc.cap.drop = mac_admin mac_override
 lxc.cap.drop = mknod setfcap setpcap
 lxc.cap.drop = sys_module sys_nice sys_pacct sys_rawio sys_resource
 lxc.cap.drop = sys_time sys_tty_config
+{{end}}
 
 lxc.network.type = veth
 lxc.network.flags = up
@@ -35,6 +48,11 @@ lxc.cgroup.cpu.cfs_quota_us = {{.CpuQuotaMicroseconds}}
 {{if .CpuSet}}
 lxc.cgroup.cpuset.cpus = {{.CpuSetStr}}
 {{end}}
+
+{{if .Sudo}}
+# allow all devices in sudo mode
+lxc.cgroup.devices.allow = a
+{{else}}
 lxc.cgroup.devices.deny = a
 # Allow any mknod (but not using the node)
 lxc.cgroup.devices.allow = c *:* m
@@ -64,6 +82,7 @@ lxc.cgroup.devices.allow = c 1:7 rwm
 lxc.cgroup.devices.allow = c 10:228 rwm
 #kvm
 lxc.cgroup.devices.allow = c 10:232 rwm
+{{end}}
 
 lxc.utsname = {{.ContainerName}}
 
@@ -322,10 +341,21 @@ set -e
 # Add your commands here...
 `
 
+const SudoerTemplate = `
+# enable sudo right for action user without password
+action ALL=(ALL) NOPASSWD: ALL
+`
+
+const AliasSudoTemplate = `
+alias sudo="echo -e '-----\nWARNING: sudo access is not available; running without sudo.\n-----'; "
+`
+
 var (
 	NetworkConfigCompiled               *template.Template
 	LxcTemplateCompiled                 *template.Template
 	HostsTemplateCompiled               *template.Template
+	SudoerTemplateCompiled              *template.Template
+	AliasSudoTemplateCompiled           *template.Template
 	PartsInitConfTemplateCompiled       *template.Template
 	RunNitrousboxrcConfTemplateCompiled *template.Template
 	NitrousboxrcSampleTemplateCompiled  *template.Template
@@ -356,6 +386,8 @@ func init() {
 	HostsTemplateCompiled = template.Must(template.New("hosts").Parse(HostsTemplate))
 	NetworkConfigCompiled = template.Must(template.New("network").Parse(NetworkConfigTemplate))
 	LxcTemplateCompiled = template.Must(template.New("lxc").Parse(LxcTemplate))
+	SudoerTemplateCompiled = template.Must(template.New("sudoer").Parse(SudoerTemplate))
+	AliasSudoTemplateCompiled = template.Must(template.New("alias_sudo").Parse(AliasSudoTemplate))
 	PartsInitConfTemplateCompiled = template.Must(template.New("parts-init.conf").Parse(PartsInitConfTemplate))
 	RunNitrousboxrcConfTemplateCompiled = template.Must(template.New("run-nitrousboxrc.conf").Parse(RunNitrousboxrcConfTemplate))
 	NitrousboxrcSampleTemplateCompiled = template.Must(template.New("nitrousboxrc.sample").Parse(NitrousboxrcSampleTemplate))

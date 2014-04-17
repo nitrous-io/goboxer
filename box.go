@@ -87,6 +87,7 @@ type Box struct {
 	SnapshotUrl      string   `json:"-"`
 	PublicKeys       []string `json:"publicKeys"`
 	CustomDomain     string   `json:"customDomain"`
+	Sudo             bool     `json:"sudo"` // enable sudo for this box
 	CpuSet           []int
 	CpuQuota         float64
 	// hold a reference to boxer so that we can access mutex capabilities
@@ -218,6 +219,9 @@ func (b *Box) Start(spec *BoxSpec) error {
 	}
 	if err := b.addNitrousboxrcSample(); err != nil {
 		return &BoxOpError{Op: "nitrousboxrc sample", Err: err}
+	}
+	if err := b.setSudo(); err != nil {
+		return &BoxOpError{Op: "set/remove sudo access", Err: err}
 	}
 	err := lxc.Start(b.ContainerName(), b.MountName())
 	if err != nil {
@@ -1040,6 +1044,39 @@ func (b *Box) addNitrousboxrcSample() error {
 	sampleFile.Close()
 	permission := fmt.Sprintf("%s:%s", b.Uid(), b.Gid())
 	return utils.RunCommand("chroot", b.RootFS(), "chown", "-R", permission, samplePath)
+}
+
+// enable/disable access to sudo inside a container
+func (b *Box) setSudo() error {
+	sudoerPath := path.Join(b.RootFS(), "etc", "sudoers.d", "action")
+	aliasSudoPath := path.Join(b.RootFS(), "etc", "profile.d", "alias_sudo.sh")
+	if b.Sudo {
+		// create the sudoer file
+		sudoerFile, err := os.OpenFile(sudoerPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0440)
+		if err != nil {
+			return err
+		}
+		defer sudoerFile.Close()
+		err = SudoerTemplateCompiled.Execute(sudoerFile, b)
+		if err != nil {
+			return err
+		}
+		// remove sudo alias
+		return os.RemoveAll(aliasSudoPath)
+	} else {
+		// enable sudo alias
+		aliasSudoFile, err := os.Create(aliasSudoPath)
+		if err != nil {
+			return err
+		}
+		defer aliasSudoFile.Close()
+		err = AliasSudoTemplateCompiled.Execute(aliasSudoFile, b)
+		if err != nil {
+			return err
+		}
+		return os.RemoveAll(sudoerPath)
+	}
+	return nil
 }
 
 func (b *Box) generateUniqueId() error {
