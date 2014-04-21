@@ -8,6 +8,12 @@ if [[ `cat /proc/mounts | grep "/lxc/disk2\s\+"` ]]; then
   umount /lxc/disk2
 fi
 mount -t ext4 -o defaults,usrquota,noatime /ext4_disk.img /lxc/disk2
+
+# make sure that /var/lib/docker is mounted
+if [[ `cat /proc/mounts | grep "/var/lib/docker\s\+"` ]]; then
+  umount /var/lib/docker
+fi
+mount -t ext4 -o defaults,usrquota,noatime /docker_disk.img /var/lib/docker
 (quotaon -a) || true
 
 # setup iptables
