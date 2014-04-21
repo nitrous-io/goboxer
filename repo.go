@@ -137,6 +137,11 @@ func (r *Repo) download(downloadPath string) (err error) {
 		return
 	}
 
+	cmd = r.boxUserCommand("sync")
+	if err = runAndCatchKnownErrors(cmd, "repo download sync"); err != nil {
+		return
+	}
+
 	// assume time taken for tar is neglible compared to that of download, so
 	// time taken extracting is not considered in RetrieveTimeout
 	cmd = r.boxUserCommand("tar", "-xzSpf", archivePath,
