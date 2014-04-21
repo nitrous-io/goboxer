@@ -120,21 +120,20 @@ func (r *Repo) clone(clonePath string) error {
 
 // download is the entry point for downloading an archive, used for ScmTargz
 func (r *Repo) download(downloadPath string) (err error) {
-	archivePath := path.Join("/tmp", r.Name+".tar.gz")
-
-	defer os.RemoveAll(path.Join(r.Box.RootFS(), archivePath))
 	defer func() {
 		if err != nil {
 			os.RemoveAll(path.Join(r.Box.RootFS(), downloadPath))
 		}
 	}()
 
-	if err = r.downloadArchive(archivePath); err != nil {
+	cmd := r.boxUserCommand("mkdir", "-p", downloadPath)
+	if err = runAndCatchKnownErrors(cmd, "repo download mkdir"); err != nil {
 		return
 	}
 
-	cmd := r.boxUserCommand("mkdir", "-p", downloadPath)
-	if err = runAndCatchKnownErrors(cmd, "repo download mkdir"); err != nil {
+	archivePath := path.Join(downloadPath, "."+r.Name+".tar.gz")
+	defer os.RemoveAll(path.Join(r.Box.RootFS(), archivePath))
+	if err = r.downloadArchive(archivePath); err != nil {
 		return
 	}
 
