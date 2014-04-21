@@ -131,32 +131,42 @@ func (r *Repo) download(downloadPath string) (err error) {
 		return
 	}
 
-	archivePath := path.Join(downloadPath, "."+r.Name+".tar.gz")
-	defer os.RemoveAll(path.Join(r.Box.RootFS(), archivePath))
-	if err = r.downloadArchive(archivePath); err != nil {
+	var (
+		reposRootPath   = path.Join(r.Box.RootFS(), "repos")
+		archiveFile     = fmt.Sprintf("%s.tar.gz", r.Name)
+		archiveUserPath = path.Join("/repos", archiveFile)
+		archiveRootPath = path.Join(r.Box.RootFS(), archiveUserPath)
+	)
+
+	os.MkdirAll(reposRootPath, 0755)
+	defer os.RemoveAll(reposRootPath)
+	if err = r.downloadArchive(archiveRootPath); err != nil {
 		return
 	}
 
-	cmd = r.boxUserCommand("sync")
-	if err = runAndCatchKnownErrors(cmd, "repo download sync"); err != nil {
+	if err = runAndCatchKnownErrors(exec.Command("sync"), "repo download sync"); err != nil {
 		return
 	}
 
 	// assume time taken for tar is neglible compared to that of download, so
 	// time taken extracting is not considered in RetrieveTimeout
-	cmd = r.boxUserCommand("tar", "-xzSpf", archivePath,
+	cmd = r.boxUserCommand("tar", "-xzSpf", archiveUserPath,
 		"--strip", "1", // GNU tar specific option, strip leading path of reponame-branchname/ (Github convention)
 		"-C", downloadPath)
 	return runAndCatchKnownErrors(cmd, "repo download tar")
 }
 
 func (r *Repo) downloadArchive(archivePath string) error {
-	cmd := r.boxUserCommand("curl", "--silent",
+	cmd := exec.Command("curl", "--silent",
 		"--location", r.Url,
 		"--connect-timeout", "10",
 		"--max-time", fmt.Sprintf("%.0f", r.RetrieveTimeout.Seconds()),
 		"-o", archivePath)
-	return runAndCatchKnownErrors(cmd, "repo download curl")
+	if err := runAndCatchKnownErrors(cmd, "repo download curl"); err != nil {
+		return err
+	}
+	cmd = exec.Command("chmod", "a+r", archivePath)
+	return runAndCatchKnownErrors(cmd, "repo download chmod")
 }
 
 // Runner is a superset of utils.Exec.  The main difference is that it checks the stderr of the result for clone-related errors.
