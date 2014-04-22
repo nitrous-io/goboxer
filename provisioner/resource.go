@@ -18,6 +18,8 @@ type Resource struct {
 	CpuShares   int
 	CpuQuota    float64
 	CpuSet      []int
+	Ip          string // ip of the container, only use for lxc container
+	Port        string // port that we want to map 22 to
 }
 
 // return the valid value that should be applied to `cpuset.cpus`

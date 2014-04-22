@@ -37,7 +37,8 @@ type Provisioner struct {
 
 // create basic structure of the container. This doesn't handle container's
 // data and config yet. those will be handled in afterCreate callback
-func (p *Provisioner) Create(name string, afterCreate pr.AfterCreateFunc) (string, error) {
+func (p *Provisioner) Create(name string, resource *pr.Resource,
+	afterCreate pr.AfterCreateFunc) (string, error) {
 	id := generateId()
 	if err := p.mount(name, id); err != nil {
 		return id, err
@@ -105,6 +106,11 @@ func (p *Provisioner) Snapshot(name, id string, snapshotId int) (string, string,
 	homePath := path.Join(p.GetRootfsPath(name, id), "home", "action")
 	tarPath, err := archive.Tar(tarName, homePath)
 	return tarName, tarPath, err
+}
+
+// currently Box handle this so we dont have to
+func (p *Provisioner) GetResource(name, id string) (*pr.Resource, error) {
+	return nil, nil
 }
 
 func (p *Provisioner) GetLxcPath(name, id string) string {
