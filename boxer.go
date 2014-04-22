@@ -425,37 +425,6 @@ func ConfigureBoxHandler(m Message, boxer *Boxer) Message {
 		}
 		message.Success = true
 		return message
-	case "aio:configure:set_env_variables":
-		message.DataType = "aio:configured:set_env_variables"
-		data, ok := (m.Data).(map[string]interface{})
-		if !ok {
-			return boxer.NewInvalidParamMessage()
-		}
-		if err := box.SetEnv(data); err != nil {
-			message.Success = false
-			return message
-		}
-		message.Success = true
-		return message
-	case "aio:configure:remove_env_variables":
-		message.DataType = "aio:configured:remove_env_variables"
-		data := []string{}
-		vdata, ok := (m.Data).([]interface{})
-		if !ok {
-			return boxer.NewInvalidParamMessage()
-		}
-		for i := 0; i < len(vdata); i++ {
-			data = append(data, vdata[i].(string))
-		}
-		if len(data) == 0 {
-			return boxer.NewInvalidParamMessage()
-		}
-		if err := box.RemoveEnv(data); err != nil {
-			message.Success = false
-			return message
-		}
-		message.Success = true
-		return message
 	case "aio:configure:update_auth":
 		var username, password string
 		var ok bool
