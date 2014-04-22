@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/action-io/goboxer/archive"
 	"github.com/action-io/goboxer/ip"
 	"github.com/action-io/goboxer/lxc"
 	"github.com/action-io/goboxer/quota"
@@ -307,9 +308,8 @@ func (b *Box) Snapshot(snapshotId int) (snapshot *Snapshot, err error) {
 	}
 	uncompressedSize := quota.ValueUnit{Value: float64(quotaInfo.Used), Unit: "K"}
 
-	tarName := fmt.Sprintf("%s-snapshot-%d.tar.gz", b.ContainerName(), snapshotId)
-	logger.Printf("%s: creating snapshot tarball %s\n", b.ContainerName(), tarName)
-	tarPath, err := Tar(tarName, b.ContainerUserHomePath())
+	tarName, tarPath, err := b.provisioner().Snapshot(b.ContainerName(), b.UniqueId,
+		snapshotId)
 	if err != nil {
 		err = fmt.Errorf("Snapshot: failed to compress delta %v", err)
 		return
@@ -889,7 +889,7 @@ func (b *Box) extractTemplate() error {
 		fmt.Sprintf("%s:ExtractTemplate", b.ContainerName()),
 	)(time.Now())
 	boxHomePath := path.Join(b.RootFS(), "home", "action")
-	return Untar(b.TemplatePath(), boxHomePath)
+	return archive.Untar(b.TemplatePath(), boxHomePath)
 }
 
 func (b *Box) setEtcAction() error {
@@ -1060,7 +1060,7 @@ func (b *Box) generateUserContent() error {
 		if err := os.MkdirAll(b.ContainerUserHomePath(), 0755); err != nil {
 			return &BoxOpError{Op: "creating user home directory", Err: err}
 		}
-		if err := UntarStream(stream, b.ContainerUserHomePath()); err != nil {
+		if err := archive.UntarStream(stream, b.ContainerUserHomePath()); err != nil {
 			return &BoxOpError{Op: "untar s3 stream", Err: err}
 		}
 	} else {

@@ -883,7 +883,7 @@ func (s *BoxerSuite) TestStartRunsPartsInit(c *C) {
 		partsData := `
 #!/bin/bash
 
-echo $@ > /home/action/parts-inited
+echo started > /home/action/parts-inited
 touch /etc/pam.d/shouldnotexist
 `
 		partsFile, err := os.Create(filepath.Join(box.RootFS(), "usr", "bin", "parts"))
@@ -904,7 +904,7 @@ touch /etc/pam.d/shouldnotexist
 		})
 		DoesContain(c, map[string][]string{
 			initedPath: {
-				"init -",
+				"started",
 			},
 		})
 		// check that parts init is running without privileges
@@ -947,7 +947,8 @@ rm /etc/sudoers # check privileges, stderr logging`
 
 		logPath := box.RootFS() + "/home/action/.nitrousboxrc.log"
 		RetryEvery(1*time.Second, 10*time.Second, func() bool {
-			return exists(logPath)
+			logData, _ := ioutil.ReadFile(logPath)
+			return strings.Contains(string(logData), "Finished")
 		})
 		DoesContain(c, map[string][]string{
 			logPath: {
@@ -959,7 +960,7 @@ rm /etc/sudoers # check privileges, stderr logging`
 		})
 		logData, _ := ioutil.ReadFile(logPath)
 		fileContent := string(logData)
-		startCount := strings.Count(fileContent, "Starting")
+		startCount := strings.Count(fileContent, "check logging")
 		c.Assert(startCount, Equals, 1, Commentf("Expected .nitrousboxrc to run once, ran %d times", startCount))
 		DoesExist(c, []string{
 			box.RootFS() + "/home/action/filetouch",
