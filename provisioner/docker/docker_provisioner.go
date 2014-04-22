@@ -124,12 +124,15 @@ func destroyContainer(id string) error {
 // - create a container
 // - commit it as an image
 // - stop the container
-func (p *Provisioner) Create(name string) (string, error) {
+func (p *Provisioner) Create(name string, afterCreate pr.AfterCreateFunc) (string, error) {
 	id, err := runContainer(BASE_IMAGE, name, []string{})
 	if err != nil {
 		return id, &pr.OpError{Op: "run container", Err: err}
 	}
-	return id, nil
+	if err := afterCreate(id, p.GetRootfsPath(name, id)); err != nil {
+		return id, err
+	}
+	return stopContainer(id)
 }
 
 // remove the running container
@@ -144,27 +147,20 @@ func (p *Provisioner) Stop(name, boxId, userId string) (id string, err error) {
 	return stopContainer(boxId)
 }
 
-func (p *Provisioner) Start(name, boxId string, resource *pr.Resource, beforeStart func() error) (string, error) {
-	boxId, err := runContainer(boxId, name, resource.ToCgroupArgs())
-	if err != nil {
-		err = &pr.OpError{Op: "start: runContainer " + name, Err: err}
-		return boxId, err
-	}
-	if err := beforeStart(); err != nil {
+func (p *Provisioner) Start(name, boxId string, resource *pr.Resource,
+	beforeStart pr.BeforeStartFunc) (string, error) {
+	// because the container is not mounted yet, we use the delta path to
+	// customize the container. This is strictly only for aufs
+	diffPath := path.Join(DOCKER_PATH, "aufs", "diff", boxId)
+	if err := beforeStart(diffPath); err != nil {
 		err = &pr.OpError{Op: "start: beforeStart " + name, Err: err}
-		return boxId, err
-	}
-	// after setup everything, restart the container
-	// FIXME: this is so inefficient that i want to cry
-	boxId, err = stopContainer(boxId)
-	if err != nil {
-		err = &pr.OpError{Op: "start: stopContainer" + name, Err: err}
 		return boxId, err
 	}
 	return runContainer(boxId, name, resource.ToCgroupArgs())
 }
 
-func (p *Provisioner) ChangeSpec(name, id string, oldResource, newResource *pr.Resource) (string, error) {
+func (p *Provisioner) ChangeSpec(name, id string,
+	oldResource, newResource *pr.Resource) (string, error) {
 	changes := pr.ResourceChange(oldResource, newResource)
 	for _, kvPair := range changes {
 		subsystem, value := kvPair[0], kvPair[1]
@@ -188,8 +184,14 @@ func (p *Provisioner) GetLxcConfigPath(name, id string) string {
 	return path.Join(DOCKER_PATH, "containers", id, "config.lxc")
 }
 
+// return the union mnt point because the container should be running
 func (p *Provisioner) GetRootfsPath(name, id string) string {
 	return p.GetCurrentRoot(name, id)
+}
+
+// strictly for instropection in test
+func (p *Provisioner) GetRootfsNotRunning(id string) string {
+	return path.Join(DOCKER_PATH, "aufs", "diff", id)
 }
 
 func (p *Provisioner) IsMounted(name, id string) (bool, error) {

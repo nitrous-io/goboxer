@@ -94,6 +94,10 @@ type Box struct {
 	CpuQuota         float64
 	// hold a reference to boxer so that we can access mutex capabilities
 	boxer *Boxer
+	// override provisioner rootfs, use this with care. Ideally we probably
+	// want to remove this hack when we dont want to support docker aufs
+	// anymore.
+	rootfs string
 }
 
 type BoxOpError struct {
@@ -164,46 +168,51 @@ func (b *Box) Create() error {
 	defer logger.LogDuration(
 		fmt.Sprintf("%s:Create", b.ContainerName()),
 	)(time.Now())
-	uniqueId, err := b.provisioner().Create(b.ContainerName())
+	afterCreate := func(id, rootfs string) error {
+		b.UniqueId = id
+		b.rootfs = rootfs
+		if err := b.generateUserContent(); err != nil {
+			return &BoxOpError{Op: "generate user content", Err: err}
+		}
+		if err := b.setEtcAction(); err != nil {
+			return &BoxOpError{Op: "create /etc/action", Err: err}
+		}
+		if err := b.UpdatePremiumStatus(); err != nil {
+			return err
+		}
+		if err := b.setHostname(); err != nil {
+			return &BoxOpError{Op: "set host name", Err: err}
+		}
+		if err := b.setHosts(); err != nil {
+			return &BoxOpError{Op: "set /etc/hosts", Err: err}
+		}
+		if err := b.regenerateSSHHostKeys(); err != nil {
+			return &BoxOpError{Op: "regenerate SSH host keys", Err: err}
+		}
+		if err := b.setDefaultKeyPair(); err != nil {
+			return &BoxOpError{Op: "set default key pair", Err: err}
+		}
+		if err := b.setPermission(); err != nil {
+			return &BoxOpError{Op: "set permission", Err: err}
+		}
+		if err := b.SetQuota(); err != nil {
+			return err
+		}
+		switch b.Provisioner {
+		case "lxc":
+			if err := b.writeConfig(); err != nil {
+				return &BoxOpError{Op: "write lxc config", Err: err}
+			}
+			if err := b.setNetworkInterface(); err != nil {
+				return &BoxOpError{Op: "set network interface", Err: err}
+			}
+		}
+		return nil
+	}
+	uniqueId, err := b.provisioner().Create(b.ContainerName(), afterCreate)
+	b.UniqueId = uniqueId
 	if err != nil {
 		return &BoxOpError{Op: "provisioner: Create", Err: err}
-	}
-	b.UniqueId = uniqueId
-	if err := b.generateUserContent(); err != nil {
-		return &BoxOpError{Op: "generate user content", Err: err}
-	}
-	if err := b.setEtcAction(); err != nil {
-		return &BoxOpError{Op: "create /etc/action", Err: err}
-	}
-	if err := b.UpdatePremiumStatus(); err != nil {
-		return err
-	}
-	if err := b.setHostname(); err != nil {
-		return &BoxOpError{Op: "set host name", Err: err}
-	}
-	if err := b.setHosts(); err != nil {
-		return &BoxOpError{Op: "set /etc/hosts", Err: err}
-	}
-	if err := b.regenerateSSHHostKeys(); err != nil {
-		return &BoxOpError{Op: "regenerate SSH host keys", Err: err}
-	}
-	if err := b.setDefaultKeyPair(); err != nil {
-		return &BoxOpError{Op: "set default key pair", Err: err}
-	}
-	if err := b.setPermission(); err != nil {
-		return &BoxOpError{Op: "set permission", Err: err}
-	}
-	if err := b.SetQuota(); err != nil {
-		return err
-	}
-	switch b.Provisioner {
-	case "lxc":
-		if err := b.writeConfig(); err != nil {
-			return &BoxOpError{Op: "write lxc config", Err: err}
-		}
-		if err := b.setNetworkInterface(); err != nil {
-			return &BoxOpError{Op: "set network interface", Err: err}
-		}
 	}
 	b.State = "stopped"
 	return nil
@@ -213,7 +222,9 @@ func (b *Box) Start(spec *BoxSpec) error {
 	defer logger.LogDuration(
 		fmt.Sprintf("%s:Start %s", b.ContainerName(), b.UniqueId),
 	)(time.Now())
-	beforeStart := func() error {
+	beforeStart := func(rootfs string) error {
+		// override provisioner rootfs with the provided rootfs
+		b.rootfs = rootfs
 		if err := b.WritePublicKeys(); err != nil {
 			return &BoxOpError{Op: "write public keys", Err: err}
 		}
@@ -374,7 +385,9 @@ func (b *Box) ContainerName() string {
 }
 
 func (b *Box) PublicKeysPath() string {
-	return path.Join(b.RootFS(), "etc", "ssh", "univ_public_keys")
+	sshPath := path.Join(b.RootFS(), "etc", "ssh")
+	os.MkdirAll(sshPath, 0755)
+	return path.Join(sshPath, "univ_public_keys")
 }
 
 func (b *Box) LxcPath() string {
@@ -390,6 +403,9 @@ func (b *Box) UnionPath() string {
 // rootfs of the container. This is the root after unionized so its typically
 // will be in boxer.Root i.e /var/lib/lxc
 func (b *Box) RootFS() string {
+	if len(b.rootfs) > 0 {
+		return b.rootfs
+	}
 	return b.provisioner().GetRootfsPath(b.ContainerName(), b.UniqueId)
 }
 
@@ -976,8 +992,14 @@ func (b *Box) setDefaultKeyPair() error {
 	return nil
 }
 
+func (b *Box) initPath() string {
+	initPath := path.Join(b.RootFS(), "etc", "init")
+	os.MkdirAll(initPath, 0755)
+	return initPath
+}
+
 func (b *Box) addPartsInitUpstart() error {
-	confPath := path.Join(b.RootFS(), "etc", "init", "parts-init.conf")
+	confPath := path.Join(b.initPath(), "parts-init.conf")
 	confFile, err := os.Create(confPath)
 	if err != nil {
 		return err
@@ -987,7 +1009,7 @@ func (b *Box) addPartsInitUpstart() error {
 }
 
 func (b *Box) addNitrousboxrcUpstart() error {
-	confPath := path.Join(b.RootFS(), "etc", "init", "run-nitrousboxrc.conf")
+	confPath := path.Join(b.initPath(), "run-nitrousboxrc.conf")
 	confFile, err := os.Create(confPath)
 	if err != nil {
 		return err
@@ -997,19 +1019,20 @@ func (b *Box) addNitrousboxrcUpstart() error {
 }
 
 func (b *Box) addNitrousboxrcSample() error {
-	samplePath := path.Join("home", UpstartConfSettings["ActionUser"], UpstartConfSettings["NitrousboxrcSample"])
-	sampleFile, err := os.Create(path.Join(b.RootFS(), samplePath))
+	sampleDir := path.Join(b.RootFS(), "home", UpstartConfSettings["ActionUser"])
+	os.MkdirAll(sampleDir, 0755)
+	samplePath := path.Join(sampleDir, UpstartConfSettings["NitrousboxrcSample"])
+	sampleFile, err := os.Create(samplePath)
 	if err != nil {
 		return err
 	}
+	defer sampleFile.Close()
 	err = NitrousboxrcSampleTemplateCompiled.Execute(sampleFile, UpstartConfSettings)
 	if err != nil {
-		sampleFile.Close()
 		return err
 	}
-	sampleFile.Close()
 	permission := fmt.Sprintf("%s:%s", b.Uid(), b.Gid())
-	return utils.RunCommand("chroot", b.RootFS(), "chown", "-R", permission, samplePath)
+	return utils.RunCommand("chown", "-R", permission, samplePath)
 }
 
 func (b *Box) generateUniqueId() error {

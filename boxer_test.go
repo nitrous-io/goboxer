@@ -378,11 +378,12 @@ func (s *BoxerSuite) TestCreateBox(c *C) {
 func (s *BoxerSuite) TestCreateWithSnapshot(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
-		message, box := s.receiveMessages("mclovins-container-1", s.makeCreateMessage(
-			func(msg *Message) {
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(func(msg *Message) {
 				msg.CpuShares = 2048
 				msg.SnapshotUrl = "s3://ap-southeast-1/staging-apse1.action.io/testboxer-1234.tar.gz"
-			}))
+			}),
+		)
 
 		c.Assert(message.Type, Equals, "aio:created")
 		c.Assert(message.Id, Equals, "testboxer")
@@ -391,6 +392,9 @@ func (s *BoxerSuite) TestCreateWithSnapshot(c *C) {
 		c.Assert(message.Success, Equals, true)
 
 		c.Assert(box.PublicKeys, DeepEquals, []string{"ssh-rsa QWER", "ssh-rsa ASDF"})
+
+		_, box = s.receiveMessages("mclovins-container-1",
+			s.makeMessage("aio:start", defaultMsg))
 
 		root := box.RootFS()
 		switch box.Provisioner {
@@ -466,15 +470,21 @@ func (s *BoxerSuite) TestCreateWithDefaultCpuShares(c *C) {
 func (s *BoxerSuite) TestCreateWithVirtualMemory(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
-		_, box := s.receiveMessages("mclovins-container-1", s.makeCreateMessage(
-			func(msg *Message) {
+		_, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(func(msg *Message) {
 				msg.VirtualMemory = "1024"
-			}))
+			}),
+			s.makeMessage("aio:start", defaultMsg),
+		)
 		switch box.Provisioner {
 		case "lxc":
 			// total memory = memory + virtual memory
-			DoesContain(c, map[string][]string{
-				box.LxcPath() + "/config": {"lxc.cgroup.memory.memsw.limit_in_bytes = 257M"},
+			verifyLxcConfig(c, box.ContainerPath(), box.MountName(), map[string]string{
+				"memory.memsw.limit_in_bytes": strconv.Itoa(257 * 1024 * 1024),
+			})
+		case "docker":
+			verifyLxcConfig(c, "", box.UniqueId, map[string]string{
+				"memory.memsw.limit_in_bytes": strconv.Itoa(257 * 1024 * 1024),
 			})
 		}
 
@@ -487,10 +497,12 @@ func (s *BoxerSuite) TestCreateWithVirtualMemory(c *C) {
 func (s *BoxerSuite) TestCreatePremiumBox(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
-		_, box := s.receiveMessages("mclovins-container-1", s.makeCreateMessage(
-			func(msg *Message) {
+		_, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(func(msg *Message) {
 				msg.Premium = true
-			}))
+			}),
+			s.makeMessage("aio:start", defaultMsg),
+		)
 
 		DoesContain(c, map[string][]string{
 			box.RootFS() + "/etc/action/premium": {"1"},
@@ -505,7 +517,8 @@ func (s *BoxerSuite) TestStop(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
 		message, box := s.receiveMessages("mclovins-container-1",
-			s.makeCreateMessage(defaultMsg), s.makeMessage("aio:start", defaultMsg),
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:start", defaultMsg),
 			s.makeMessage("aio:stop", defaultMsg))
 
 		c.Assert(message.Type, Equals, "aio:stopped")
