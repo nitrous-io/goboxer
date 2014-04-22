@@ -761,8 +761,13 @@ func (b *Box) quotaArg() quota.QuotaArg {
 	arg := quota.QuotaArg{
 		Id:    strconv.Itoa(b.Id),
 		Name:  b.ContainerName(),
-		Disk:  b.Disk,
 		Limit: b.DiskSpace,
+	}
+	switch b.Provisioner {
+	case "lxc":
+		arg.Disk = b.Disk
+	case "docker":
+		arg.Disk = "/var/lib/docker"
 	}
 	arg.Path = b.ContainerUserHomePath()
 	return arg
