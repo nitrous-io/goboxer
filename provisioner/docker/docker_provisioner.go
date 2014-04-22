@@ -164,6 +164,20 @@ func (p *Provisioner) Start(name, boxId string, resource *pr.Resource, beforeSta
 	return runContainer(boxId, name, resource.ToCgroupArgs())
 }
 
+func (p *Provisioner) ChangeSpec(name, id string, oldResource, newResource *pr.Resource) (string, error) {
+	changes := pr.ResourceChange(oldResource, newResource)
+	for _, kvPair := range changes {
+		subsystem, value := kvPair[0], kvPair[1]
+		err := lxc.CgroupSet("", id, subsystem, value)
+		if err != nil {
+			fmt.Printf("docker: change spec failed to set cgroup %s:%s, err: %v\n",
+				subsystem, value, err)
+			return id, err
+		}
+	}
+	return id, nil
+}
+
 // FIXME: should not be supported
 func (p *Provisioner) GetLxcPath(name, id string) string {
 	return path.Join(DOCKER_PATH, "containers", id)
