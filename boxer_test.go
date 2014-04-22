@@ -47,13 +47,13 @@ type testProvisionStrategy struct {
 // for each strategies, we are going to run all operations to make sure that
 // everything works
 var strategies = map[string]testProvisionStrategy{
-	//"ext4": testProvisionStrategy{
-	//    Provisioner:  "lxc",
-	//    MountMethod:  "aufs",
-	//    QuotaMethod:  "usrquota",
-	//    SelectedDisk: "/lxc/disk2",
-	//    SelectedVG:   "",
-	//},
+	"ext4": testProvisionStrategy{
+		Provisioner:  "lxc",
+		MountMethod:  "aufs",
+		QuotaMethod:  "usrquota",
+		SelectedDisk: "/lxc/disk2",
+		SelectedVG:   "",
+	},
 	"docker": testProvisionStrategy{
 		Provisioner:  "docker",
 		MountMethod:  "aufs",
@@ -198,7 +198,7 @@ func (s *BoxerSuite) testEachStrategy(c *C, test testFunction) {
 				boxes, _ := s.ResourcePool.FindAllBoxes()
 				for _, box := range boxes {
 					box.boxer = s.Boxer
-					//box.Destroy()
+					box.Destroy()
 				}
 			}()
 			s.insertResource("192.168.254.2", "192.168.254.1", "br-lxc-254", "10002")
@@ -1505,17 +1505,14 @@ func (s *BoxerSuite) TestChangeBoxSpecsPass(c *C) {
 
 		switch box.Provisioner {
 		case "lxc":
-			verifyLxcConfig(c, box.ContainerPath(), box.MountName(), map[string]string{
-				"memory.limit_in_bytes":       strconv.Itoa(512 * 1024 * 1024),
-				"memory.memsw.limit_in_bytes": strconv.Itoa(768 * 1024 * 1024),
-				"cpu.shares":                  "2048",
+			DoesContain(c, map[string][]string{
+				box.LxcPath() + "/config": {
+					"lxc.cgroup.memory.limit_in_bytes = 512M",
+					"lxc.cgroup.memory.memsw.limit_in_bytes = 768M",
+					"lxc.cgroup.cpu.shares = 2048",
+				},
 			})
 		case "docker":
-			verifyLxcConfig(c, "", box.UniqueId, map[string]string{
-				"memory.limit_in_bytes":       strconv.Itoa(512 * 1024 * 1024),
-				"memory.memsw.limit_in_bytes": strconv.Itoa(768 * 1024 * 1024),
-				"cpu.shares":                  "2048",
-			})
 		}
 
 		newLimit, _ := quotaProvisioner.ViewLimit(box.quotaArg())
@@ -1584,15 +1581,19 @@ func (s *BoxerSuite) TestChangeBoxSpecsPassOnStoppedBox(c *C) {
 
 		_, box = s.receiveMessages("mclovins-container-1",
 			s.makeMessage("aio:start", defaultMsg))
-		DoesContain(c, map[string][]string{
-			box.LxcPath() + "/config": {
-				"lxc.cgroup.memory.limit_in_bytes = 384M",
-			},
-		})
 
 		// it persist the new quota
 		reloadedBox := s.findBox(box.ContainerName())
 		c.Assert(reloadedBox.DiskSpace, Equals, "2048M")
+		switch box.Provisioner {
+		case "lxc":
+			DoesContain(c, map[string][]string{
+				box.LxcPath() + "/config": {
+					"lxc.cgroup.memory.limit_in_bytes = 384M",
+				},
+			})
+		case "docker":
+		}
 	})
 }
 
@@ -1699,11 +1700,15 @@ func (s *BoxerSuite) TestChangeBoxSpecsFail(c *C) {
 
 		quotaProvisioner := quota.Provisioner.GetQuota(stratValue.QuotaMethod)
 		limit, _ := quotaProvisioner.ViewLimit(box.quotaArg())
-		c.Log("limit", limit, box.quotaArg(), stratValue.QuotaMethod)
 		c.Assert(limit.Limit > 900*1000, Equals, true)
 
 		// swap Quota with FailQuota so all quota calls will return errors
 		quota.Provisioner = false
+		defer func() {
+			// Swap back the original Quota so the next test that
+			// uses Quota will be normal
+			quota.Provisioner = true
+		}()
 
 		message, box = s.receiveMessages("mclovins-container-1",
 			s.makeMessage("aio:configure", func(msg *Message) {
@@ -2068,11 +2073,9 @@ func (s *BoxerSuite) TestCloneGitRepositoryExceedsQuota(c *C) {
 
 		quotaInfo, err := box.quota().ViewLimit(box.quotaArg())
 		box.DiskSpace = strconv.Itoa(quotaInfo.Used+1) + "K"
-		c.Log("quotainfo", quotaInfo, box.DiskSpace, box.quotaArg())
 		err = box.SetQuota()
 		c.Check(err, IsNil)
 		quotaInfo, _ = box.quota().ViewLimit(box.quotaArg())
-		c.Log("new quotainfo", quotaInfo)
 
 		message, box = s.receiveMessages("mclovins-container-1",
 			s.makeMessage("aio:clone_repository", func(msg *Message) {
@@ -2156,7 +2159,6 @@ func (s *BoxerSuite) TestRepoDownloadArchiveExceedsQuota(c *C) {
 		c.Assert(message.Success, Equals, true)
 
 		quotaInfo, err := box.quota().ViewLimit(box.quotaArg())
-		c.Log("quotainfo", quotaInfo, box.quotaArg())
 		box.DiskSpace = strconv.Itoa(quotaInfo.Used+1) + "K"
 		err = box.SetQuota()
 		c.Check(err, IsNil)

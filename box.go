@@ -677,11 +677,15 @@ func (b *Box) handleSpecChange(spec *BoxSpec, forceWriteConfig bool) error {
 			logger.Debugln("save: err: %v", saveErr)
 		}
 	}()
-	willWriteConfig := false
+	oldResource := &pr.Resource{
+		Memory:      b.Memory,
+		TotalMemory: b.TotalMemory(),
+	}
 	msc := &MemorySpecChange{
 		OldMemory:      b.Memory,
 		OldTotalMemory: b.TotalMemory(),
 	}
+	willWriteConfig := false
 	if spec.Memory != b.Memory {
 		b.Memory = spec.Memory
 		willWriteConfig = true
@@ -694,34 +698,52 @@ func (b *Box) handleSpecChange(spec *BoxSpec, forceWriteConfig bool) error {
 		b.VirtualMemory = spec.VirtualMemory
 		willWriteConfig = true
 	}
-	if willWriteConfig || forceWriteConfig {
-		mounted, err := b.lxcMounted()
-		if err != nil {
-			return &BoxOpError{Op: "write lxc config", Err: err}
-		}
-		if mounted {
-			// if not mounted (stopped state), the config will be written upon
-			// next Start()
-			err = b.writeConfig()
+	newResource := &pr.Resource{
+		Memory:      b.Memory,
+		TotalMemory: b.TotalMemory(),
+	}
+	switch b.Provisioner {
+	// for running lxc, we can just write the lxc config right now
+	case "lxc":
+		if willWriteConfig || forceWriteConfig {
+			mounted, err := b.lxcMounted()
 			if err != nil {
 				return &BoxOpError{Op: "write lxc config", Err: err}
 			}
+			if mounted {
+				// if not mounted (stopped state), the config will be written upon
+				// next Start()
+				err = b.writeConfig()
+				if err != nil {
+					return &BoxOpError{Op: "write lxc config", Err: err}
+				}
+			}
+		}
+		// apply new memory quota immediately for running boxes
+		if b.State == "running" && (b.Memory != msc.OldMemory || b.TotalMemory() != msc.OldTotalMemory) {
+			msc.NewMemory = b.Memory
+			msc.NewTotalMemory = b.TotalMemory()
+			if err := b.liveUpdateMemory(msc); err != nil {
+				return &BoxOpError{Op: "live adjust memory quota", Err: err}
+			}
+		}
+	case "docker":
+		if b.State == "running" {
+			_, err := b.provisioner().ChangeSpec(
+				b.ContainerName(), b.UniqueId,
+				oldResource, newResource)
+			if err != nil {
+				return &BoxOpError{Op: "docker: failed to adjust resource: %v", Err: err}
+			}
 		}
 	}
+	// set quota for the box
 	if len(spec.DiskSpace) > 0 && spec.DiskSpace != b.DiskSpace {
 		oldDiskSpace := b.DiskSpace
 		b.DiskSpace = spec.DiskSpace
 		if err := b.SetQuota(); err != nil {
 			b.DiskSpace = oldDiskSpace
 			return &BoxOpError{Op: "set disk quota", Err: err}
-		}
-	}
-	// apply new memory quota immediately for running boxes
-	if b.State == "running" && (b.Memory != msc.OldMemory || b.TotalMemory() != msc.OldTotalMemory) {
-		msc.NewMemory = b.Memory
-		msc.NewTotalMemory = b.TotalMemory()
-		if err := b.liveUpdateMemory(msc); err != nil {
-			return &BoxOpError{Op: "live adjust memory quota", Err: err}
 		}
 	}
 	return nil
