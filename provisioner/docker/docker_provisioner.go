@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/action-io/goboxer/archive"
 	"github.com/action-io/goboxer/lxc"
 	"github.com/action-io/goboxer/mount"
 	pr "github.com/action-io/goboxer/provisioner"
@@ -172,6 +173,16 @@ func (p *Provisioner) ChangeSpec(name, id string,
 		}
 	}
 	return id, nil
+}
+
+// because snapshot can be called when the container is stopped, we will just
+// going to take the diff path
+func (p *Provisioner) Snapshot(name, id string, snapshotId int) (string, string, error) {
+	tarName := fmt.Sprintf("%s-snapshot-%d.tar.gz", name, snapshotId)
+	diffPath := path.Join(DOCKER_PATH, "aufs", "diff", id)
+	homePath := path.Join(diffPath, "home", "action")
+	tarPath, err := archive.Tar(tarName, homePath)
+	return tarName, tarPath, err
 }
 
 // FIXME: should not be supported

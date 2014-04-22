@@ -23,6 +23,10 @@ type (
 		// methods o handle lxc-related operations outside of provisioner
 		GetLxcPath(name, id string) string
 		GetCurrentRoot(name, id string) string
+
+		// compress the home folder of the container and return the path to the
+		// tar file if successfully done
+		Snapshot(name, id string, snapshotId int) (tarName string, path string, err error)
 	}
 
 	OpError struct {
