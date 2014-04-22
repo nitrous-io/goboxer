@@ -1750,14 +1750,6 @@ func (s *BoxerSuite) TestChangeBoxSpecsFail(c *C) {
 		// normal
 		quota.Provisioner = true
 
-		// it still sets the new memory
-		DoesContain(c, map[string][]string{
-			box.LxcPath() + "/config": {
-				"lxc.cgroup.memory.limit_in_bytes = 512M",
-				"lxc.cgroup.memory.memsw.limit_in_bytes = 768M",
-			},
-		})
-
 		// it cant set the new quota
 		newLimit, _ := quotaProvisioner.ViewLimit(box.quotaArg())
 		c.Assert(newLimit.Limit, Equals, limit.Limit)
@@ -1765,6 +1757,19 @@ func (s *BoxerSuite) TestChangeBoxSpecsFail(c *C) {
 		// it persist the old quota
 		reloadedBox := s.findBox(box.ContainerName())
 		c.Assert(reloadedBox.DiskSpace, Equals, "1G")
+
+		switch box.Provisioner {
+		case "lxc":
+			// it still sets the new memory
+			DoesContain(c, map[string][]string{
+				box.LxcPath() + "/config": {
+					"lxc.cgroup.memory.limit_in_bytes = 512M",
+					"lxc.cgroup.memory.memsw.limit_in_bytes = 768M",
+				},
+			})
+		case "docker":
+			c.Log("docker doesnt need to check the config")
+		}
 	})
 }
 
