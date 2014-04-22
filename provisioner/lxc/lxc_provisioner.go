@@ -88,6 +88,11 @@ func (p *Provisioner) Start(name, boxId string, resource *pr.Resource, beforeSta
 	return boxId, nil
 }
 
+func (p *Provisioner) ChangeSpec(name, id string, oldResource, newResource *pr.Resource) (string, error) {
+	// doesnt do anything now
+	return id, nil
+}
+
 func (p *Provisioner) GetLxcPath(name, id string) string {
 	return path.Join(p.GetCurrentRoot(name, id), name+"-"+id)
 }
