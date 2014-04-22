@@ -902,6 +902,9 @@ func (b *Box) unsetPortForwarding() error {
 }
 
 func (b *Box) extractTemplate() error {
+	defer logger.LogDuration(
+		fmt.Sprintf("%s:ExtractTemplate", b.ContainerName()),
+	)(time.Now())
 	boxHomePath := path.Join(b.RootFS(), "home", "action")
 	return Untar(b.TemplatePath(), boxHomePath)
 }
