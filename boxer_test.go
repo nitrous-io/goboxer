@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/action-io/goboxer/cartman"
-	"github.com/action-io/goboxer/lxc"
 	"github.com/action-io/goboxer/mount"
 	"github.com/action-io/goboxer/quota"
 	"github.com/action-io/goboxer/s3"
@@ -48,13 +47,13 @@ type testProvisionStrategy struct {
 // for each strategies, we are going to run all operations to make sure that
 // everything works
 var strategies = map[string]testProvisionStrategy{
-	"ext4": testProvisionStrategy{
-		Provisioner:  "lxc",
-		MountMethod:  "aufs",
-		QuotaMethod:  "usrquota",
-		SelectedDisk: "/lxc/disk2",
-		SelectedVG:   "",
-	},
+	//"ext4": testProvisionStrategy{
+	//    Provisioner:  "lxc",
+	//    MountMethod:  "aufs",
+	//    QuotaMethod:  "usrquota",
+	//    SelectedDisk: "/lxc/disk2",
+	//    SelectedVG:   "",
+	//},
 	"docker": testProvisionStrategy{
 		Provisioner:  "docker",
 		MountMethod:  "aufs",
@@ -200,7 +199,7 @@ func (s *BoxerSuite) testEachStrategy(c *C, test testFunction) {
 				boxes, _ := s.ResourcePool.FindAllBoxes()
 				for _, box := range boxes {
 					box.boxer = s.Boxer
-					box.Destroy()
+					//box.Destroy()
 				}
 			}()
 			s.insertResource("192.168.254.2", "192.168.254.1", "br-lxc-254", "10002")
@@ -1479,11 +1478,7 @@ func (s *BoxerSuite) TestChangeBoxSpecsPass(c *C) {
 			s.makeCreateMessage(defaultMsg))
 
 		quotaProvisioner := quota.Provisioner.GetQuota(stratValue.QuotaMethod)
-		limit, _ := quotaProvisioner.ViewLimit(quota.QuotaArg{
-			Id:   "1",
-			Disk: stratValue.SelectedDisk,
-			Path: box.LxcPath() + "_delta",
-		})
+		limit, _ := quotaProvisioner.ViewLimit(box.quotaArg())
 		c.Assert(limit.Limit > 900*1000, Equals, true)
 
 		// mock data
@@ -1511,20 +1506,20 @@ func (s *BoxerSuite) TestChangeBoxSpecsPass(c *C) {
 
 		switch box.Provisioner {
 		case "lxc":
-			DoesContain(c, map[string][]string{
-				box.LxcPath() + "/config": {
-					"lxc.cgroup.memory.limit_in_bytes = 512M",
-					"lxc.cgroup.memory.memsw.limit_in_bytes = 768M",
-					"lxc.cgroup.cpu.shares = 2048",
-				},
+			verifyLxcConfig(c, box.ContainerPath(), box.MountName(), map[string]string{
+				"memory.limit_in_bytes":       strconv.Itoa(512 * 1024 * 1024),
+				"memory.memsw.limit_in_bytes": strconv.Itoa(768 * 1024 * 1024),
+				"cpu.shares":                  "2048",
+			})
+		case "docker":
+			verifyLxcConfig(c, "", box.UniqueId, map[string]string{
+				"memory.limit_in_bytes":       strconv.Itoa(512 * 1024 * 1024),
+				"memory.memsw.limit_in_bytes": strconv.Itoa(768 * 1024 * 1024),
+				"cpu.shares":                  "2048",
 			})
 		}
 
-		newLimit, _ := quotaProvisioner.ViewLimit(quota.QuotaArg{
-			Id:   "1",
-			Disk: stratValue.SelectedDisk,
-			Path: box.LxcPath() + "_delta",
-		})
+		newLimit, _ := quotaProvisioner.ViewLimit(box.quotaArg())
 		c.Assert(newLimit.Limit > 2*900*1000, Equals, true)
 
 		// it persist the new quota
@@ -1549,19 +1544,23 @@ func (s *BoxerSuite) TestChangeBoxSpecsPassOnRunningBox(c *C) {
 			}))
 
 		s.assertBoxState(c, box, "running")
-		DoesContain(c, map[string][]string{
-			box.LxcPath() + "/config": {
-				"lxc.cgroup.memory.limit_in_bytes = 384M",
-			},
-		})
-		newMemLimit, err := lxc.CgroupGet(box.Disk, box.MountName(), "memory.limit_in_bytes")
-		c.Assert(err, IsNil)
-		c.Assert(strings.TrimSpace(newMemLimit), Equals,
-			strconv.Itoa(quota.ConvertValueUnitToByte(quota.ValueUnit{384, "M"})*1024))
-		newTotalLimit, err := lxc.CgroupGet(box.Disk, box.MountName(), "memory.memsw.limit_in_bytes")
-		c.Assert(err, IsNil)
-		c.Assert(strings.TrimSpace(newTotalLimit), Equals,
-			strconv.Itoa(quota.ConvertValueUnitToByte(quota.ParseValueUnit(box.TotalMemory()))*1024))
+		switch stratValue.Provisioner {
+		case "lxc":
+			DoesContain(c, map[string][]string{
+				box.LxcPath() + "/config": {
+					"lxc.cgroup.memory.limit_in_bytes = 384M",
+				},
+			})
+			verifyLxcConfig(c, box.ContainerPath(), box.MountName(), map[string]string{
+				"memory.limit_in_bytes":       strconv.Itoa(384 * 1024 * 1024),
+				"memory.memsw.limit_in_bytes": strconv.Itoa(576 * 1024 * 1024),
+			})
+		case "docker":
+			verifyLxcConfig(c, "", box.UniqueId, map[string]string{
+				"memory.limit_in_bytes":       strconv.Itoa(384 * 1024 * 1024),
+				"memory.memsw.limit_in_bytes": strconv.Itoa(576 * 1024 * 1024),
+			})
+		}
 
 		// it persist the new quota
 		reloadedBox := s.findBox(box.ContainerName())
@@ -2070,8 +2069,11 @@ func (s *BoxerSuite) TestCloneGitRepositoryExceedsQuota(c *C) {
 
 		quotaInfo, err := box.quota().ViewLimit(box.quotaArg())
 		box.DiskSpace = strconv.Itoa(quotaInfo.Used+1) + "K"
+		c.Log("quotainfo", quotaInfo, box.DiskSpace, box.quotaArg())
 		err = box.SetQuota()
 		c.Check(err, IsNil)
+		quotaInfo, _ = box.quota().ViewLimit(box.quotaArg())
+		c.Log("new quotainfo", quotaInfo)
 
 		message, box = s.receiveMessages("mclovins-container-1",
 			s.makeMessage("aio:clone_repository", func(msg *Message) {
@@ -2155,6 +2157,7 @@ func (s *BoxerSuite) TestRepoDownloadArchiveExceedsQuota(c *C) {
 		c.Assert(message.Success, Equals, true)
 
 		quotaInfo, err := box.quota().ViewLimit(box.quotaArg())
+		c.Log("quotainfo", quotaInfo, box.quotaArg())
 		box.DiskSpace = strconv.Itoa(quotaInfo.Used+1) + "K"
 		err = box.SetQuota()
 		c.Check(err, IsNil)
