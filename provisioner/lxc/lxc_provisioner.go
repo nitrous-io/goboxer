@@ -34,10 +34,13 @@ type Provisioner struct {
 }
 
 // create basic structure of the container. This doesn't handle container's
-// data and config yet.
-func (p *Provisioner) Create(name string) (string, error) {
+// data and config yet. those will be handled in afterCreate callback
+func (p *Provisioner) Create(name string, afterCreate pr.AfterCreateFunc) (string, error) {
 	id := generateId()
 	if err := p.mount(name, id); err != nil {
+		return id, err
+	}
+	if err := afterCreate(id, p.GetRootfsPath(name, id)); err != nil {
 		return id, err
 	}
 	return id, nil
@@ -73,11 +76,12 @@ func (p *Provisioner) Stop(name, boxId, userId string) (id string, err error) {
 	return
 }
 
-func (p *Provisioner) Start(name, boxId string, resource *pr.Resource, beforeStart func() error) (string, error) {
+func (p *Provisioner) Start(name, boxId string, resource *pr.Resource,
+	beforeStart pr.BeforeStartFunc) (string, error) {
 	if err := p.mount(name, boxId); err != nil {
 		return boxId, err
 	}
-	if err := beforeStart(); err != nil {
+	if err := beforeStart(p.GetRootfsPath(name, boxId)); err != nil {
 		err = &pr.OpError{Op: "beforeStart callback " + name, Err: err}
 		return boxId, err
 	}
@@ -88,7 +92,8 @@ func (p *Provisioner) Start(name, boxId string, resource *pr.Resource, beforeSta
 	return boxId, nil
 }
 
-func (p *Provisioner) ChangeSpec(name, id string, oldResource, newResource *pr.Resource) (string, error) {
+func (p *Provisioner) ChangeSpec(name, id string, oldResource,
+	newResource *pr.Resource) (string, error) {
 	// doesnt do anything now
 	return id, nil
 }

@@ -7,11 +7,14 @@ import (
 type (
 	InitFunc func(root string) (Provisioner, error)
 
+	AfterCreateFunc func(id, rootfs string) error
+	BeforeStartFunc func(rootfs string) error
+
 	Provisioner interface {
-		Create(name string) (id string, err error)
+		Create(name string, afterCreate AfterCreateFunc) (id string, err error)
 		Destroy(name, id string) error
 		Stop(name, id, uid string) (newId string, err error)
-		Start(name, id string, resource *Resource, beforeStart func() error) (newId string, err error)
+		Start(name, id string, resource *Resource, beforeStart BeforeStartFunc) (newId string, err error)
 		ChangeSpec(name, id string, oldResource, newResource *Resource) (newId string, err error)
 		GetLxcConfigPath(name, id string) string
 		GetRootfsPath(name, id string) string
