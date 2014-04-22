@@ -101,9 +101,10 @@ func (s *BoxSuite) TestContainerDeltaPath(c *C) {
 }
 
 func (s *BoxSuite) TestContainerUserHomePath(c *C) {
-	b := &Box{Name: "test", Id: 123, UniqueId: "123456", Disk: "/lxc/disk1", MountMethod: "aufs"}
+	b := &Box{Name: "test", Id: 123, UniqueId: "123456", Disk: "/lxc/disk1",
+		MountMethod: "aufs", Provisioner: "lxc"}
 	b.boxer = &Boxer{}
-	c.Assert(b.ContainerUserHomePath(), Equals, "/lxc/disk1/test-123_delta/rootfs/home/action")
+	c.Assert(b.ContainerUserHomePath(), Equals, "/lxc/disk1/test-123-123456/rootfs/home/action")
 }
 
 func (s *BoxSuite) TestCpuSetString(c *C) {
@@ -123,7 +124,7 @@ func (s *BoxSuite) TestCpuQuotaMicroseconds(c *C) {
 }
 
 func (s *BoxSuite) TestContainerPath(c *C) {
-	b := &Box{Provisioner: "docker"}
+	b := &Box{Provisioner: "docker", Disk: "/lxc/disk1"}
 	c.Assert(b.ContainerPath(), Equals, "")
 }
 
