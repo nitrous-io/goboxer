@@ -354,10 +354,6 @@ func (b *Box) ContainerFS() string {
 	return path.Join(b.Disk, b.MountName())
 }
 
-func (b *Box) EnvPath() string {
-	return path.Join(b.RootFS(), "etc", "environment")
-}
-
 // rootfs of the container. This is the root after unionized so its typically
 // will be in boxer.Root i.e /var/lib/lxc
 func (b *Box) RootFS() string {
@@ -699,31 +695,6 @@ func (b *Box) Info() (BoxInfo, error) {
 		info.StorageUsage = float64(quota.ScaleUnitCeil(quotaInfo.Used, "M"))
 	}
 	return info, nil
-}
-
-// set env of the box
-// This set env as KEY=value lines into /etc/environment of the box, which
-// should be loaded automatically when environment starts
-func (b *Box) SetEnv(data map[string]interface{}) error {
-	newEnv := []string{}
-	for key, value := range data {
-		// FIXME: probably going through the file once and remove all is faster
-		if err := utils.DeleteLineContains(b.EnvPath(), key+"="); err != nil {
-			return err
-		}
-		newEnv = append(newEnv, fmt.Sprintf("%s=%s", key, value.(string)))
-	}
-	return utils.Appendln(b.EnvPath(), strings.Join(newEnv, "\n"))
-}
-
-// Remove env variables from the box
-func (b *Box) RemoveEnv(data []string) (err error) {
-	for _, value := range data {
-		if err = utils.DeleteLineContains(b.EnvPath(), value+"="); err != nil {
-			return err
-		}
-	}
-	return
 }
 
 // this requires the box to be mounted because we are writing lxc config into
