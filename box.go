@@ -210,7 +210,8 @@ func (b *Box) Create() error {
 		}
 		return nil
 	}
-	uniqueId, err := b.provisioner().Create(b.ContainerName(), afterCreate)
+	uniqueId, err := b.provisioner().Create(b.ContainerName(), b.getResource(),
+		afterCreate)
 	b.UniqueId = uniqueId
 	if err != nil {
 		return &BoxOpError{Op: "provisioner: Create", Err: err}
@@ -229,9 +230,6 @@ func (b *Box) Start(spec *BoxSpec) error {
 		if err := b.WritePublicKeys(); err != nil {
 			return &BoxOpError{Op: "write public keys", Err: err}
 		}
-		if err := b.setPortForwarding(); err != nil {
-			return &BoxOpError{Op: "set port forwarding", Err: err}
-		}
 		// this change spec without restarting the box
 		if err := b.handleSpecChange(spec, true); err != nil {
 			return &BoxOpError{Op: "spec change", Err: err}
@@ -248,15 +246,12 @@ func (b *Box) Start(spec *BoxSpec) error {
 		return nil
 	}
 	_, err := b.provisioner().Start(b.ContainerName(), b.UniqueId,
-		&pr.Resource{
-			Memory:      b.Memory,
-			TotalMemory: b.TotalMemory(),
-			CpuShares:   b.CpuShares,
-			CpuQuota:    b.CpuQuota,
-			CpuSet:      b.CpuSet,
-		}, beforeStart)
+		b.getResource(), beforeStart)
 	if err != nil {
 		return &BoxOpError{Op: "start " + b.ContainerName(), Err: err}
+	}
+	if err := b.setPortForwarding(); err != nil {
+		return &BoxOpError{Op: "set port forwarding", Err: err}
 	}
 	return nil
 }
@@ -862,26 +857,45 @@ func (b *Box) setPermission() error {
 	return utils.RunCommand("chroot", root, "chown", "-R", permission, "/home/action")
 }
 
+// docker handle its own port forward stuff so we dont have to do it here
 func (b *Box) setPortForwarding() error {
-	b.boxer.Lock(b.Id)
-	defer b.boxer.Unlock(b.Id)
-	strPort := strconv.Itoa(b.Port)
-	if b.boxer.Vagrant {
-		return ip.OpenInVagrant(strPort, b.Ip, "22")
-	} else {
-		return ip.Open(strPort, b.Ip, "22")
+	switch b.Provisioner {
+	// for lxc, we have to manually create ip rules here
+	case "lxc":
+		b.boxer.Lock(b.Id)
+		defer b.boxer.Unlock(b.Id)
+		strPort := strconv.Itoa(b.Port)
+		if b.boxer.Vagrant {
+			return ip.OpenInVagrant(strPort, b.Ip, "22")
+		} else {
+			return ip.Open(strPort, b.Ip, "22")
+		}
+	// however, for docker, because docker will handle ip rules, we just need
+	// to save the docker ip/port i.e.
+	// - ignore the ip value of resource pool and resave our own
+	case "docker":
+		resource, err := b.provisioner().GetResource(b.ContainerName(), b.UniqueId)
+		if err != nil {
+			return err
+		}
+		b.Ip = resource.Ip
 	}
+	return nil
 }
 
+// docker handle its own port forward stuff so we dont have to do it here
 func (b *Box) unsetPortForwarding() error {
-	b.boxer.Lock(b.Id)
-	defer b.boxer.Unlock(b.Id)
-	strPort := strconv.Itoa(b.Port)
-	if b.boxer.Vagrant {
-		return ip.CloseInVagrant(strPort, b.Ip, "22")
-	} else {
-		return ip.Close(strPort, b.Ip, "22")
+	if b.Provisioner == "lxc" {
+		b.boxer.Lock(b.Id)
+		defer b.boxer.Unlock(b.Id)
+		strPort := strconv.Itoa(b.Port)
+		if b.boxer.Vagrant {
+			return ip.CloseInVagrant(strPort, b.Ip, "22")
+		} else {
+			return ip.Close(strPort, b.Ip, "22")
+		}
 	}
+	return nil
 }
 
 func (b *Box) extractTemplate() error {
@@ -1081,6 +1095,18 @@ func (b *Box) save() error {
 		return err
 	}
 	return b.boxer.Cartman.InvalidateCache(b.ContainerName())
+}
+
+func (b *Box) getResource() *pr.Resource {
+	return &pr.Resource{
+		Memory:      b.Memory,
+		TotalMemory: b.TotalMemory(),
+		CpuShares:   b.CpuShares,
+		CpuQuota:    b.CpuQuota,
+		CpuSet:      b.CpuSet,
+		Ip:          b.Ip,
+		Port:        strconv.Itoa(b.Port),
+	}
 }
 
 func (b *Box) resourcePool() *ResourcePool {

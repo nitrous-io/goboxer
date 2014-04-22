@@ -694,16 +694,40 @@ func (s *BoxerSuite) TestStartSetsIptablesRule(c *C) {
 		_, box := s.receiveMessages("mclovins-container-1", s.makeCreateMessage(defaultMsg))
 		box.unsetPortForwarding()
 
-		AssertIptablesOutput(c, "192.168.254.2:22", false)
+		switch box.Provisioner {
+		case "lxc":
+			AssertIptablesOutput(c, "192.168.254.2:22", false)
+			message, box := s.receiveMessages("mclovins-container-1",
+				s.makeMessage("aio:start", defaultMsg))
 
-		message, box := s.receiveMessages("mclovins-container-1",
-			s.makeMessage("aio:start", defaultMsg))
+			c.Assert(message.Type, Equals, "aio:started")
+			c.Assert(message.Success, Equals, true)
+			s.assertBoxState(c, box, "running")
 
-		c.Assert(message.Type, Equals, "aio:started")
-		c.Assert(message.Success, Equals, true)
-		s.assertBoxState(c, box, "running")
+			AssertIptablesOutput(c, "192.168.254.2:22", true)
+		case "docker":
+			oldIp := box.Ip
+			oldPort := box.Port
 
-		AssertIptablesOutput(c, "192.168.254.2:22", true)
+			message, box := s.receiveMessages("mclovins-container-1",
+				s.makeMessage("aio:start", defaultMsg))
+			c.Assert(message.Type, Equals, "aio:started")
+			c.Assert(message.Success, Equals, true)
+			s.assertBoxState(c, box, "running")
+
+			c.Log(box.Ip)
+			// we use docker ip now and not resource pool
+			c.Assert(box.Ip, Not(Equals), oldIp)
+			c.Assert(box.Port, Equals, oldPort)
+
+			// assert resource, make sure that we set correct ip and port from
+			// docker
+			resource, _ := box.provisioner().GetResource(box.ContainerName(),
+				box.UniqueId)
+			currentPort, _ := strconv.Atoi(resource.Port)
+			c.Assert(box.Ip, Equals, resource.Ip)
+			c.Assert(box.Port, Equals, currentPort)
+		}
 	})
 }
 

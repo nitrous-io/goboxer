@@ -13,6 +13,7 @@ import (
 	"github.com/action-io/goboxer/lxc"
 	"github.com/action-io/goboxer/mount"
 	pr "github.com/action-io/goboxer/provisioner"
+	"github.com/nitrous-io/go-dockerclient"
 )
 
 const DOCKER_PATH = "/var/lib/docker"   // where docker stores its data
@@ -49,19 +50,7 @@ func runContainer(id, name string, lxcArgs []string) (string, error) {
 	if err != nil {
 		// this is probably an image, just create a new container
 		if strings.Contains(string(output), "No such container") {
-			args := []string{
-				"run", "-d", "-name", name + "-" + generateId(),
-			}
-			// if we want to customize lxc-conf, now is the time
-			for _, conf := range lxcArgs {
-				args = append(args, fmt.Sprintf("--lxc-conf=\"lxc.cgroup.%s\"", conf))
-			}
-			args = append(args, id)
-			output, err = exec.Command("docker", args...).Output()
-			if err != nil {
-				return "", err
-			}
-			return strings.TrimSpace(string(output)), nil
+			return "", err
 		}
 		// if the container is already running, just return the id
 		if strings.Contains(string(output), "is already running") {
@@ -82,6 +71,35 @@ func runContainer(id, name string, lxcArgs []string) (string, error) {
 		}
 	}
 	return id, nil
+}
+
+func createContainer(id, name string, resource *pr.Resource) (string, error) {
+	c, err := client()
+	if err != nil {
+		return "", err
+	}
+	container, err := c.CreateContainer(docker.CreateContainerOptions{
+		Name: name + "-" + generateId(),
+		Config: &docker.Config{
+			Image: id,
+		},
+	})
+	if err != nil {
+		return "", err
+	}
+	hostConfig := &docker.HostConfig{}
+	if len(resource.Port) > 0 {
+		hostConfig.PortBindings = map[docker.Port][]docker.PortBinding{
+			"22/tcp": []docker.PortBinding{
+				docker.PortBinding{HostPort: resource.Port},
+			},
+		}
+	}
+	err = c.StartContainer(container.ID, hostConfig)
+	if err != nil {
+		return container.ID, nil
+	}
+	return container.ID, nil
 }
 
 // commit and return the image id
@@ -125,8 +143,10 @@ func destroyContainer(id string) error {
 // - create a container
 // - commit it as an image
 // - stop the container
-func (p *Provisioner) Create(name string, afterCreate pr.AfterCreateFunc) (string, error) {
-	id, err := runContainer(BASE_IMAGE, name, []string{})
+func (p *Provisioner) Create(name string, resource *pr.Resource,
+	afterCreate pr.AfterCreateFunc) (string, error) {
+
+	id, err := createContainer(BASE_IMAGE, name, resource)
 	if err != nil {
 		return id, &pr.OpError{Op: "run container", Err: err}
 	}
@@ -185,6 +205,30 @@ func (p *Provisioner) Snapshot(name, id string, snapshotId int) (string, string,
 	return tarName, tarPath, err
 }
 
+func (p *Provisioner) GetResource(name, id string) (*pr.Resource, error) {
+	client, err := docker.NewClient("unix:///var/run/docker.sock")
+	if err != nil {
+		return nil, err
+	}
+	container, err := client.InspectContainer(id)
+	if err != nil {
+		return nil, err
+	}
+	// we only care about port 22
+	sshPorts, ok := container.NetworkSettings.Ports["22/tcp"]
+	if !ok {
+		return nil, fmt.Errorf("docker: missing port links %v", container)
+	}
+	if len(sshPorts) == 0 {
+		return nil, fmt.Errorf("docker: missing ssh port %v", container)
+	}
+	resource := &pr.Resource{
+		Ip:   container.NetworkSettings.IPAddress,
+		Port: sshPorts[0].HostPort,
+	}
+	return resource, nil
+}
+
 // FIXME: should not be supported
 func (p *Provisioner) GetLxcPath(name, id string) string {
 	return path.Join(DOCKER_PATH, "containers", id)
@@ -215,6 +259,10 @@ func (p *Provisioner) IsMounted(name, id string) (bool, error) {
 // work with the new lxc path
 func (p *Provisioner) GetCurrentRoot(name, id string) string {
 	return path.Join(DOCKER_PATH, "aufs", "mnt", id)
+}
+
+func client() (*docker.Client, error) {
+	return docker.NewClient("unix:///var/run/docker.sock")
 }
 
 func Init(root string) (pr.Provisioner, error) {

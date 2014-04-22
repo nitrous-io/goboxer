@@ -11,11 +11,12 @@ type (
 	BeforeStartFunc func(rootfs string) error
 
 	Provisioner interface {
-		Create(name string, afterCreate AfterCreateFunc) (id string, err error)
+		Create(name string, resource *Resource, afterCreate AfterCreateFunc) (id string, err error)
 		Destroy(name, id string) error
 		Stop(name, id, uid string) (newId string, err error)
 		Start(name, id string, resource *Resource, beforeStart BeforeStartFunc) (newId string, err error)
 		ChangeSpec(name, id string, oldResource, newResource *Resource) (newId string, err error)
+
 		GetLxcConfigPath(name, id string) string
 		GetRootfsPath(name, id string) string
 		IsMounted(name, id string) (bool, error)
@@ -27,6 +28,9 @@ type (
 		// compress the home folder of the container and return the path to the
 		// tar file if successfully done
 		Snapshot(name, id string, snapshotId int) (tarName string, path string, err error)
+
+		// get current resource of the container
+		GetResource(name, id string) (*Resource, error)
 	}
 
 	OpError struct {
