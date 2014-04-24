@@ -85,9 +85,10 @@ func (c *Container) Status() (string, error) {
 	}
 	args = append(args, "-s", "-n", c.Name)
 	cmd := exec.Command("lxc-info", args...)
-	output, err := cmd.Output()
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", fmt.Errorf("lxc: failed to get %s status: %v", c.Name, err)
+		return "", fmt.Errorf("lxc: failed to get %s status: %v, output: %v",
+			c.Name, err, string(output))
 	}
 	fields := strings.Fields(string(output))
 	if len(fields) <= 1 {
