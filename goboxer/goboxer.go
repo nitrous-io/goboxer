@@ -65,6 +65,7 @@ func main() {
 		Cartman:         cartman,
 		PremiumCPUQuota: config.PremiumCPUQuota,
 		DefaultCPUQuota: config.DefaultCPUQuota,
+		Provisioner:     config.Provisioner,
 		S3Region:        config.S3Region,
 		S3Bucket:        config.S3Bucket,
 		S3Auth: s3.Auth{
