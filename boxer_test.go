@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/action-io/goboxer/cartman"
+	"github.com/action-io/goboxer/lxc"
 	"github.com/action-io/goboxer/mount"
 	"github.com/action-io/goboxer/quota"
 	"github.com/action-io/goboxer/s3"
@@ -105,9 +106,19 @@ func (s *BoxerSuite) assertBoxState(c *C, b *Box, state string) {
 	switch b.Provisioner {
 	case "lxc":
 		lxcState, _ := lxc.Status(b.ContainerPath(), b.MountName())
+		if err != nil {
+			if strings.Contains(err.Error(), "doesn't exist") {
+				lxcState = lxc.STOPPED
+			}
+		}
 		c.Assert(lxcState, Equals, strings.ToUpper(state))
 	case "docker":
-		lxcState, _ := lxc.Status("", b.UniqueId)
+		lxcState, err := lxc.Status("", b.UniqueId)
+		if err != nil {
+			if strings.Contains(err.Error(), "doesn't exist") {
+				lxcState = lxc.STOPPED
+			}
+		}
 		c.Assert(lxcState, Equals, strings.ToUpper(state))
 	}
 }
