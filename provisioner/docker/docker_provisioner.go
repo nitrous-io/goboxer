@@ -18,7 +18,7 @@ import (
 
 const DOCKER_PATH = "/var/lib/docker"   // where docker stores its data
 const ROOT_DIR = "/var/lib/docker/aufs" // where container's data is stored
-const BASE_IMAGE = "nitrous/base_box"
+const BASE_IMAGE = "registry.nitrous.io/base-container"
 const STOP_TIMEOUT = 30
 const STOP_TIMEOUT_STR = "30"
 
@@ -145,7 +145,6 @@ func destroyContainer(id string) error {
 // - stop the container
 func (p *Provisioner) Create(name string, resource *pr.Resource,
 	afterCreate pr.AfterCreateFunc) (string, error) {
-
 	id, err := createContainer(BASE_IMAGE, name, resource)
 	if err != nil {
 		return id, &pr.OpError{Op: "run container", Err: err}
