@@ -524,6 +524,33 @@ func (s *BoxerSuite) TestCreatePremiumBox(c *C) {
 	})
 }
 
+func (s *BoxerSuite) TestCreateFailedAndRollback(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+
+		// swap Quota with FailQuota so all quota calls will return errors
+		// this will fail the next box creation
+		quota.Provisioner = false
+		defer func() {
+			// Swap back the original Quota so the next test that
+			// uses Quota will be normal
+			quota.Provisioner = true
+		}()
+
+		message, _ := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg))
+
+		c.Assert(message.Type, Equals, "aio:created")
+		c.Assert(message.Success, Equals, false)
+
+		// assert that the iptables pool are released properly
+		conn := s.Redis.Get()
+		defer conn.Close()
+		availableIp, _ := redis.String(conn.Do("RPOP", "aio:available_resources"))
+		c.Assert(availableIp, Equals, "192.168.254.2")
+	})
+}
+
 func (s *BoxerSuite) TestStop(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
@@ -1008,7 +1035,12 @@ func (s *BoxerSuite) TestDestroy(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
 		message, box := s.receiveMessages("mclovins-container-1",
-			s.makeCreateMessage(defaultMsg))
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:start", defaultMsg),
+			s.makeMessage("aio:stop", defaultMsg))
+
+		fmt.Println(" ====> destroy box", box.Provisioner, box.Ip)
+
 		containerPlace := []string{box.RootFS()}
 
 		message, box = s.receiveMessages("mclovins-container-1",

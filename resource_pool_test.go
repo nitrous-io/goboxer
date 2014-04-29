@@ -95,6 +95,50 @@ func makeTestBox(id int, state string) *Box {
 	}
 }
 
+type deleteResourceTestCase struct {
+	resourceIp  string
+	provisioner string
+	release     bool
+	success     bool
+}
+
+func (s *ResourcePoolSuite) TestDeleteBox(c *C) {
+	rp := &ResourcePool{Pool: s.pool}
+	conn := s.pool.Get()
+	defer conn.Close()
+
+	tests := []deleteResourceTestCase{
+		// when the box doesnt have resource ip,
+		// if it is lxc/empty provisioner, then we release the ip
+		deleteResourceTestCase{resourceIp: "", provisioner: "", release: true, success: true},
+		deleteResourceTestCase{resourceIp: "", provisioner: "lxc", release: true, success: true},
+		// if it is docker provisioner, then dont release it
+		deleteResourceTestCase{resourceIp: "", provisioner: "docker", release: false, success: true},
+		// when the box has resource ip, we release it
+		deleteResourceTestCase{resourceIp: "192.168.254.2", provisioner: "docker", release: true, success: true},
+	}
+
+	for _, t := range tests {
+		box := makeTestBox(1, "stopped")
+		conn.Do("FLUSHDB")
+		s.insertResource("192.168.254.2", "192.168.254.1", "br-lxc-254", "10002")
+		rp.Acquire()
+
+		box.ResourceIp = t.resourceIp
+		box.Provisioner = t.provisioner
+
+		err := rp.DeleteBox(box)
+		if (err == nil) != t.success {
+			c.Fatal("Failed test: %v", t)
+		}
+
+		if t.release {
+			availableIp, _ := redis.String(conn.Do("RPOP", "aio:available_resources"))
+			c.Assert(availableIp, Equals, "192.168.254.2")
+		}
+	}
+}
+
 func (s *ResourcePoolSuite) TestUpdateState(c *C) {
 	rp := &ResourcePool{Pool: s.pool}
 	conn := s.pool.Get()
