@@ -40,7 +40,8 @@ func (c *Container) Stop() error {
 		log.Printf("lxc: Stop() - container %v already stopped\n", c.Name)
 		return nil
 	}
-	run("lxc-stop", "--lxcpath", c.Path, "-n", c.Name, "-o", logFile, "-l", "INFO")
+	run("lxc-stop", "--lxcpath", c.Path, "-n", c.Name, "-o", logFile,
+		"-l", "INFO", "--timeout", fmt.Sprintf("%.0f", TIMEOUT.Seconds()))
 	return c.waitForStatus(STOPPED, TIMEOUT)
 }
 
