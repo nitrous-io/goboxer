@@ -69,6 +69,7 @@ type Box struct {
 	Memory           string   `json:"memory"`
 	DiskSpace        string   `json:"diskSpace"`
 	Ip               string   `json:"ip"`
+	ResourceIp       string   `json:"resource_ip"`
 	Gateway          string   `json:"gateway"`
 	NetworkInterface string   `json:"interface"`
 	Port             int      `json:"port"`

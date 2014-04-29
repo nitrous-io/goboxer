@@ -188,6 +188,7 @@ func CreateBoxHandler(m Message, boxer *Boxer) (msg Message) {
 		SnapshotUrl:      m.SnapshotUrl,
 		Template:         boxer.Runtimes[m.Runtime],
 		Ip:               resource.Ip,
+		ResourceIp:       resource.Ip,
 		Gateway:          resource.Gateway,
 		NetworkInterface: resource.NetworkInterface,
 		Port:             resource.GetPort(),

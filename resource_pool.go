@@ -1,6 +1,7 @@
 package goboxer
 
 import (
+	"fmt"
 	"strconv"
 
 	"github.com/action-io/goboxer/utils"
@@ -101,8 +102,23 @@ func (rp *ResourcePool) FindBox(containerName string) (*Box, error) {
 func (rp *ResourcePool) DeleteBox(box *Box) (err error) {
 	conn := rp.Pool.Get()
 	defer conn.Close()
-	if err = rp.Release(box.Ip); err != nil {
-		return
+	var ip string
+	if len(box.ResourceIp) > 0 {
+		ip = box.ResourceIp
+	} else {
+		switch box.Provisioner {
+		case "", "lxc":
+			ip = box.Ip
+		case "docker":
+			ip = ""
+		default:
+			return fmt.Errorf("Invalid provisioner: %v", box)
+		}
+	}
+	if len(ip) > 0 {
+		if err = rp.Release(ip); err != nil {
+			return
+		}
 	}
 	_, err = conn.Do("HDEL", "aio:boxes", box.ContainerName())
 	return
