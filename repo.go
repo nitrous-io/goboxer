@@ -3,6 +3,7 @@ package goboxer
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
 	"net/url"
 	"os"
 	"os/exec"
@@ -32,9 +33,10 @@ const (
 	ScmTargz       = "targz"
 )
 
-const (
-	DefaultRepoRetrieveTimeout = 5 * time.Minute
-)
+const DefaultRepoRetrieveTimeout = 5 * time.Minute
+
+// The response returned by Github when hitting username/repo/archive/branch.tar.gz if a repository is empty
+const EmptyRepositoryResponse = "Not Found"
 
 // all returned errors are passed on to Message and are user-facing
 var (
@@ -43,6 +45,7 @@ var (
 	DiskSpaceExceededError = fmt.Errorf("Repository size exceeds available disk space")
 	RetrieveTimeoutError   = fmt.Errorf("Clone took too long")
 	NoDestinationErrorFmt  = "Destination directory %s already exists.  Please rename it and try again"
+	EmptyRepositoryError   = fmt.Errorf("Could not find files in repository.  Please check if repository is empty")
 )
 
 // ValidateRepo returns an error if any Repo fields are invalid, otherwise sets the Name field and returns nil
@@ -128,7 +131,7 @@ func (r *Repo) download(downloadPath string) (err error) {
 
 	cmd := r.boxUserCommand("mkdir", "-p", downloadPath)
 	if err = runAndCatchKnownErrors(cmd, "repo download mkdir"); err != nil {
-		return
+		return err
 	}
 
 	var (
@@ -141,11 +144,22 @@ func (r *Repo) download(downloadPath string) (err error) {
 	os.MkdirAll(reposRootPath, 0755)
 	defer os.RemoveAll(reposRootPath)
 	if err = r.downloadArchive(archiveRootPath); err != nil {
-		return
+		return err
 	}
 
 	if err = runAndCatchKnownErrors(exec.Command("sync"), "repo download sync"); err != nil {
-		return
+		return err
+	}
+
+	fi, err := os.Stat(archiveRootPath)
+	if err != nil {
+		logger.Printf("ERROR: repo download stat: %v\n", err)
+		return DefaultRetrieveError
+	}
+	if fi.Size() == int64(len(EmptyRepositoryResponse)) {
+		if dat, _ := ioutil.ReadFile(archiveRootPath); string(dat) == EmptyRepositoryResponse {
+			return EmptyRepositoryError
+		}
 	}
 
 	// assume time taken for tar is neglible compared to that of download, so
