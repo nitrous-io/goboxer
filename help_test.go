@@ -183,7 +183,7 @@ func MakeRepo(box *Box, repoPath string, scm string) error {
 	panic("Switch should return")
 }
 
-func MakeTargz(box *Box, archivePath string) error {
+func MakeTargz(archivePath string) error {
 	archiveParent := filepath.Join(ScratchDir, "maketargz")
 	os.MkdirAll(archiveParent, 0755)
 	defer os.RemoveAll(archiveParent)

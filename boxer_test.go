@@ -2018,18 +2018,18 @@ func (s *BoxerSuite) TestRepoDownloadArchive(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
 
-		message, box := s.receiveMessages("mclovins-container-1",
+		message, _ := s.receiveMessages("mclovins-container-1",
 			s.makeCreateMessage(defaultMsg),
 			s.makeMessage("aio:start", defaultMsg))
 		c.Assert(message.Success, Equals, true)
 
 		// repo.download() expects the reponame to be 3rd-last element of path
 		archivePath := filepath.Join(ScratchDir, "autoparts", "archive", "master.tar.gz")
-		err := MakeTargz(box, archivePath)
+		err := MakeTargz(archivePath)
 		defer os.RemoveAll(archivePath)
 		c.Assert(err, IsNil, Commentf("Error on fake tar.gz: %s\n", err))
 
-		message, box = s.receiveMessages("mclovins-container-1",
+		message, box := s.receiveMessages("mclovins-container-1",
 			s.makeMessage("aio:clone_repository", func(msg *Message) {
 				msg.RepositoryUrl = fmt.Sprintf("file://%s", archivePath)
 				msg.RepositoryScm = ScmTargz
@@ -2059,7 +2059,7 @@ func (s *BoxerSuite) TestRepoDownloadArchiveExceedsQuota(c *C) {
 
 		// repo.download() expects the reponame to be 3rd-last element of path
 		archivePath := filepath.Join(ScratchDir, "autoparts", "archive", "master.tar.gz")
-		err = MakeTargz(box, archivePath)
+		err = MakeTargz(archivePath)
 		defer os.RemoveAll(archivePath)
 		c.Assert(err, IsNil, Commentf("Error on fake tar.gz: %s\n", err))
 
@@ -2076,6 +2076,32 @@ func (s *BoxerSuite) TestRepoDownloadArchiveExceedsQuota(c *C) {
 	})
 }
 
+func (s *BoxerSuite) TestRepoDownloadEmpty(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+
+		message, _ := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:start", defaultMsg))
+		c.Assert(message.Success, Equals, true)
+
+		// repo.download() expects the reponame to be 3rd-last element of path
+		archivePath := filepath.Join(ScratchDir, "autoparts", "archive", "master.tar.gz")
+		os.MkdirAll(filepath.Dir(archivePath), 0755)
+		err := ioutil.WriteFile(archivePath, []byte(EmptyRepositoryResponse), 0644)
+		c.Assert(err, IsNil, Commentf("Error writing file %s", archivePath))
+
+		message, _ = s.receiveMessages("mclovins-container-1",
+			s.makeMessage("aio:clone_repository", func(msg *Message) {
+				msg.RepositoryUrl = fmt.Sprintf("file://%s", archivePath)
+				msg.RepositoryScm = ScmTargz
+			}))
+
+		c.Assert(message.Success, Equals, false)
+		c.Assert(message.Error, Matches, ".*repository is empty.*")
+	})
+}
+
 func (s *BoxerSuite) TestRepoDownloadArchiveTimeout(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
@@ -2084,12 +2110,6 @@ func (s *BoxerSuite) TestRepoDownloadArchiveTimeout(c *C) {
 			s.makeCreateMessage(defaultMsg),
 			s.makeMessage("aio:start", defaultMsg))
 		c.Assert(message.Success, Equals, true)
-
-		// repo.download() expects the reponame to be 3rd-last element of path
-		archivePath := filepath.Join(ScratchDir, "autoparts", "archive", "master.tar.gz")
-		err := MakeTargz(box, archivePath)
-		defer os.RemoveAll(archivePath)
-		c.Assert(err, IsNil, Commentf("Error on fake tar.gz: %s\n", err))
 
 		// Note: not a full integration test unlike the rest so that we can
 		// pass a custom RetrieveTimeout
@@ -2101,7 +2121,7 @@ func (s *BoxerSuite) TestRepoDownloadArchiveTimeout(c *C) {
 		}
 		ValidateRepo(repo)
 
-		err = repo.Retrieve(filepath.Join("tmp", "stable.tar.gz"))
+		err := repo.Retrieve(filepath.Join("tmp", "stable.tar.gz"))
 
 		c.Assert(err, NotNil)
 		c.Assert(err, Equals, RetrieveTimeoutError)
