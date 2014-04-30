@@ -261,7 +261,8 @@ func runAndCatchKnownErrors(cmd *exec.Cmd, logSlug string) error {
 		// CURLE_OPERATION_TIMEDOUT (28)
 		return RetrieveTimeoutError
 	default:
-		logger.Printf("ERROR: %s: %v, output: %s\n", logSlug, err, output)
+		logger.Printf("ERROR: %s: %v, output: %s\n", logSlug, err,
+			strings.Replace(output, "\n", "\\n", -1))
 		return DefaultRetrieveError
 	}
 }
