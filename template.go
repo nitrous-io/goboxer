@@ -170,17 +170,19 @@ This is the test template
 var RailsTemplate = fmt.Sprintf(`%s
 ## Ruby / Rails
 
-Ruby on this box is managed using [RVM](http://rvm.io) . You can install
-other Ruby versions by using the rvm command. Read more about the rvm
-command here:
+Ruby is installed via [Autoparts](http://help.nitrous.io/autoparts/) and can be
+managed with [chruby](https://github.com/postmodern/chruby). You can install
+additional Ruby versions using Autoparts.
 
-http://rvm.io/rubies/installing
+For example, to install Ruby 2.0:
 
-This Ruby box also comes installed with Node.JS which is managed using
-[nvm](https://github.com/creationix/nvm). You can read more about how
-you can upgrade/downgrade node.js here:
+  parts install ruby2.0
 
-https://github.com/creationix/nvm#usage
+To use a specific Ruby version, create a .ruby-version file:
+
+  echo 'ruby-2.1' > .ruby-version
+
+This Ruby box also comes with Node.JS installed via Autoparts.
 `, ReadmeTemplate)
 
 var DjangoTemplate = fmt.Sprintf(`%s
@@ -199,11 +201,7 @@ http://help.nitrous.io/django-app/
 var NodejsTemplate = fmt.Sprintf(`%s
 ## Node.JS
 
-Node.JS on this box is managed using
-[nvm](https://github.com/creationix/nvm). You can read more about how
-you can upgrade/downgrade node.js here:
-
-https://github.com/creationix/nvm#usage
+Node.JS on this box is installed via [Autoparts](http://help.nitrous.io/autoparts/.
 
 You can read more about running a static site here:
 
