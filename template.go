@@ -243,9 +243,7 @@ const PartsInitConfTemplate = `
 description "runs parts init as {{.ActionUser}} user"
 
 task
-start on (net-device-up
-          and local-filesystems
-          and runlevel [2345])
+start on filesystem
 
 env HOME="/home/{{.ActionUser}}"
 env PATH="/home/{{.ActionUser}}/.parts/autoparts/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"

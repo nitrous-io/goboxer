@@ -72,15 +72,23 @@ func (s *BoxSuite) TestMountName(c *C) {
 	c.Assert(b.MountName(), Equals, "test-123-123456")
 }
 
+func (s *BoxSuite) TestlxcName(c *C) {
+	b := &Box{Name: "test", Id: 123, Provisioner: "lxc", UniqueId: "123456"}
+	c.Assert(b.lxcName(), Equals, "test-123-123456")
+	b = &Box{Name: "test", Id: 123, Provisioner: "docker", UniqueId: "123456"}
+	c.Assert(b.lxcName(), Equals, "123456")
+}
+
 func (s *BoxSuite) TestLxcPath(c *C) {
-	b := &Box{Name: "test", Id: 123, UniqueId: "123456", Disk: "/lxc/disk2"}
+	b := &Box{Name: "test", Id: 123, UniqueId: "123456", Disk: "/lxc/disk2",
+		Provisioner: "lxc"}
 	b.boxer = &Boxer{}
 	c.Assert(b.LxcPath(), Equals, "/lxc/disk2/test-123-123456")
 }
 
 func (s *BoxSuite) TestRootFS(c *C) {
 	b := &Box{Name: "test", Id: 123, UniqueId: "123456", Disk: "/lxc/disk1",
-		MountMethod: "aufs"}
+		MountMethod: "aufs", Provisioner: "lxc"}
 	b.boxer = &Boxer{}
 	c.Assert(b.RootFS(), Equals, "/lxc/disk1/test-123-123456/rootfs")
 }
@@ -93,9 +101,10 @@ func (s *BoxSuite) TestContainerDeltaPath(c *C) {
 }
 
 func (s *BoxSuite) TestContainerUserHomePath(c *C) {
-	b := &Box{Name: "test", Id: 123, UniqueId: "123456", Disk: "/lxc/disk1", MountMethod: "aufs"}
+	b := &Box{Name: "test", Id: 123, UniqueId: "123456", Disk: "/lxc/disk1",
+		MountMethod: "aufs", Provisioner: "lxc"}
 	b.boxer = &Boxer{}
-	c.Assert(b.ContainerUserHomePath(), Equals, "/lxc/disk1/test-123_delta/rootfs/home/action")
+	c.Assert(b.ContainerUserHomePath(), Equals, "/lxc/disk1/test-123-123456/rootfs/home/action")
 }
 
 func (s *BoxSuite) TestCpuSetString(c *C) {
@@ -114,8 +123,15 @@ func (s *BoxSuite) TestCpuQuotaMicroseconds(c *C) {
 	c.Assert(b.CpuQuotaMicroseconds(), Equals, 0)
 }
 
+func (s *BoxSuite) TestContainerPath(c *C) {
+	b := &Box{Provisioner: "docker", Disk: "/lxc/disk1"}
+	c.Assert(b.ContainerPath(), Equals, "")
+}
+
 func (s *BoxSuite) TestStringer(c *C) {
-	b := &Box{Id: 1, Name: "fogell", UniqueId: "1234", State: "stopped", Ip: "192.168.1.100", Port: 10000, Disk: "/lxc/disk1", MountMethod: "aufs", BoxerId: "testboxer", Premium: false}
+	b := &Box{Id: 1, Name: "fogell", UniqueId: "1234", State: "stopped",
+		Ip: "192.168.1.100", Port: 10000, Disk: "/lxc/disk1",
+		MountMethod: "aufs", BoxerId: "testboxer", Premium: false}
 	c.Assert(b.String(), Contains, "Id:1")
 	c.Assert(b.String(), Contains, "Name:fogell")
 	c.Assert(b.String(), Contains, "UniqueId:1234")

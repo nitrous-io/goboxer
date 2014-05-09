@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/action-io/goboxer/lxc"
 	"github.com/action-io/goboxer/utils"
 )
 
@@ -193,4 +194,16 @@ func MakeTargz(archivePath string) error {
 		exec.Command("touch", "myrepo-master/README.md"),
 		exec.Command("tar", "zcf", archivePath, "myrepo-master"))
 	return err
+}
+
+// verify the container config with expected values
+func verifyLxcConfig(c *C, containerPath, container string, configs map[string]string) {
+	for key, value := range configs {
+		current, err := lxc.CgroupGet(containerPath, container, key)
+		if err != nil {
+			c.Fatalf("failed to verify lxc config %v, err: %v", key, err)
+		} else {
+			c.Assert(value, Equals, strings.TrimSpace(current))
+		}
+	}
 }

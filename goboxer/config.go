@@ -27,8 +27,10 @@ type Config struct {
 	CartmanPort     string            `json:"cartmanPort"`
 	PremiumCPUQuota float64           `json:"premiumCPUQuota"`
 	DefaultCPUQuota float64           `json:"defaultCPUQuota"`
-	S3Region        string            `json:"s3Region"`
-	S3Bucket        string            `json:"s3Bucket"`
+	Provisioner     string            `json:"provisioner"`
+
+	S3Region string `json:"s3Region"`
+	S3Bucket string `json:"s3Bucket"`
 
 	// TODO These should be in configured via env variables.
 	S3AccessKey string `json:"s3AccessKey"`

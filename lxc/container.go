@@ -79,10 +79,16 @@ func (c *Container) Poweroff() error {
 }
 
 func (c *Container) Status() (string, error) {
-	cmd := exec.Command("lxc-info", "--lxcpath", c.Path, "-s", "-n", c.Name)
-	output, err := cmd.Output()
+	args := []string{}
+	if len(c.Path) > 0 {
+		args = append(args, "--lxcpath", c.Path)
+	}
+	args = append(args, "-s", "-n", c.Name)
+	cmd := exec.Command("lxc-info", args...)
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", fmt.Errorf("lxc: failed to get %s status: %v", c.Name, err)
+		return "", fmt.Errorf("lxc: failed to get %s status: %v, output: %v",
+			c.Name, err, string(output))
 	}
 	fields := strings.Fields(string(output))
 	if len(fields) <= 1 {
