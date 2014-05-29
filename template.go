@@ -201,7 +201,7 @@ http://help.nitrous.io/django-app/
 var NodejsTemplate = fmt.Sprintf(`%s
 ## Node.JS
 
-Node.JS on this box is installed via [Autoparts](http://help.nitrous.io/autoparts/.
+Node.JS on this box is installed via [Autoparts](http://help.nitrous.io/autoparts/).
 
 You can read more about running a static site here:
 
