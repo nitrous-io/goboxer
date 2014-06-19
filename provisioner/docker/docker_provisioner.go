@@ -198,10 +198,11 @@ func (p *Provisioner) ChangeSpec(name, id string,
 // going to take the diff path
 func (p *Provisioner) Snapshot(name, id string, snapshotId int) (string, string, error) {
 	tarName := fmt.Sprintf("%s-snapshot-%d.tar.gz", name, snapshotId)
+	tarFilePath := path.Join(p.root, tarName)
 	diffPath := path.Join(DOCKER_PATH, "aufs", "diff", id)
 	homePath := path.Join(diffPath, "home", "action")
-	tarPath, err := archive.Tar(tarName, homePath)
-	return tarName, tarPath, err
+	err := archive.Tar(tarFilePath, homePath)
+	return tarName, tarFilePath, err
 }
 
 func (p *Provisioner) GetResource(name, id string) (*pr.Resource, error) {
