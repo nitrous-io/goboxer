@@ -2013,6 +2013,11 @@ func (s *BoxerSuite) TestSnapshot(c *C) {
 		stratValue testProvisionStrategy) {
 		message, box := s.receiveMessages("mclovins-container-1",
 			s.makeCreateMessage(defaultMsg),
+			// simulate start and stop of a box for real-world usage --
+			// snapshots are unlikely to be created from a brand new box, and
+			// presently frontend requires stopped box to snapshot
+			s.makeMessage("aio:start", defaultMsg),
+			s.makeMessage("aio:stop", defaultMsg),
 			s.makeMessage("aio:snapshot", func(msg *Message) {
 				msg.SnapshotId = 123
 			}))
