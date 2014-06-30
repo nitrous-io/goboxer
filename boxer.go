@@ -353,6 +353,7 @@ func DestroyBoxHandler(m Message, boxer *Boxer) Message {
 	if err != nil {
 		return boxer.NewInvalidParamMessage()
 	}
+	defer boxer.ResourcePool.DeleteBox(box)
 	msg := Message{
 		Type:       "aio:destroyed",
 		Id:         boxer.Id,
@@ -362,11 +363,6 @@ func DestroyBoxHandler(m Message, boxer *Boxer) Message {
 	}
 	if err := box.Destroy(); err != nil {
 		logger.Printf("ERROR: Fail to destroy box %v, err: %v\n", box, err)
-		msg.Success = false
-		return msg
-	}
-	if err := boxer.ResourcePool.DeleteBox(box); err != nil {
-		logger.Printf("ERROR: Fail to release box %v, err: %v\n", box, err)
 		msg.Success = false
 		return msg
 	}
