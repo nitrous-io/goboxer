@@ -40,7 +40,12 @@ func (c *Container) Stop() error {
 		log.Printf("lxc: Stop() - container %v already stopped\n", c.Name)
 		return nil
 	}
-	run("lxc-stop", "--lxcpath", c.Path, "-n", c.Name, "-o", logFile, "-l", "INFO")
+	args := []string{"-n", c.Name, "-o", logFile, "-l", "INFO"}
+	if c.Path != "/var/lib/lxc" {
+		args = append(args, "--lxcpath", c.Path)
+	}
+
+	run("lxc-stop", args...)
 	return c.waitForStatus(STOPPED, TIMEOUT)
 }
 
@@ -56,8 +61,12 @@ func (c *Container) Start() error {
 		log.Printf("lxc: Start() - container %v already started\n", c.Name)
 		return nil
 	}
-	if err := run("lxc-start", "--lxcpath", c.Path, "-d",
-		"-n", c.Name, "-o", logFile, "-l", "INFO"); err != nil {
+	args := []string{"-d", "-n", c.Name, "-o", logFile, "-l", "INFO"}
+	if c.Path != "/var/lib/lxc" {
+		args = append(args, "--lxcpath", c.Path)
+	}
+
+	if err := run("lxc-start", args...); err != nil {
 		return err
 	}
 	// wait time is much shorter so some lxc process can perform works
@@ -80,7 +89,7 @@ func (c *Container) Poweroff() error {
 
 func (c *Container) Status() (string, error) {
 	args := []string{}
-	if len(c.Path) > 0 {
+	if c.Path != "/var/lib/lxc" {
 		args = append(args, "--lxcpath", c.Path)
 	}
 	args = append(args, "-s", "-n", c.Name)
@@ -98,7 +107,11 @@ func (c *Container) Status() (string, error) {
 }
 
 func (c *Container) pid() (int, error) {
-	cmd := exec.Command("lxc-info", "--lxcpath", c.Path, "-n", c.Name, "-p")
+	args := []string{"-n", c.Name, "-p"}
+	if c.Path != "/var/lib/lxc" {
+		args = append(args, "--lxcpath", c.Path)
+	}
+	cmd := exec.Command("lxc-info", args...)
 	output, err := cmd.Output()
 	if err != nil {
 		return -1, fmt.Errorf("lxc: failed to get %s pid: %v", c.Name, err)
@@ -113,7 +126,10 @@ func (c *Container) pid() (int, error) {
 // wait until the container has the expected status or `TIMEOUT` which we
 // return an error and let the caller decide what to do with it.
 func (c *Container) waitForStatus(expected string, timeout time.Duration) error {
-	cmd := exec.Command("lxc-wait", "--lxcpath", c.Path, "-n", c.Name,
-		"-s", expected)
+	args := []string{"-n", c.Name, "-s", expected}
+	if c.Path != "/var/lib/lxc" {
+		args = append(args, "--lxcpath", c.Path)
+	}
+	cmd := exec.Command("lxc-wait", args...)
 	return utils.Exec(cmd, timeout)
 }
