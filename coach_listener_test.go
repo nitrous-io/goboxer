@@ -1,7 +1,7 @@
 package goboxer
 
 import (
-	"github.com/action-io/goboxer/utils"
+	"github.com/nitrous-io/goboxer/utils"
 	. "github.com/motain/gocheck"
 )
 

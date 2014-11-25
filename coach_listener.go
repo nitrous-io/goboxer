@@ -3,7 +3,7 @@ package goboxer
 import (
 	"encoding/json"
 
-	"github.com/action-io/goboxer/utils"
+	"github.com/nitrous-io/goboxer/utils"
 	"github.com/garyburd/redigo/redis"
 )
 

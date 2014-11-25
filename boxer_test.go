@@ -20,11 +20,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/action-io/goboxer/cartman"
-	"github.com/action-io/goboxer/lxc"
-	"github.com/action-io/goboxer/mount"
-	"github.com/action-io/goboxer/quota"
-	"github.com/action-io/goboxer/s3"
+	"github.com/nitrous-io/goboxer/cartman"
+	"github.com/nitrous-io/goboxer/lxc"
+	"github.com/nitrous-io/goboxer/mount"
+	"github.com/nitrous-io/goboxer/quota"
+	"github.com/nitrous-io/goboxer/s3"
 	"github.com/garyburd/redigo/redis"
 	. "github.com/motain/gocheck"
 )

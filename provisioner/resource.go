@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/action-io/goboxer/quota"
+	"github.com/nitrous-io/goboxer/quota"
 )
 
 const DEFAULT_CPU_PERIOD = 1000000 // cpu.cfs_period_us: 1 million microseconds

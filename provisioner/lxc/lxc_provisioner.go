@@ -17,11 +17,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/action-io/goboxer/archive"
-	lxcCmd "github.com/action-io/goboxer/lxc"
-	"github.com/action-io/goboxer/mount"
-	pr "github.com/action-io/goboxer/provisioner"
-	"github.com/action-io/goboxer/utils"
+	"github.com/nitrous-io/goboxer/archive"
+	lxcCmd "github.com/nitrous-io/goboxer/lxc"
+	"github.com/nitrous-io/goboxer/mount"
+	pr "github.com/nitrous-io/goboxer/provisioner"
+	"github.com/nitrous-io/goboxer/utils"
 )
 
 const LXC_PATH = "/var/lib/lxc" // where lxc auto ecognizes the containers

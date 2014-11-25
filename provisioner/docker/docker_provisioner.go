@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/action-io/goboxer/archive"
-	"github.com/action-io/goboxer/lxc"
-	"github.com/action-io/goboxer/mount"
-	pr "github.com/action-io/goboxer/provisioner"
-	"github.com/nitrous-io/go-dockerclient"
+	"github.com/nitrous-io/goboxer/archive"
+	"github.com/nitrous-io/goboxer/lxc"
+	"github.com/nitrous-io/goboxer/mount"
+	pr "github.com/nitrous-io/goboxer/provisioner"
+	"github.com/fsouza/go-dockerclient"
 )
 
 const DOCKER_PATH = "/var/lib/docker"   // where docker stores its data

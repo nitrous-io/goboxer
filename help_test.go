@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/action-io/goboxer/lxc"
-	"github.com/action-io/goboxer/utils"
+	"github.com/nitrous-io/goboxer/lxc"
+	"github.com/nitrous-io/goboxer/utils"
 )
 
 const ScratchDir = "/tmp/goboxer-tests" // where file artifacts are placed

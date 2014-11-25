@@ -2,7 +2,7 @@ package quota
 
 import (
 	"fmt"
-	"github.com/action-io/goboxer/utils"
+	"github.com/nitrous-io/goboxer/utils"
 	"os/exec"
 	"strconv"
 	"strings"

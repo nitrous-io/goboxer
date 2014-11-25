@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/action-io/goboxer"
+	"github.com/nitrous-io/goboxer"
 	"github.com/garyburd/redigo/redis"
 	"strconv"
 	"sync"

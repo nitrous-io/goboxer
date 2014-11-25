@@ -3,8 +3,8 @@ package quota
 import (
 	"bufio"
 	"fmt"
-	"github.com/action-io/goboxer/mount"
-	"github.com/action-io/goboxer/utils"
+	"github.com/nitrous-io/goboxer/mount"
+	"github.com/nitrous-io/goboxer/utils"
 	"os/exec"
 	"strconv"
 	"strings"

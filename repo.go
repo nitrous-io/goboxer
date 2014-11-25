@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/action-io/goboxer/utils"
+	"github.com/nitrous-io/goboxer/utils"
 )
 
 // a Repo is a link to a repository to be cloned into a box

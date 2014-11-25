@@ -10,16 +10,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/action-io/goboxer/archive"
-	"github.com/action-io/goboxer/ip"
-	"github.com/action-io/goboxer/lxc"
-	"github.com/action-io/goboxer/quota"
-	"github.com/action-io/goboxer/s3"
-	"github.com/action-io/goboxer/utils"
+	"github.com/nitrous-io/goboxer/archive"
+	"github.com/nitrous-io/goboxer/ip"
+	"github.com/nitrous-io/goboxer/lxc"
+	"github.com/nitrous-io/goboxer/quota"
+	"github.com/nitrous-io/goboxer/s3"
+	"github.com/nitrous-io/goboxer/utils"
 
-	pr "github.com/action-io/goboxer/provisioner"
-	_ "github.com/action-io/goboxer/provisioner/docker"
-	_ "github.com/action-io/goboxer/provisioner/lxc"
+	pr "github.com/nitrous-io/goboxer/provisioner"
+	_ "github.com/nitrous-io/goboxer/provisioner/docker"
+	_ "github.com/nitrous-io/goboxer/provisioner/lxc"
 )
 
 const UID_START = 15000
