@@ -48,14 +48,14 @@ type testProvisionStrategy struct {
 // for each strategies, we are going to run all operations to make sure that
 // everything works
 var strategies = map[string]testProvisionStrategy{
-	"ext4": testProvisionStrategy{
+	"ext4": {
 		Provisioner:  "lxc",
 		MountMethod:  "aufs",
 		QuotaMethod:  "usrquota",
 		SelectedDisk: "/lxc/disk2",
 		SelectedVG:   "",
 	},
-	"docker": testProvisionStrategy{
+	"docker": {
 		Provisioner:  "docker",
 		MountMethod:  "aufs",
 		QuotaMethod:  "usrquota",
@@ -792,7 +792,7 @@ func (s *BoxerSuite) TestStartWithNewSpecs(c *C) {
 			spec := boxContentSpec{
 				Exists: []string{root + "/rootfs"},
 				Contains: map[string][]string{
-					root + "/config": []string{
+					root + "/config": {
 						"lxc.cgroup.memory.limit_in_bytes = 640M",
 						"lxc.cgroup.memory.memsw.limit_in_bytes = 1920M",
 						"lxc.cgroup.cpu.shares = 1536",
@@ -1125,7 +1125,7 @@ func (s *BoxerSuite) TestRestartWithNewSpec(c *C) {
 		switch box.Provisioner {
 		case "lxc":
 			DoesContain(c, map[string][]string{
-				box.LxcPath() + "/config": []string{
+				box.LxcPath() + "/config": {
 					"lxc.cgroup.memory.limit_in_bytes = 640M",
 					"lxc.cgroup.memory.memsw.limit_in_bytes = 1920M",
 					"lxc.cgroup.cpu.shares = 1536",

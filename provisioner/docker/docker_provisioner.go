@@ -90,8 +90,8 @@ func createContainer(id, name string, resource *pr.Resource) (string, error) {
 	hostConfig := &docker.HostConfig{}
 	if len(resource.Port) > 0 {
 		hostConfig.PortBindings = map[docker.Port][]docker.PortBinding{
-			"22/tcp": []docker.PortBinding{
-				docker.PortBinding{HostPort: resource.Port},
+			"22/tcp": {
+				{HostPort: resource.Port},
 			},
 		}
 	}
