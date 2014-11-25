@@ -3,9 +3,9 @@ package goboxer
 import (
 	"time"
 
-	"github.com/nitrous-io/goboxer/utils"
 	"github.com/garyburd/redigo/redis"
 	. "github.com/motain/gocheck"
+	"github.com/nitrous-io/goboxer/utils"
 )
 
 type ResourcePoolSuite struct {

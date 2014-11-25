@@ -3,11 +3,12 @@ package quota
 import (
 	"bufio"
 	"fmt"
-	"github.com/nitrous-io/goboxer/mount"
-	"github.com/nitrous-io/goboxer/utils"
 	"os/exec"
 	"strconv"
 	"strings"
+
+	"github.com/nitrous-io/goboxer/mount"
+	"github.com/nitrous-io/goboxer/utils"
 )
 
 const FS_TYPE = "ext4"

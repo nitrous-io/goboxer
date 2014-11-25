@@ -1,12 +1,13 @@
 package quota
 
 import (
-	. "github.com/motain/gocheck"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"strings"
 	"testing"
+
+	. "github.com/motain/gocheck"
 )
 
 // hook up gocheck into go test runner

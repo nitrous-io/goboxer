@@ -2,9 +2,10 @@ package goboxer
 
 import (
 	"fmt"
-	"github.com/garyburd/redigo/redis"
 	"strings"
 	"time"
+
+	"github.com/garyburd/redigo/redis"
 )
 
 const REDIS_TIMEOUT = 10 * time.Minute

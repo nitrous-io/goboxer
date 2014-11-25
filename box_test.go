@@ -2,8 +2,9 @@ package goboxer
 
 import (
 	"encoding/json"
-	"github.com/nitrous-io/goboxer/utils"
+
 	. "github.com/motain/gocheck"
+	"github.com/nitrous-io/goboxer/utils"
 )
 
 type BoxSuite struct{}

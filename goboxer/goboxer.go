@@ -3,12 +3,13 @@ package main
 import (
 	"flag"
 	"fmt"
+	"os"
+	"time"
+
+	"github.com/garyburd/redigo/redis"
 	"github.com/nitrous-io/goboxer"
 	"github.com/nitrous-io/goboxer/cartman"
 	"github.com/nitrous-io/goboxer/s3"
-	"github.com/garyburd/redigo/redis"
-	"os"
-	"time"
 )
 
 var version string

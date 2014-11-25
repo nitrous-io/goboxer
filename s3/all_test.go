@@ -1,8 +1,9 @@
 package s3
 
 import (
-	. "github.com/motain/gocheck"
 	"testing"
+
+	. "github.com/motain/gocheck"
 )
 
 // hook up gocheck into go test runner

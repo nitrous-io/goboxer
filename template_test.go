@@ -1,9 +1,10 @@
 package goboxer
 
 import (
-	. "github.com/motain/gocheck"
 	"io/ioutil"
 	"os"
+
+	. "github.com/motain/gocheck"
 )
 
 type TemplateSuite struct{}

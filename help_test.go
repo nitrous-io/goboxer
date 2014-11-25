@@ -2,7 +2,6 @@ package goboxer
 
 import (
 	"fmt"
-	. "github.com/motain/gocheck"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -11,6 +10,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	. "github.com/motain/gocheck"
 
 	"github.com/nitrous-io/goboxer/lxc"
 	"github.com/nitrous-io/goboxer/utils"

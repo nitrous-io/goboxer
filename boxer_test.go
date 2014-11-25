@@ -20,13 +20,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/garyburd/redigo/redis"
+	. "github.com/motain/gocheck"
 	"github.com/nitrous-io/goboxer/cartman"
 	"github.com/nitrous-io/goboxer/lxc"
 	"github.com/nitrous-io/goboxer/mount"
 	"github.com/nitrous-io/goboxer/quota"
 	"github.com/nitrous-io/goboxer/s3"
-	"github.com/garyburd/redigo/redis"
-	. "github.com/motain/gocheck"
 )
 
 type BoxerSuite struct {

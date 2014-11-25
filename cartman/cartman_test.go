@@ -2,10 +2,11 @@ package cartman
 
 import (
 	"fmt"
-	. "github.com/motain/gocheck"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+
+	. "github.com/motain/gocheck"
 )
 
 type CartmanSuite struct {

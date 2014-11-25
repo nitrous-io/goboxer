@@ -2,10 +2,11 @@
 package quota
 
 import (
-	. "github.com/motain/gocheck"
 	"math"
 	"os"
 	"os/exec"
+
+	. "github.com/motain/gocheck"
 )
 
 type UsrQuotaSuite struct{}
