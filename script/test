@@ -33,7 +33,7 @@ else
     if [[ `cat /proc/mounts | grep "/var/lib/docker\s\+"` ]]; then
       umount /var/lib/docker
     fi
-    mount -t ext4 -o defaults,usrquota,noatime /docker_disk.img /var/lib/docker
+    mount -t ext4 -o defaults,usrquota,noatime $HOME/docker_disk.img /var/lib/docker
     (quotaon -a) || true
 
     # setup iptables
