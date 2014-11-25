@@ -1,23 +1,75 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -e
 
-[ -n "$DEBUG" ] && set -o xtrace
-set -o errexit
-shopt -s nullglob
+# by default, we allow build to build without docker
+IN_DOCKER=${1}
+SUITE=${SUITE}
+SETUP_TEST_ENV=${SETUP_TEST_ENV:="false"}
 
-spec=${1}
-
-go get -t ./...
-go test -i ./...
-go get -u github.com/motain/gocheck
-
-if [ -z "${spec}" ]; then
-  go test -gocheck.v github.com/action-io/goboxer/... -timeout 3000s
-  go test -test.v github.com/action-io/goboxer/host
-  go test -test.v github.com/action-io/goboxer/quota
-  go test -test.v github.com/action-io/goboxer/cartman
-  go test -test.v github.com/action-io/goboxer/utils
-  go test -test.v github.com/action-io/goboxer/ip
-  go test -test.v github.com/action-io/goboxer/s3
+if [ "$IN_DOCKER" == "true" ]; then
+  echo "running test inside docker...."
+  # we want to mount GIT_DIR so that the docker container has read access to
+  # git data
+  docker run \
+    --privileged=true \
+    --rm \
+    -e SETUP_TEST_ENV=true \
+    -i \
+    nitrousio/goboxer-dev \
+    /bin/bash -c "./script/test $SUITE false"
 else
-  go test -gocheck.v -gocheck.f ${spec}
+  if [ "$SETUP_TEST_ENV" == "true" ]; then
+    echo "Setting up test env ..."
+    if [[ ! `losetup -a | grep /dev/loop2` ]]; then
+      losetup /dev/loop2 $HOME/ext4_disk.img
+    fi
+    # make sure that /lxc/disk2 is mounted
+    if [[ `cat /proc/mounts | grep "/lxc/disk2\s\+"` ]]; then
+      umount /lxc/disk2
+    fi
+    mount -t ext4 -o defaults,usrquota,noatime /dev/loop2 /lxc/disk2
+
+    # make sure that /var/lib/docker is mounted
+    if [[ `cat /proc/mounts | grep "/var/lib/docker\s\+"` ]]; then
+      umount /var/lib/docker
+    fi
+    mount -t ext4 -o defaults,usrquota,noatime /docker_disk.img /var/lib/docker
+    (quotaon -a) || true
+
+    # setup iptables
+    (/sbin/ifdown br-lxc-254) || true
+    /sbin/ifup br-lxc-254
+    (/sbin/iptables -t nat --list | /bin/grep 192-168-254-0) || /sbin/iptables -t nat -A POSTROUTING -s 192.168.254.0/24 ! -d 192.168.254.0/24 -j MASQUERADE
+
+    # prepare container to be able to start lxc
+    if [ ! -f /dind ]; then
+      ./script/wrapdocker
+    fi
+
+    # start redis-server
+    /etc/init.d/redis-server start
+
+    # start apparmor
+    /etc/init.d/apparmor start
+
+    # start docker
+    if which docker >/dev/null; then
+      docker -d -e lxc >& /var/log/docker.log &
+    fi
+  fi
+  echo "Starting test ..."
+
+  go test -i ./...
+
+  if [ -z "${SUITE}" ]; then
+    go test -gocheck.v github.com/action-io/goboxer/... -timeout 3000s
+    go test -test.v github.com/action-io/goboxer/host
+    go test -test.v github.com/action-io/goboxer/quota
+    go test -test.v github.com/action-io/goboxer/cartman
+    go test -test.v github.com/action-io/goboxer/utils
+    go test -test.v github.com/action-io/goboxer/ip
+    go test -test.v github.com/action-io/goboxer/s3
+  else
+    go test -gocheck.v -gocheck.f ${SUITE}
+  fi
 fi
