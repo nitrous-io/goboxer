@@ -1,52 +1,99 @@
-#!/bin/bash
-#
-# Arguments:
-# --no-tag: dont built a new tag but use the most recent tag
-# This build, package the goboxer binary and deploy to s3
+#!/usr/bin/env bash
+# To upload the releases, the build environment needs the following ENV
+# - UPLOAD_S3=true
+# - PRIVATE_BUCKET=bombay-apse.action.io(default)
+# - ACCESS_KEY
+# - SECRET_KEY
+set -e
+die() {
+  echo $* && exit 1
+}
+RELEASE=goboxer
+# by default, we only allow release via docker
+IN_DOCKER=${1="true"}
+BUILD_DIR=/root/app
 
-[ -n "$DEBUG" ] && set -o xtrace
-set -o errexit
-shopt -s nullglob
+# check if we should upload the artifacts to private debian repo or s3
+UPLOAD_S3=${UPLOAD_S3:="false"}
 
-# load helper
-current_dir=$(dirname "$BASH_SOURCE[0]")
-source $current_dir/helper
-
-# Change into that directory
-DIR=$(current_dir)
-./script/build
-
-ARG=$1
-GIT_COMMIT=$(latest_commit)
-# if an argument is defined, we only accept --no-tag and do an early exit if
-# encounter anything else
-if [[ $ARG ]]; then
-  if [ "$ARG" == "--no-tag" ]; then
-    TAG=$(latest_tag)
-  else
-    error "INVALID ARGUMENT: $ARG"
-    exit 1
-  fi
-# otherwise, take the current date and add that as a tag to git
-else
-  ok "ADDING GIT TAG"
-  TAG=`generate_tag`
-  USER=`git_user`
-  MSG="${USER} BUILT VERSION ${TAG} OF GOBOXER"
-
-  ok "CHECKING NEW TAG TO GIT ${TAG}"
-  git tag -m "${MSG}" ${TAG}
-  ok "PUSHING NEW TAG TO GIT ${TAG}"
-  git push origin ${TAG}
+if [[ "$UPLOAD_S3" == "true" ]]; then
+  PRIVATE_BUCKET=${PRIVATE_BUCKET:?"PRIVATE_BUCKET is required"}
+  ACCESS_KEY=${ACCESS_KEY:?"ACCESS_KEY is required"}
+  SECRET_KEY=${SECRET_KEY:?"SECRET_KEY is required"}
 fi
 
-BINRELEASE="goboxer_${GIT_COMMIT}.tgz"
+hash_files() {
+  f="$1"
+  dest="$2"
+  dir="$(dirname "$f")"
+  base="$(basename "$f")"
+  for hashAlgo in md5 sha256; do
+    if command -v "${hashAlgo}sum" &> /dev/null; then
+      (
+      cd $dir
+      "${hashAlgo}sum" "$base" > "$dest.$hashAlgo"
+      )
+    fi
+  done
+}
 
-echo -e "${OK_COLOR}--> PACKAGE GOBOXER!............${NO_COLOR}"
-cd bin
-tar -f ${BINRELEASE} -zv -c goboxer
-tar -f goboxer_latest.tgz -zv -c goboxer
+# upload a file to private s3
+upload_private_s3() {
+  if [[ "$UPLOAD_S3" == "true" ]]; then
+    s3cmd --access_key=$ACCESS_KEY --secret_key=$SECRET_KEY \
+      put $1 s3://$PRIVATE_BUCKET/$2
+  fi
+}
 
-echo -e "${OK_COLOR}--> PUSH TO S3!............${NO_COLOR}"
-s3cmd put ${BINRELEASE} s3://bombay-apse.action.io/${BINRELEASE}
-s3cmd put goboxer_latest.tgz s3://bombay-apse.action.io/goboxer_latest.tgz
+# bundle only one binary and maybe the rest of the resources
+bundle_binary() {
+  BINARY=$1
+  shift
+  VERSION=$(cat $BUILD_DIR/${BINARY}-VERSION)
+  pkg=${BINARY}-${VERSION}.tar.gz
+  latestpkg=${BINARY}-latest.tar.gz
+
+  (
+  cd $BUILD_DIR
+  tar zvcf $pkg $BINARY $@
+
+  hash_files $pkg $BINARY
+
+  upload_private_s3 $pkg $pkg
+  upload_private_s3 ${BINARY}.md5 ${BINARY}-${VERSION}.md5
+  upload_private_s3 ${BINARY}.sha256 ${BINARY}-${VERSION}.sha256
+
+  upload_private_s3 $pkg $latestpkg
+  upload_private_s3 ${BINARY}.md5 ${BINARY}-latest.md5
+  upload_private_s3 ${BINARY}.sha256 ${BINARY}-latest.sha256
+  )
+}
+
+if [ "$IN_DOCKER" == "true" ]; then
+  if [[ "$UPLOAD_S3" == "true" ]]; then
+    docker run \
+      -e ACCESS_KEY=$ACCESS_KEY \
+      -e SECRET_KEY=$SECRET_KEY \
+      -e UPLOAD_S3=true \
+      -e PRIVATE_BUCKET=$PRIVATE_BUCKET \
+      -v $(pwd)/build:/root/app \
+      -v $(pwd)/script/release:/root/release \
+      -w /root/app \
+      --rm \
+      nitrousio/packager /bin/bash -c "/root/release $RELEASE false"
+  else
+    docker run \
+      -v $(pwd)/build:/root/app \
+      -v $(pwd)/script/release:/root/release \
+      -w /root/app \
+      --rm \
+      nitrousio/packager /bin/bash -c "/root/release $RELEASE false"
+  fi
+
+  user=$(whoami)
+  if [[ "$user" != "jenkins" ]]; then
+    sudo chown -R $user:$user $(pwd)/build
+  fi
+else
+  (bundle_binary goboxer)
+fi
