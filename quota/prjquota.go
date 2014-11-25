@@ -2,10 +2,11 @@ package quota
 
 import (
 	"fmt"
-	"github.com/action-io/goboxer/utils"
 	"os/exec"
 	"strconv"
 	"strings"
+
+	"github.com/nitrous-io/goboxer/utils"
 )
 
 type PrjQuota struct{}

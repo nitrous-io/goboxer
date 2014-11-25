@@ -2,9 +2,10 @@
 package quota
 
 import (
-	. "github.com/motain/gocheck"
 	"math"
 	"os"
+
+	. "github.com/motain/gocheck"
 )
 
 type LvmQuotaSuite struct{}

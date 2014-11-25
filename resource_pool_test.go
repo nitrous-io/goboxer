@@ -3,9 +3,9 @@ package goboxer
 import (
 	"time"
 
-	"github.com/action-io/goboxer/utils"
 	"github.com/garyburd/redigo/redis"
 	. "github.com/motain/gocheck"
+	"github.com/nitrous-io/goboxer/utils"
 )
 
 type ResourcePoolSuite struct {
@@ -110,12 +110,12 @@ func (s *ResourcePoolSuite) TestDeleteBox(c *C) {
 	tests := []deleteResourceTestCase{
 		// when the box doesnt have resource ip,
 		// if it is lxc/empty provisioner, then we release the ip
-		deleteResourceTestCase{resourceIp: "", provisioner: "", release: true, success: true},
-		deleteResourceTestCase{resourceIp: "", provisioner: "lxc", release: true, success: true},
+		{resourceIp: "", provisioner: "", release: true, success: true},
+		{resourceIp: "", provisioner: "lxc", release: true, success: true},
 		// if it is docker provisioner, then dont release it
-		deleteResourceTestCase{resourceIp: "", provisioner: "docker", release: false, success: true},
+		{resourceIp: "", provisioner: "docker", release: false, success: true},
 		// when the box has resource ip, we release it
-		deleteResourceTestCase{resourceIp: "192.168.254.2", provisioner: "docker", release: true, success: true},
+		{resourceIp: "192.168.254.2", provisioner: "docker", release: true, success: true},
 	}
 
 	for _, t := range tests {

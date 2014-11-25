@@ -1,12 +1,13 @@
 package ip
 
 import (
-	. "github.com/motain/gocheck"
 	"os/exec"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
+
+	. "github.com/motain/gocheck"
 )
 
 // hook up gocheck into go test runner

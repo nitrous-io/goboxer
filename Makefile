@@ -8,25 +8,24 @@ OK_COLOR=\033[32;01m
 ERROR_COLOR=\033[31;01m
 WARN_COLOR=\033[33;01m
 
-test:
-	@sudo GOPATH=${GOPATH} ./script/test
+image:
+	@docker build -t nitrousio/goboxer-dev .
+.PHONY: image
 
-test_log:
-	@sudo ./script/test 2> test.log
+test: image
+	@./script/test true
+.PHONY: test
 
-build:
-	@mkdir -p bin/
-	@./script/build
+build: image
+	@./script/build true
+.PHONY: build
 
-bin: test build
+release: test build
+	@./script/release true
+.PHONY: release
 
-release: test
-	@./script/release
+shell: image
+	@./script/inspect
+.PHONY: shell
 
-ci-test:
-	@sudo ./script/ci-test
-
-shell:
-	@sudo ./script/ci-inspect
-
-.PHONY: test bin ci-image
+.PHONY: test bin

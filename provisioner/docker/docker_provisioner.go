@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/action-io/goboxer/archive"
-	"github.com/action-io/goboxer/lxc"
-	"github.com/action-io/goboxer/mount"
-	pr "github.com/action-io/goboxer/provisioner"
-	"github.com/nitrous-io/go-dockerclient"
+	"github.com/fsouza/go-dockerclient"
+	"github.com/nitrous-io/goboxer/archive"
+	"github.com/nitrous-io/goboxer/lxc"
+	"github.com/nitrous-io/goboxer/mount"
+	pr "github.com/nitrous-io/goboxer/provisioner"
 )
 
 const DOCKER_PATH = "/var/lib/docker"   // where docker stores its data
@@ -90,8 +90,8 @@ func createContainer(id, name string, resource *pr.Resource) (string, error) {
 	hostConfig := &docker.HostConfig{}
 	if len(resource.Port) > 0 {
 		hostConfig.PortBindings = map[docker.Port][]docker.PortBinding{
-			"22/tcp": []docker.PortBinding{
-				docker.PortBinding{HostPort: resource.Port},
+			"22/tcp": {
+				{HostPort: resource.Port},
 			},
 		}
 	}

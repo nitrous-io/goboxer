@@ -5,11 +5,12 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/action-io/goboxer"
-	"github.com/garyburd/redigo/redis"
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/garyburd/redigo/redis"
+	"github.com/nitrous-io/goboxer"
 )
 
 const (

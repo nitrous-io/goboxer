@@ -11,9 +11,9 @@ import (
 	"runtime/debug"
 	"time"
 
-	"github.com/action-io/goboxer/cartman"
-	"github.com/action-io/goboxer/host"
-	"github.com/action-io/goboxer/s3"
+	"github.com/nitrous-io/goboxer/cartman"
+	"github.com/nitrous-io/goboxer/host"
+	"github.com/nitrous-io/goboxer/s3"
 )
 
 var handlers map[string]MessageHandler

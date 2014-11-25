@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/action-io/goboxer/utils"
+	"github.com/nitrous-io/goboxer/utils"
 )
 
 type locker struct {

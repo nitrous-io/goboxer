@@ -1,28 +1,71 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# we get primary version from `VERSION` file
+set -e
+
+# by default, we allow build to build without docker
+export IN_DOCKER=${1}
+
+BUILD_DIR=$(pwd)/build
+GIT_DIR=$(pwd)/.git
+mkdir -p "$BUILD_DIR"
+
+die() {
+  echo $* && exit 1
+}
+
+get_version() {
+  app=$1
+  version=$(cat $app/VERSION) # get version from version file
+  sha=$(git rev-list --max-count=1 --abbrev-commit HEAD -- $app)
+
+  echo "${version}-${sha}" # 1.0.1-asdf
+}
+
+# build accepts an app name and $LDFLAGS env which can be used to define
+# the app version.
 #
-# Build and install goboxer binary as $GOPATH/bin/goboxer and ./bin/goboxer
+# This also writes version info to $BUILD/$app-VERSION
+build() {
+  app=$1
+  binary="$(basename "$app")"
+  rm -f "$BUILD_DIR/$app"
+  # install only the binary
+  # this prevents go from looking at test-only directory
+  GOBIN=$BUILD_DIR godep go install \
+    -x -ldflags "$LDFLAGS" \
+    github.com/nitrous-io/goboxer/$app
 
-[ -n "$DEBUG" ] && set -o xtrace
-set -o errexit
-shopt -s nullglob
+  # this file is useful for release to know the current version
+  echo $VERSION > $BUILD_DIR/${binary}-VERSION
+}
 
-# load helper
-current_dir=$(dirname "$BASH_SOURCE[0]")
-source $current_dir/helper
+build_goboxer() {
+  (
+  VERSION=$(get_version .)
+  LDFLAGS="-X main.version ${VERSION}"
+  build "goboxer"
+  )
+}
 
-ok "Installing dependencies"
-go get -d -v ./...
+if [ "$IN_DOCKER" == "true" ]; then
+  echo "goboxer: building inside docker ....."
+  tmp=$(mktemp -d /tmp/dedicated-build-XXXXX)
+  # we want to mount GIT_DIR so that the docker container has read access to
+  # git data
+  docker run \
+    --privileged=true \
+    --volume $BUILD_DIR:/opt/src/github.com/nitrous-io/goboxer/build \
+    --volume $GIT_DIR:/opt/src/github.com/nitrous-io/goboxer/.git:ro \
+    --rm \
+    -e BUILD_IN_DOCKER=true \
+    -i \
+    nitrousio/goboxer-dev \
+    /bin/bash -c "./script/build false"
 
-if [[ $(uname) == "Linux" ]]; then
-  # get the parent directory of where this script is
-  DIR=$(current_dir)
-  GIT_COMMIT=$(latest_commit)
-  # Change into that directory
-  cd $DIR
-  ok "GO BOXER $GIT_COMMIT"
-  go install -ldflags "-X main.version ${GIT_COMMIT}" -v $PACKAGE/...
-  cp_binary "goboxer"
+  user=$(whoami)
+  if [[ "$user" != "jenkins" ]]; then
+    sudo chown -R $user:$user $BUILD_DIR
+  fi
 else
-  error "SHOULD BUILD IN LINUX"
-  exit 1
+  build_goboxer
 fi

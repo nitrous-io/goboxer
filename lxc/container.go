@@ -9,7 +9,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/action-io/goboxer/utils"
+	"github.com/nitrous-io/goboxer/utils"
 )
 
 const TIMEOUT = 30 * time.Second

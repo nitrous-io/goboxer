@@ -1,7 +1,7 @@
 package goboxer
 
 import (
-	"github.com/action-io/goboxer/quota"
+	"github.com/nitrous-io/goboxer/quota"
 )
 
 type Snapshot struct {

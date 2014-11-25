@@ -18,6 +18,6 @@ func ParseUrl(s3Url string) (u Url, err error) {
 
 	u.Region = frag.Host
 	u.File = filepath.Base(frag.Path)
-	u.Bucket = bucket[1:len(bucket)] // remove / from bucketname
+	u.Bucket = bucket[1:] // remove / from bucketname
 	return
 }

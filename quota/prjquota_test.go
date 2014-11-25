@@ -1,11 +1,12 @@
 package quota
 
 import (
-	. "github.com/motain/gocheck"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"strings"
+
+	. "github.com/motain/gocheck"
 )
 
 type PrjQuotaSuite struct{}
