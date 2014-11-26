@@ -1085,6 +1085,34 @@ func (s *BoxerSuite) TestDestroyWithDeeplyNestedPath(c *C) {
 	})
 }
 
+func (s *BoxerSuite) TestDestroyWithSnapshot(c *C) {
+	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
+		stratValue testProvisionStrategy) {
+		message, box := s.receiveMessages("mclovins-container-1",
+			s.makeCreateMessage(defaultMsg),
+			s.makeMessage("aio:start", defaultMsg),
+			s.makeMessage("aio:stop", defaultMsg))
+
+		containerPlace := []string{box.RootFS()}
+		quotaInfo, err := box.quota().ViewLimit(box.quotaArg())
+		c.Check(err, IsNil)
+
+		message, box = s.receiveMessages("mclovins-container-1",
+			s.makeMessage("aio:destroy", func(msg *Message) {
+				msg.SnapshotId = 456
+			}))
+
+		c.Assert(message.Success, Equals, true)
+		c.Assert(message.Type, Equals, "aio:destroyed")
+		c.Assert(message.SnapshotId, Equals, 456)
+		c.Assert(message.SnapshotUrl, Equals, "s3://staging-bucket/mclovins-container-1-snapshot-456.tar.gz")
+		c.Assert(message.SnapshotSize, Equals, int(math.Ceil(float64(quotaInfo.Used)/1024.0)))
+
+		c.Assert(box, IsNil)
+		DoesNotExist(c, containerPlace)
+	})
+}
+
 func (s *BoxerSuite) TestRestart(c *C) {
 	s.testEachStrategy(c, func(s *BoxerSuite, c *C, stratName string,
 		stratValue testProvisionStrategy) {
