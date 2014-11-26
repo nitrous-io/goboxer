@@ -353,14 +353,25 @@ func DestroyBoxHandler(m Message, boxer *Boxer) Message {
 	if err != nil {
 		return boxer.NewInvalidParamMessage()
 	}
-	defer boxer.ResourcePool.DeleteBox(box)
 	msg := Message{
 		Type:       "aio:destroyed",
 		Id:         boxer.Id,
 		BoxId:      box.Id,
+		SnapshotId: m.SnapshotId,
 		ReturnVars: m.ReturnVars,
 		Success:    true,
 	}
+	if m.SnapshotId > 0 {
+		snapshot, err := box.Snapshot(m.SnapshotId)
+		if err != nil {
+			logger.Printf("ERROR: Failed to snapshot box %v, err: %v\n", box, err)
+			msg.Success = false
+			return msg
+		}
+		msg.SnapshotUrl = snapshot.Url
+		msg.SnapshotSize = snapshot.SizeInMB()
+	}
+	defer boxer.ResourcePool.DeleteBox(box)
 	if err := box.Destroy(); err != nil {
 		logger.Printf("ERROR: Fail to destroy box %v, err: %v\n", box, err)
 		msg.Success = false
