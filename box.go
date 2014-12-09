@@ -289,6 +289,10 @@ func (b *Box) Destroy() error {
 	if err := b.UnsetQuota(); err != nil {
 		return &BoxOpError{Op: "unset quota", Err: err}
 	}
+	if err := b.boxer.Cartman.InvalidateCache(b.ContainerName()); err != nil {
+		// log and continue; don't want invalidation failure to stop a destroy
+		logger.Printf("ERR: error invalidating cache for %s: %v", b.ContainerName(), err)
+	}
 	return b.provisioner().Destroy(b.ContainerName(), b.UniqueId)
 }
 
